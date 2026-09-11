@@ -1,0 +1,245 @@
+[gd_scene format=3 uid="uid://frcr4kkc1rrl"]
+
+[ext_resource type="Script" uid="uid://c7wki86db4u05" path="res://src/UI/Settings/SettingsCueDefaults.cs" id="1_cue_def"]
+
+[node name="SettingsCueDefaults" type="ScrollContainer" unique_id=171759099]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_cue_def")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1037527204]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=520888399]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Cue Defaults"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=1212596675]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer" unique_id=356537441]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Defaults applied to every newly created cue."
+autowrap_mode = 3
+
+[node name="SectionHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=649258936]
+layout_mode = 2
+
+[node name="SectionLabel" type="Label" parent="VBoxContainer/SectionHeader" unique_id=1260409009]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Shell"
+
+[node name="ColourRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1994726057]
+layout_mode = 2
+
+[node name="ColourLabel" type="Label" parent="VBoxContainer/ColourRow" unique_id=254372508]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Colour"
+vertical_alignment = 1
+
+[node name="ColourPickerButton" type="ColorPickerButton" parent="VBoxContainer/ColourRow" unique_id=108706495]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Default shell colour for new cues."
+text = "Colour"
+edit_alpha = false
+
+[node name="ColourResetButton" type="Button" parent="VBoxContainer/ColourRow" unique_id=284406574]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PreWaitRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1553824685]
+layout_mode = 2
+
+[node name="PreWaitLabel" type="Label" parent="VBoxContainer/PreWaitRow" unique_id=1811605022]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Pre-wait"
+vertical_alignment = 1
+
+[node name="PreWaitInput" type="LineEdit" parent="VBoxContainer/PreWaitRow" unique_id=630062511]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default delay between trigger and component start for new cues."
+text = "0:00.000"
+alignment = 1
+
+[node name="PreWaitResetButton" type="Button" parent="VBoxContainer/PreWaitRow" unique_id=1547921075]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PostWaitRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1715182403]
+layout_mode = 2
+
+[node name="PostWaitLabel" type="Label" parent="VBoxContainer/PostWaitRow" unique_id=293384022]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Post-wait"
+vertical_alignment = 1
+
+[node name="PostWaitInput" type="LineEdit" parent="VBoxContainer/PostWaitRow" unique_id=1083856519]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default post-wait for Auto-continue / Auto-follow on new cues."
+text = "0:00.000"
+alignment = 1
+
+[node name="PostWaitResetButton" type="Button" parent="VBoxContainer/PostWaitRow" unique_id=1508694685]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="FollowRow" type="HBoxContainer" parent="VBoxContainer" unique_id=771815313]
+layout_mode = 2
+
+[node name="FollowLabel" type="Label" parent="VBoxContainer/FollowRow" unique_id=940378439]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Continue"
+vertical_alignment = 1
+
+[node name="FollowOption" type="OptionButton" parent="VBoxContainer/FollowRow" unique_id=1818715136]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+tooltip_text = "Default sequence mode for new cues.
+None: Do not auto-start the next cue.
+Auto-continue: After pre-wait ends, arm the next cue.
+Auto-follow: When this cue completes, arm the next cue."
+focus_mode = 0
+
+[node name="FollowResetButton" type="Button" parent="VBoxContainer/FollowRow" unique_id=1546997654]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer" unique_id=138242599]
+layout_mode = 2
+
+[node name="ArmedHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1073259676]
+layout_mode = 2
+
+[node name="ArmedSectionLabel" type="Label" parent="VBoxContainer/ArmedHeader" unique_id=312787741]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Arming"
+
+[node name="ArmedRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1997190056]
+layout_mode = 2
+
+[node name="ArmedLabel" type="Label" parent="VBoxContainer/ArmedRow" unique_id=943573120]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Armed"
+vertical_alignment = 1
+
+[node name="ArmedCheckBox" type="CheckBox" parent="VBoxContainer/ArmedRow" unique_id=1312059451]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When off (disarmed), GO does not play the cue and advances instead."
+focus_mode = 0
+button_pressed = true
+text = "Armed"
+
+[node name="ArmedResetButton" type="Button" parent="VBoxContainer/ArmedRow" unique_id=1670032765]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="SkipIfDisarmedRow" type="HBoxContainer" parent="VBoxContainer" unique_id=485891470]
+layout_mode = 2
+
+[node name="SkipIfDisarmedLabel" type="Label" parent="VBoxContainer/SkipIfDisarmedRow" unique_id=1762565510]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Skip if disarmed"
+vertical_alignment = 1
+
+[node name="SkipIfDisarmedCheckBox" type="CheckBox" parent="VBoxContainer/SkipIfDisarmedRow" unique_id=1950740191]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When armed is off and this is on, GO on a prior cue bypasses this cue."
+focus_mode = 0
+text = "Skip if disarmed"
+
+[node name="SkipIfDisarmedResetButton" type="Button" parent="VBoxContainer/SkipIfDisarmedRow" unique_id=460128599]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OnlyOneActiveRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="OnlyOneActiveLabel" type="Label" parent="VBoxContainer/OnlyOneActiveRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Active instances"
+vertical_alignment = 1
+
+[node name="OnlyOneActiveCheckBox" type="CheckBox" parent="VBoxContainer/OnlyOneActiveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Default for new cues. When on, GO hard-stops any existing instance of that cue before starting another. When off (default), multiple concurrent instances are allowed."
+focus_mode = 0
+text = "Only one active instance"
+
+[node name="OnlyOneActiveResetButton" type="Button" parent="VBoxContainer/OnlyOneActiveRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true

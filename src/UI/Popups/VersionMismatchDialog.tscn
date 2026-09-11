@@ -1,0 +1,105 @@
+[gd_scene format=3 uid="uid://b8k3vmismatch01"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_theme"]
+[ext_resource type="Script" path="res://src/UI/Popups/VersionMismatchDialog.cs" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="2_handles"]
+
+[node name="VersionMismatchDialog" type="Window"]
+disable_3d = true
+oversampling_override = 1.0
+title = "Showfile Version Differs"
+initial_position = 4
+size = Vector2i(460, 320)
+borderless = true
+theme = ExtResource("1_theme")
+script = ExtResource("1_script")
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+text = "Showfile Version Differs"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ContentScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ContentMargin" type="MarginContainer" parent="MarginContainer/VBoxContainer/ContentScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="ContentVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="SummaryLabel" type="Label" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+text = "This showfile was saved with a different version of Cue2."
+autowrap_mode = 3
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox"]
+layout_mode = 2
+
+[node name="BackupLabel" type="Label" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+text = "Before opening, make a backup copy of this showfile and its media folders."
+autowrap_mode = 3
+
+[node name="ActionBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 2
+
+[node name="CancelButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cancel"
+
+[node name="AttemptOpenButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Attempt Open"
+
+[node name="SubWindowHandles" parent="." instance=ExtResource("2_handles")]

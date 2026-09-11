@@ -1,0 +1,337 @@
+[gd_scene format=3 uid="uid://cyiqeed4tohet"]
+
+[ext_resource type="Script" uid="uid://bh3at0jbgmlt3" path="res://src/UI/Inspectors/TextInspector.cs" id="1_text"]
+[ext_resource type="PackedScene" uid="uid://c5ni11gl5rj53" path="res://src/UI/Preview/TextPreviewer.tscn" id="2_preview"]
+
+[node name="Text" type="Control" unique_id=458942356]
+clip_contents = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+tooltip_text = "Text overlay content and typography."
+script = ExtResource("1_text")
+
+[node name="InfoLabel" type="Label" parent="." unique_id=1875546844]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -110.0
+offset_top = -14.0
+offset_right = 110.0
+offset_bottom = 14.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 20
+text = "No shell selected"
+horizontal_alignment = 1
+
+[node name="ContentRoot" type="MarginContainer" parent="." unique_id=223068760]
+unique_name_in_owner = true
+visible = false
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="VBox" type="VBoxContainer" parent="ContentRoot" unique_id=1729560698]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="AddTextContainer" type="HBoxContainer" parent="ContentRoot/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="AddTextButton" type="Button" parent="ContentRoot/VBox/AddTextContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 28)
+layout_mode = 2
+focus_mode = 0
+text = "Add Text Component"
+
+[node name="InspectorContent" type="VBoxContainer" parent="ContentRoot/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="HeaderBar" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=569914049]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HeaderLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/HeaderBar" unique_id=1642585257]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Text Overlay"
+
+[node name="DeleteTextButton" type="Button" parent="ContentRoot/VBox/InspectorContent/HeaderBar" unique_id=1001171052]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 24)
+layout_mode = 2
+text = "Delete"
+
+[node name="ParamsRow" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=143396252]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TargetLayerLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/ParamsRow" unique_id=1802377024]
+layout_mode = 2
+text = "Layer"
+
+[node name="TargetLayerOptionButton" type="OptionButton" parent="ContentRoot/VBox/InspectorContent/ParamsRow" unique_id=950171835]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.4
+
+[node name="DurationLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/ParamsRow" unique_id=1445450271]
+layout_mode = 2
+text = "Dur"
+
+[node name="DurationLineEdit" type="LineEdit" parent="ContentRoot/VBox/InspectorContent/ParamsRow" unique_id=862513973]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.9
+tooltip_text = "Hold time in seconds. 0 keeps text until the cue is stopped."
+placeholder_text = "0 = hold"
+
+[node name="OpacityLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/ParamsRow" unique_id=661885188]
+layout_mode = 2
+text = "Op%"
+
+[node name="OpacitySpin" type="SpinBox" parent="ContentRoot/VBox/InspectorContent/ParamsRow" unique_id=660099228]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.7
+value = 100.0
+rounded = true
+
+[node name="FadeRow" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="FadeInLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
+layout_mode = 2
+tooltip_text = "Fade-in duration at play start (0 = immediate)."
+mouse_filter = 1
+text = "Fade in"
+
+[node name="FadeInInput" type="LineEdit" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Fade-in duration at play start (0 = immediate)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeOutLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
+layout_mode = 2
+tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
+mouse_filter = 1
+text = "Fade out"
+
+[node name="FadeOutInput" type="LineEdit" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
+text = "0:00.000"
+alignment = 1
+
+[node name="EditorSplit" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=2125154186]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="ContentColumn" type="VBoxContainer" parent="ContentRoot/VBox/InspectorContent/EditorSplit" unique_id=1266370713]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.1
+theme_override_constants/separation = 2
+
+[node name="ContentHeader" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent/EditorSplit/ContentColumn" unique_id=638671529]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ContentLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/EditorSplit/ContentColumn/ContentHeader" unique_id=306936372]
+layout_mode = 2
+text = "Content"
+
+[node name="UseBbcodeCheck" type="CheckBox" parent="ContentRoot/VBox/InspectorContent/EditorSplit/ContentColumn/ContentHeader" unique_id=376845745]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Interpret content as BBCode (bold, colour tags, etc.)."
+text = "BBCode"
+
+[node name="ContentTextEdit" type="TextEdit" parent="ContentRoot/VBox/InspectorContent/EditorSplit/ContentColumn" unique_id=1826322697]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+placeholder_text = "Enter overlay text…"
+wrap_mode = 1
+
+[node name="PreviewColumn" type="VBoxContainer" parent="ContentRoot/VBox/InspectorContent/EditorSplit" unique_id=1561314410]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 2
+
+[node name="PreviewLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/EditorSplit/PreviewColumn" unique_id=2091976969]
+custom_minimum_size = Vector2(0, 31)
+layout_mode = 2
+text = "Preview"
+vertical_alignment = 1
+
+[node name="PreviewContainer" type="Control" parent="ContentRoot/VBox/InspectorContent/EditorSplit/PreviewColumn" unique_id=1134347118]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="TextPreviewer" parent="ContentRoot/VBox/InspectorContent/EditorSplit/PreviewColumn/PreviewContainer" unique_id=176646499 instance=ExtResource("2_preview")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="FontRow" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=1007600582]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="FontLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/FontRow" unique_id=1209191454]
+layout_mode = 2
+text = "Font"
+
+[node name="FontOptionButton" type="OptionButton" parent="ContentRoot/VBox/InspectorContent/FontRow" unique_id=1129058867]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "System font family. Default uses the project theme font."
+clip_text = true
+fit_to_longest_item = false
+
+[node name="StyleRow1" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=736918727]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HAlignLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=481839828]
+layout_mode = 2
+text = "H"
+
+[node name="HAlignOption" type="OptionButton" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=405244948]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VAlignLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1977119800]
+layout_mode = 2
+text = "V"
+
+[node name="VAlignOption" type="OptionButton" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1958456280]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FontSizeLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1778194309]
+layout_mode = 2
+text = "Size"
+
+[node name="FontSizeSpin" type="SpinBox" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1816146220]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 512.0
+value = 48.0
+rounded = true
+
+[node name="FontColorLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=292485474]
+layout_mode = 2
+text = "Col"
+
+[node name="FontColorPicker" type="ColorPickerButton" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1364708621]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 24)
+layout_mode = 2
+color = Color(1, 1, 1, 1)
+
+[node name="StyleRow2" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=1027306531]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="MarginsLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1644845797]
+layout_mode = 2
+text = "Pad"
+
+[node name="MarginsSpin" type="SpinBox" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=416171762]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 512.0
+value = 16.0
+rounded = true
+
+[node name="OutlineSizeLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1569092688]
+layout_mode = 2
+text = "Out"
+
+[node name="OutlineSizeSpin" type="SpinBox" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=104432889]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 64.0
+rounded = true
+
+[node name="OutlineColorPicker" type="ColorPickerButton" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=589524710]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 24)
+layout_mode = 2
+tooltip_text = "Outline colour"
+
+[node name="AutowrapCheck" type="CheckBox" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1482782098]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Wrap"
+
+[node name="BackgroundCheck" type="CheckBox" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=110578911]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BG"
+
+[node name="BackgroundColorPicker" type="ColorPickerButton" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1689250632]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 24)
+layout_mode = 2
+tooltip_text = "Background colour"
+color = Color(0, 0, 0, 0.55)

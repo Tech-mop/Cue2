@@ -1,0 +1,432 @@
+[gd_scene format=3 uid="uid://c20v07n76ytqn"]
+
+[ext_resource type="Script" path="res://src/UI/Inspectors/ControlComponentCard.cs" id="1_ctrl"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ctrl"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.1, 0.1, 0.1, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4117647, 0.19607843, 0, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+corner_detail = 5
+
+[node name="ControlComponentCard" type="PanelContainer"]
+custom_minimum_size = Vector2(260, 0)
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_ctrl")
+script = ExtResource("1_ctrl")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="HeaderRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="OrderLabel" type="Label" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.48, 0.55, 1)
+theme_override_font_sizes/font_size = 11
+text = "#1"
+vertical_alignment = 1
+
+[node name="ActionLabel" type="Label" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "GO"
+
+[node name="MoveUpButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Run earlier (higher priority)"
+theme_override_constants/icon_max_width = 16
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+
+[node name="MoveDownButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Run later (lower priority)"
+theme_override_constants/icon_max_width = 16
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+
+[node name="PickTargetButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Hold and release over a cue in the list to set target"
+theme_override_constants/icon_max_width = 18
+focus_mode = 0
+mouse_default_cursor_shape = 3
+icon_alignment = 1
+expand_icon = true
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Remove this control"
+theme_override_constants/icon_max_width = 18
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+
+[node name="TargetGrid" type="GridContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 4
+columns = 2
+
+[node name="IdCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+layout_mode = 2
+text = "ID:"
+
+[node name="IdRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="IdLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/IdRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Cue id"
+caret_blink = true
+
+[node name="TargetResetButton" type="Button" parent="MarginContainer/VBoxContainer/TargetGrid/IdRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Clear target"
+theme_override_constants/icon_max_width = 16
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+
+[node name="NumberCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+layout_mode = 2
+text = "No:"
+
+[node name="NumberLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Cue number"
+caret_blink = true
+
+[node name="NameCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+layout_mode = 2
+text = "Name:"
+
+[node name="NameLabel" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.45, 0.48, 0.55, 1)
+text = "(none)"
+text_overrun_behavior = 3
+
+[node name="FadeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Fade time for this control action."
+text = "Fade:"
+
+[node name="FadeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="FadeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/FadeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Fade time for this control action."
+placeholder_text = "0"
+caret_blink = true
+
+[node name="FadeResetButton" type="Button" parent="MarginContainer/VBoxContainer/TargetGrid/FadeRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Reset fade to default"
+theme_override_constants/icon_max_width = 16
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+
+[node name="ModeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Mode:"
+
+[node name="FadeModeOption" type="OptionButton" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
+[node name="PropertyCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Which single property this fade controls."
+text = "Property:"
+
+[node name="FadePropertyOption" type="OptionButton" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
+[node name="NoFadableLabel" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.55, 0.5, 0.45, 1)
+theme_override_font_sizes/font_size = 11
+text = "No valid fadable properties"
+autowrap_mode = 2
+
+[node name="NoFadableSpacer" type="Control" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="AudioFadeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Overall audio volume (dB)."
+text = "Volume:"
+
+[node name="AudioFadeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="AudioFadeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/AudioFadeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Absolute: target dB (−60…0). Relative: delta dB."
+placeholder_text = "0dB"
+caret_blink = true
+
+[node name="OpacityFadeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Video opacity (0–100%)."
+text = "Opacity:"
+
+[node name="OpacityFadeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="OpacityFadeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/OpacityFadeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Absolute: target % (0–100). Relative: delta %."
+placeholder_text = "100%"
+caret_blink = true
+
+[node name="PanFadeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Stereo pan/balance."
+text = "Pan:"
+
+[node name="PanFadeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="PanFadeSlider" type="HSlider" parent="MarginContainer/VBoxContainer/TargetGrid/PanFadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+tooltip_text = "Stereo pan: L ← C → R"
+min_value = -100.0
+max_value = 100.0
+step = 1.0
+value = 0.0
+scrollable = false
+
+[node name="PanFadeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/PanFadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+tooltip_text = "Absolute: C / L50 / R100. Relative: ± pan delta."
+placeholder_text = "C"
+alignment = 1
+caret_blink = true
+
+[node name="SeekTimeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Seek time (absolute media time or relative offset)."
+text = "Time:"
+
+[node name="SeekTimeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Absolute: media time. Relative: ± offset from current position."
+placeholder_text = "0:00.000"
+caret_blink = true
+
+[node name="LayerCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Layer:"
+
+[node name="TargetLayerOption" type="OptionButton" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
+[node name="SizeEnableCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Size:"
+
+[node name="SizeEnableRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="SizeEnable" type="CheckBox" parent="MarginContainer/VBoxContainer/TargetGrid/SizeEnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Change layer size"
+focus_mode = 0
+button_pressed = true
+
+[node name="SizeXLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/SizeEnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "W"
+caret_blink = true
+
+[node name="SizeYLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/SizeEnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "H"
+caret_blink = true
+
+[node name="PosEnableCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Position:"
+
+[node name="PosEnableRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="PosEnable" type="CheckBox" parent="MarginContainer/VBoxContainer/TargetGrid/PosEnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Change canvas position"
+focus_mode = 0
+button_pressed = true
+
+[node name="PosXLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/PosEnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "X"
+caret_blink = true
+
+[node name="PosYLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/PosEnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Y"
+caret_blink = true
+
+[node name="MatrixContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MatrixHint" type="Label" parent="MarginContainer/VBoxContainer/MatrixContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.48, 0.55, 1)
+theme_override_font_sizes/font_size = 11
+text = "Select a cell to set the fade target level."
+autowrap_mode = 2
+
+[node name="MatrixScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer/MatrixContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 80)
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 1
+
+[node name="MatrixGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/MatrixContainer/MatrixScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 2
+columns = 2

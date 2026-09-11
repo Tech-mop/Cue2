@@ -1,0 +1,28 @@
+[gd_scene load_steps=2 format=3 uid="uid://cisr40jsg2jgp"]
+
+[ext_resource type="Script" uid="uid://bxtv3714tdei2" path="res://src/UI/Settings/PatchMatrix/DeviceOutputPatchMatrix.cs" id="1_sy24l"]
+
+[node name="PatchMatrixDeviceHeader" type="Panel"]
+custom_minimum_size = Vector2(32, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_sy24l")
+
+[node name="ToggleDeviceButton" type="CheckButton" parent="."]
+layout_mode = 0
+offset_top = 145.0
+offset_right = 44.0
+offset_bottom = 177.0
+rotation = -1.5708
+focus_mode = 0
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 1
+offset_top = 100.0
+offset_right = 80.0
+offset_bottom = 132.0
+rotation = -1.5708
+tooltip_text = "Deafult audio output - patching to this will send your audio to the void"
+mouse_filter = 1
+text = "The Void"
+vertical_alignment = 1

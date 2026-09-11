@@ -1,0 +1,539 @@
+[gd_scene format=3 uid="uid://b1bwv107ue24w"]
+
+[ext_resource type="Script" uid="uid://cstextdefb7p4q" path="res://src/UI/Settings/SettingsTextDefaults.cs" id="1_text_def"]
+
+[node name="SettingsTextDefaults" type="ScrollContainer" unique_id=1466971167]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_text_def")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=2095030132]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=1304265520]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Text Defaults"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=1787988697]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer" unique_id=1254761969]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Defaults applied when a new text component is created. Content starts empty."
+autowrap_mode = 3
+
+[node name="OutputHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1490667211]
+layout_mode = 2
+
+[node name="OutputSectionLabel" type="Label" parent="VBoxContainer/OutputHeader" unique_id=1193569316]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Output"
+
+[node name="TargetLayerRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1296681882]
+layout_mode = 2
+
+[node name="TargetLayerLabel" type="Label" parent="VBoxContainer/TargetLayerRow" unique_id=1082671484]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Target layer"
+vertical_alignment = 1
+
+[node name="TargetLayerOption" type="OptionButton" parent="VBoxContainer/TargetLayerRow" unique_id=1934060794]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Default target layer for new text components."
+focus_mode = 0
+
+[node name="TargetLayerResetButton" type="Button" parent="VBoxContainer/TargetLayerRow" unique_id=1654762500]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparatorOut" type="HSeparator" parent="VBoxContainer" unique_id=1657808740]
+layout_mode = 2
+
+[node name="TimingHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=500530025]
+layout_mode = 2
+
+[node name="TimingSectionLabel" type="Label" parent="VBoxContainer/TimingHeader" unique_id=2076125103]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Timing & appearance"
+
+[node name="DurationRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1984644733]
+layout_mode = 2
+
+[node name="DurationLabel" type="Label" parent="VBoxContainer/DurationRow" unique_id=1005990173]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Duration"
+vertical_alignment = 1
+
+[node name="DurationInput" type="LineEdit" parent="VBoxContainer/DurationRow" unique_id=731598316]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default hold duration (0 or 'Until stopped' = stay until stop)."
+text = "Until stopped"
+alignment = 1
+
+[node name="DurationResetButton" type="Button" parent="VBoxContainer/DurationRow" unique_id=906085574]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OpacityRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1608030626]
+layout_mode = 2
+
+[node name="OpacityLabel" type="Label" parent="VBoxContainer/OpacityRow" unique_id=904795790]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Opacity %"
+vertical_alignment = 1
+
+[node name="OpacitySpin" type="SpinBox" parent="VBoxContainer/OpacityRow" unique_id=950292463]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+tooltip_text = "Default opacity (0–100%)."
+value = 100.0
+
+[node name="OpacityResetButton" type="Button" parent="VBoxContainer/OpacityRow" unique_id=1500883924]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="BbcodeRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1238001087]
+layout_mode = 2
+
+[node name="BbcodeLabel" type="Label" parent="VBoxContainer/BbcodeRow" unique_id=1599548214]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "BBCode"
+vertical_alignment = 1
+
+[node name="BbcodeCheckBox" type="CheckBox" parent="VBoxContainer/BbcodeRow" unique_id=246527548]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When on, new text components interpret content as BBCode."
+focus_mode = 0
+text = "Use BBCode"
+
+[node name="BbcodeResetButton" type="Button" parent="VBoxContainer/BbcodeRow" unique_id=1521669456]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer" unique_id=1469203147]
+layout_mode = 2
+
+[node name="FontHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1343606885]
+layout_mode = 2
+
+[node name="FontSectionLabel" type="Label" parent="VBoxContainer/FontHeader" unique_id=86163998]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Typography"
+
+[node name="FontNameRow" type="HBoxContainer" parent="VBoxContainer" unique_id=840011468]
+layout_mode = 2
+
+[node name="FontNameLabel" type="Label" parent="VBoxContainer/FontNameRow" unique_id=141521110]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Font name"
+vertical_alignment = 1
+
+[node name="FontNameInput" type="LineEdit" parent="VBoxContainer/FontNameRow" unique_id=723490452]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "System font family name (e.g. Arial). Empty = project/theme default."
+placeholder_text = "Theme default"
+
+[node name="FontNameResetButton" type="Button" parent="VBoxContainer/FontNameRow" unique_id=1064993786]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="FontSizeRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1942530018]
+layout_mode = 2
+
+[node name="FontSizeLabel" type="Label" parent="VBoxContainer/FontSizeRow" unique_id=419582207]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Font size"
+vertical_alignment = 1
+
+[node name="FontSizeSpin" type="SpinBox" parent="VBoxContainer/FontSizeRow" unique_id=459677713]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+tooltip_text = "Default font size in pixels."
+min_value = 1.0
+max_value = 512.0
+value = 48.0
+
+[node name="FontSizeResetButton" type="Button" parent="VBoxContainer/FontSizeRow" unique_id=1343695346]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="FontColorRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1339797434]
+layout_mode = 2
+
+[node name="FontColorLabel" type="Label" parent="VBoxContainer/FontColorRow" unique_id=1755511361]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Font colour"
+vertical_alignment = 1
+
+[node name="FontColorPicker" type="ColorPickerButton" parent="VBoxContainer/FontColorRow" unique_id=688804676]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+tooltip_text = "Default font colour."
+text = "Colour"
+color = Color(1, 1, 1, 1)
+
+[node name="FontColorResetButton" type="Button" parent="VBoxContainer/FontColorRow" unique_id=998697452]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HAlignRow" type="HBoxContainer" parent="VBoxContainer" unique_id=127018238]
+layout_mode = 2
+
+[node name="HAlignLabel" type="Label" parent="VBoxContainer/HAlignRow" unique_id=863784580]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "H alignment"
+vertical_alignment = 1
+
+[node name="HAlignOption" type="OptionButton" parent="VBoxContainer/HAlignRow" unique_id=1423197101]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+focus_mode = 0
+
+[node name="HAlignResetButton" type="Button" parent="VBoxContainer/HAlignRow" unique_id=1311509888]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="VAlignRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1937191790]
+layout_mode = 2
+
+[node name="VAlignLabel" type="Label" parent="VBoxContainer/VAlignRow" unique_id=927996438]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "V alignment"
+vertical_alignment = 1
+
+[node name="VAlignOption" type="OptionButton" parent="VBoxContainer/VAlignRow" unique_id=2034741719]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+focus_mode = 0
+
+[node name="VAlignResetButton" type="Button" parent="VBoxContainer/VAlignRow" unique_id=112391135]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="AutowrapRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1072695306]
+layout_mode = 2
+
+[node name="AutowrapLabel" type="Label" parent="VBoxContainer/AutowrapRow" unique_id=165739538]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Autowrap"
+vertical_alignment = 1
+
+[node name="AutowrapCheckBox" type="CheckBox" parent="VBoxContainer/AutowrapRow" unique_id=728304615]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When on, text wraps within the layer width."
+focus_mode = 0
+button_pressed = true
+text = "Autowrap"
+
+[node name="AutowrapResetButton" type="Button" parent="VBoxContainer/AutowrapRow" unique_id=2146166940]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="MarginsRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1568850538]
+layout_mode = 2
+
+[node name="MarginsLabel" type="Label" parent="VBoxContainer/MarginsRow" unique_id=432537426]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Margins"
+vertical_alignment = 1
+
+[node name="MarginsSpin" type="SpinBox" parent="VBoxContainer/MarginsRow" unique_id=556425679]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+tooltip_text = "Default uniform padding inside the layer (pixels)."
+max_value = 512.0
+value = 16.0
+
+[node name="MarginsResetButton" type="Button" parent="VBoxContainer/MarginsRow" unique_id=170697704]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator3" type="HSeparator" parent="VBoxContainer" unique_id=63187800]
+layout_mode = 2
+
+[node name="StyleHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=236482479]
+layout_mode = 2
+
+[node name="StyleSectionLabel" type="Label" parent="VBoxContainer/StyleHeader" unique_id=589222035]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Outline & background"
+
+[node name="OutlineSizeRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1866544679]
+layout_mode = 2
+
+[node name="OutlineSizeLabel" type="Label" parent="VBoxContainer/OutlineSizeRow" unique_id=388393918]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Outline size"
+vertical_alignment = 1
+
+[node name="OutlineSizeSpin" type="SpinBox" parent="VBoxContainer/OutlineSizeRow" unique_id=687233479]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+tooltip_text = "Default outline thickness in pixels (0 = none)."
+max_value = 64.0
+
+[node name="OutlineSizeResetButton" type="Button" parent="VBoxContainer/OutlineSizeRow" unique_id=25284803]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OutlineColorRow" type="HBoxContainer" parent="VBoxContainer" unique_id=618101466]
+layout_mode = 2
+
+[node name="OutlineColorLabel" type="Label" parent="VBoxContainer/OutlineColorRow" unique_id=186211016]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Outline colour"
+vertical_alignment = 1
+
+[node name="OutlineColorPicker" type="ColorPickerButton" parent="VBoxContainer/OutlineColorRow" unique_id=793684896]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+tooltip_text = "Default outline colour."
+text = "Colour"
+
+[node name="OutlineColorResetButton" type="Button" parent="VBoxContainer/OutlineColorRow" unique_id=421932515]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="BackgroundRow" type="HBoxContainer" parent="VBoxContainer" unique_id=691542836]
+layout_mode = 2
+
+[node name="BackgroundLabel" type="Label" parent="VBoxContainer/BackgroundRow" unique_id=299286105]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Background"
+vertical_alignment = 1
+
+[node name="BackgroundCheckBox" type="CheckBox" parent="VBoxContainer/BackgroundRow" unique_id=1289814315]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When on, new text components draw a solid panel behind the text."
+focus_mode = 0
+text = "Background"
+
+[node name="BackgroundResetButton" type="Button" parent="VBoxContainer/BackgroundRow" unique_id=2076460169]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="BackgroundColorRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1252394966]
+layout_mode = 2
+
+[node name="BackgroundColorLabel" type="Label" parent="VBoxContainer/BackgroundColorRow" unique_id=1458887900]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Background colour"
+vertical_alignment = 1
+
+[node name="BackgroundColorPicker" type="ColorPickerButton" parent="VBoxContainer/BackgroundColorRow" unique_id=1895806894]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+tooltip_text = "Default background panel colour."
+text = "Colour"
+color = Color(0, 0, 0, 0.55)
+
+[node name="BackgroundColorResetButton" type="Button" parent="VBoxContainer/BackgroundColorRow" unique_id=880523690]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator4" type="HSeparator" parent="VBoxContainer" unique_id=282535934]
+layout_mode = 2
+
+[node name="FadesHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=501155499]
+layout_mode = 2
+
+[node name="FadesSectionLabel" type="Label" parent="VBoxContainer/FadesHeader" unique_id=564652639]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Fades"
+
+[node name="FadeInRow" type="HBoxContainer" parent="VBoxContainer" unique_id=2088660732]
+layout_mode = 2
+
+[node name="FadeInLabel" type="Label" parent="VBoxContainer/FadeInRow" unique_id=438143244]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Fade in"
+vertical_alignment = 1
+
+[node name="FadeInInput" type="LineEdit" parent="VBoxContainer/FadeInRow" unique_id=38803817]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default fade-in duration (0 = immediate)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeInResetButton" type="Button" parent="VBoxContainer/FadeInRow" unique_id=673382160]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="FadeOutRow" type="HBoxContainer" parent="VBoxContainer" unique_id=575599440]
+layout_mode = 2
+
+[node name="FadeOutLabel" type="Label" parent="VBoxContainer/FadeOutRow" unique_id=63481228]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Fade out"
+vertical_alignment = 1
+
+[node name="FadeOutInput" type="LineEdit" parent="VBoxContainer/FadeOutRow" unique_id=902327663]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default fade-out duration (0 = immediate / session stop fade)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeOutResetButton" type="Button" parent="VBoxContainer/FadeOutRow" unique_id=1162243763]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true

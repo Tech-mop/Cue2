@@ -1,0 +1,369 @@
+[gd_scene format=3 uid="uid://c6jrrmxanudix"]
+
+[ext_resource type="Script" uid="uid://bjka1uto8v7i3" path="res://src/UI/Settings/SettingsGeneral.cs" id="1_kiw2w"]
+
+[node name="SettingsGeneral" type="ScrollContainer" unique_id=1335538034]
+visible = false
+script = ExtResource("1_kiw2w")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1641340464]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=681831879]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "General Settings"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=1889948562]
+layout_mode = 2
+
+[node name="Row1" type="HBoxContainer" parent="VBoxContainer" unique_id=1910086939]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/Row1" unique_id=244064248]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Interface"
+
+[node name="Row3" type="HBoxContainer" parent="VBoxContainer" unique_id=812974213]
+layout_mode = 2
+
+[node name="Go Button Scale" type="Label" parent="VBoxContainer/Row3" unique_id=1239699912]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Go Button Scale"
+vertical_alignment = 1
+
+[node name="GoScaleOptionButton" type="OptionButton" parent="VBoxContainer/Row3" unique_id=1376372649]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+tooltip_text = "Go button size. Half Go hides notes; No Go hides the GO header."
+focus_mode = 0
+selected = 2
+item_count = 7
+popup/item_0/text = "No Go"
+popup/item_0/id = 0
+popup/item_1/text = "Half Go"
+popup/item_1/id = 1
+popup/item_2/text = "Base Scale Go"
+popup/item_2/id = 2
+popup/item_3/text = "Big Go"
+popup/item_3/id = 3
+popup/item_4/text = "Very Big Go"
+popup/item_4/id = 4
+popup/item_5/text = "Wow, that's a big go"
+popup/item_5/id = 5
+popup/item_6/text = "Nothing but Go"
+popup/item_6/id = 6
+
+[node name="GoScaleResetButton" type="Button" parent="VBoxContainer/Row3"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="Row4" type="HBoxContainer" parent="VBoxContainer" unique_id=1493069629]
+layout_mode = 2
+
+[node name="CueListScaleLabel" type="Label" parent="VBoxContainer/Row4" unique_id=2029973817]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Cue List Scale"
+vertical_alignment = 1
+
+[node name="CueListScaleOptionButton" type="OptionButton" parent="VBoxContainer/Row4" unique_id=1328610964]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+tooltip_text = "Scales cuelist row height, chrome, and fonts only.
+Does not affect the rest of the UI or playback."
+focus_mode = 0
+selected = 1
+item_count = 3
+popup/item_0/text = "Small"
+popup/item_0/id = 0
+popup/item_1/text = "Medium"
+popup/item_1/id = 1
+popup/item_2/text = "Large"
+popup/item_2/id = 2
+
+[node name="CueListScaleResetButton" type="Button" parent="VBoxContainer/Row4"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="PlaybackHeader" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="PlaybackLabel" type="Label" parent="VBoxContainer/PlaybackHeader"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Playback"
+
+[node name="StopFadeRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="StopFadeLabel" type="Label" parent="VBoxContainer/StopFadeRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Stop Fade Out"
+vertical_alignment = 1
+
+[node name="StopFadeSpinBox" type="SpinBox" parent="VBoxContainer/StopFadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Fade-out duration when Stop is pressed (seconds).
+First Stop fades out; second Stop while fading hard-stops.
+Set to 0 for immediate stop."
+focus_mode = 2
+min_value = 0.0
+max_value = 30.0
+step = 0.1
+value = 2.5
+suffix = "s"
+alignment = 1
+editable = true
+
+[node name="StopFadeResetButton" type="Button" parent="VBoxContainer/StopFadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="StopFadeHint" type="Label" parent="VBoxContainer/StopFadeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "0 = instant. Second Stop cuts immediately."
+vertical_alignment = 1
+
+[node name="DoubleGoRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="DoubleGoLabel" type="Label" parent="VBoxContainer/DoubleGoRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Double Go Protection"
+vertical_alignment = 1
+
+[node name="DoubleGoProtectionSpinBox" type="SpinBox" parent="VBoxContainer/DoubleGoRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "After each GO, block another GO for this many seconds.
+Prevents accidental double-taps. 0 = off."
+focus_mode = 2
+min_value = 0.0
+max_value = 30.0
+step = 0.1
+value = 0.0
+suffix = "s"
+alignment = 1
+editable = true
+
+[node name="DoubleGoProtectionResetButton" type="Button" parent="VBoxContainer/DoubleGoRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="DoubleGoHint" type="Label" parent="VBoxContainer/DoubleGoRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "0 = off. Blocks a second GO after each GO."
+vertical_alignment = 1
+
+[node name="HSeparator3" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MediaHeader" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MediaLabel" type="Label" parent="VBoxContainer/MediaHeader"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Media"
+
+[node name="MediaBackupRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MediaBackupLabel" type="Label" parent="VBoxContainer/MediaBackupRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Backup media"
+vertical_alignment = 1
+tooltip_text = "When enabled, used media files are copied into Audio/Video/Images folders inside the show directory so the show is portable between machines. Saved with this showfile."
+
+[node name="MediaBackupCheckBox" type="CheckBox" parent="VBoxContainer/MediaBackupRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Enabled"
+tooltip_text = "When enabled, used media files are copied into Audio/Video/Images folders inside the show directory so the show is portable between machines. Saved with this showfile."
+
+[node name="MediaBackupResetButton" type="Button" parent="VBoxContainer/MediaBackupRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="MediaBackupHint" type="Label" parent="VBoxContainer/MediaBackupRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Copy media into show folder (Audio/Video/Images)."
+vertical_alignment = 1
+
+[node name="TimelineWaveformsRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="TimelineWaveformsLabel" type="Label" parent="VBoxContainer/TimelineWaveformsRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Timeline waveforms"
+vertical_alignment = 1
+tooltip_text = "When enabled, the Timeline Inspector draws audio waveforms inside cue bars when peak data is available."
+
+[node name="TimelineWaveformsCheckBox" type="CheckBox" parent="VBoxContainer/TimelineWaveformsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Enabled"
+tooltip_text = "When enabled, the Timeline Inspector draws audio waveforms inside cue bars when peak data is available."
+
+[node name="TimelineWaveformsResetButton" type="Button" parent="VBoxContainer/TimelineWaveformsRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"
+
+[node name="TimelineWaveformsHint" type="Label" parent="VBoxContainer/TimelineWaveformsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Show waveforms on Timeline Inspector cue bars."
+vertical_alignment = 1
+
+[node name="HSeparator4" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="EditingHeader" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="EditingLabel" type="Label" parent="VBoxContainer/EditingHeader"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Editing"
+
+[node name="MultiEditRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MultiEditLabel" type="Label" parent="VBoxContainer/MultiEditRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Multi-edit cues"
+vertical_alignment = 1
+tooltip_text = "When enabled and multiple cues are selected, shell and component inspector edits apply to every selected cue that has that field/component. When disabled, only the last-focused cue is edited."
+
+[node name="MultiEditCheckBox" type="CheckBox" parent="VBoxContainer/MultiEditRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Enabled"
+tooltip_text = "When enabled and multiple cues are selected, shell and component inspector edits apply to every selected cue that has that field/component. When disabled, only the last-focused cue is edited."
+
+[node name="MultiEditResetButton" type="Button" parent="VBoxContainer/MultiEditRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"
+
+[node name="MultiEditHint" type="Label" parent="VBoxContainer/MultiEditRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Shell + Audio / Video / Text inspectors multi-edit selected cues."
+vertical_alignment = 1
+
+[node name="SelectNewCuesRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="SelectNewCuesLabel" type="Label" parent="VBoxContainer/SelectNewCuesRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Select new cues"
+vertical_alignment = 1
+tooltip_text = "When enabled, newly created cues (Add Cue or media drop) become the selection. When disabled, selection is left unchanged."
+
+[node name="SelectNewCuesCheckBox" type="CheckBox" parent="VBoxContainer/SelectNewCuesRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Enabled"
+tooltip_text = "When enabled, newly created cues (Add Cue or media drop) become the selection. When disabled, selection is left unchanged."
+
+[node name="SelectNewCuesResetButton" type="Button" parent="VBoxContainer/SelectNewCuesRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"
+
+[node name="SelectNewCuesHint" type="Label" parent="VBoxContainer/SelectNewCuesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Focus newly created cues in the cuelist."
+vertical_alignment = 1

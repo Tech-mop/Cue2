@@ -1,0 +1,297 @@
+[gd_scene format=3 uid="uid://i5x3q04qutpg"]
+
+[ext_resource type="Script" uid="uid://8n0qcelm34wc" path="res://src/UI/Settings/SettingsCue2Prefs.cs" id="1_2fks0"]
+
+[node name="SettingsCue2Prefs" type="ScrollContainer" unique_id=1335538034]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_2fks0")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1641340464]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=681831879]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Cue2 Preferences"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=1889948562]
+layout_mode = 2
+
+[node name="Row1" type="HBoxContainer" parent="VBoxContainer" unique_id=1910086939]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/Row1" unique_id=244064248]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "General preferences, these are persistant independant of show file settings."
+
+[node name="StartupRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1234567890]
+layout_mode = 2
+
+[node name="StartupLabel" type="Label" parent="VBoxContainer/StartupRow" unique_id=9876543210]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Startup"
+vertical_alignment = 1
+tooltip_text = "What to do on launch if no file is specified via command line"
+
+[node name="StartupOptionButton" type="OptionButton" parent="VBoxContainer/StartupRow" unique_id=1122334455]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+focus_mode = 0
+selected = 0
+item_count = 2
+popup/item_0/text = "Open last showfile"
+popup/item_0/id = 0
+popup/item_1/text = "New showfile"
+popup/item_1/id = 1
+tooltip_text = "What to do on launch if no file is specified via command line"
+
+[node name="StartupResetButton" type="Button" parent="VBoxContainer/StartupRow" unique_id=5566778899]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="LanguageRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LanguageLabel" type="Label" parent="VBoxContainer/LanguageRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Language"
+vertical_alignment = 1
+tooltip_text = "Application interface language. Applies immediately and is saved as a user preference."
+
+[node name="LanguageOptionButton" type="OptionButton" parent="VBoxContainer/LanguageRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Application interface language. Applies immediately and is saved as a user preference."
+
+[node name="LanguageResetButton" type="Button" parent="VBoxContainer/LanguageRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="UiScaleRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="UiScaleLabel" type="Label" parent="VBoxContainer/UiScaleRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "UI Scaling"
+vertical_alignment = 1
+tooltip_text = "Scales the whole application UI. Saved as a user preference (not with the showfile)."
+
+[node name="UiScaleNum" type="LineEdit" parent="VBoxContainer/UiScaleRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+tooltip_text = "Scales whole UI.
+Caution: Will apply on Enter."
+focus_mode = 2
+text = "100%"
+alignment = 1
+max_length = 6
+
+[node name="UiScaleSlider" type="HSlider" parent="VBoxContainer/UiScaleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+size_flags_stretch_ratio = 3.0
+tooltip_text = "Scales whole UI.
+Caution: Will apply on mouse release."
+focus_mode = 0
+min_value = 25.0
+max_value = 400.0
+value = 100.0
+rounded = true
+
+[node name="UiScaleResetButton" type="Button" parent="VBoxContainer/UiScaleRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="AutosaveRow" type="HBoxContainer" parent="VBoxContainer" unique_id=6677889900]
+layout_mode = 2
+
+[node name="AutosaveLabel" type="Label" parent="VBoxContainer/AutosaveRow" unique_id=7788990011]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Autosave Interval (min, 0=off)"
+vertical_alignment = 1
+tooltip_text = "Minutes between automatic saves. 0 disables autosave."
+
+[node name="AutosaveInterval" type="SpinBox" parent="VBoxContainer/AutosaveRow" unique_id=8899001122]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+min_value = 0.0
+max_value = 60.0
+value = 5.0
+allow_greater = true
+allow_lesser = false
+tooltip_text = "Minutes between automatic saves. 0 disables autosave."
+
+[node name="AutosaveResetButton" type="Button" parent="VBoxContainer/AutosaveRow" unique_id=2233445566]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="BackupRow" type="HBoxContainer" parent="VBoxContainer" unique_id=9900112233]
+layout_mode = 2
+
+[node name="BackupLabel" type="Label" parent="VBoxContainer/BackupRow" unique_id=0011223344]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Backup Depth"
+vertical_alignment = 1
+tooltip_text = "How many previous autosave versions to keep in the Backups folder."
+
+[node name="BackupDepth" type="SpinBox" parent="VBoxContainer/BackupRow" unique_id=1122334455]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+min_value = 1.0
+max_value = 20.0
+value = 3.0
+allow_greater = true
+allow_lesser = false
+tooltip_text = "How many previous autosave versions to keep in the Backups folder."
+
+[node name="BackupResetButton" type="Button" parent="VBoxContainer/BackupRow" unique_id=3344556677]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="UndoDepthRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="UndoDepthLabel" type="Label" parent="VBoxContainer/UndoDepthRow"]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Undo Depth"
+vertical_alignment = 1
+tooltip_text = "How many undo/redo steps to keep for document edits (cues, components, settings)."
+
+[node name="UndoDepth" type="SpinBox" parent="VBoxContainer/UndoDepthRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+min_value = 4.0
+max_value = 200.0
+value = 50.0
+allow_greater = false
+allow_lesser = false
+tooltip_text = "How many undo/redo steps to keep for document edits (cues, components, settings)."
+
+[node name="UndoDepthResetButton" type="Button" parent="VBoxContainer/UndoDepthRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="LogSessionDepthRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LogSessionDepthLabel" type="Label" parent="VBoxContainer/LogSessionDepthRow"]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Log Session Depth"
+vertical_alignment = 1
+tooltip_text = "How many session log files to keep on disk (including the current session). The log window only shows the current session. 1 keeps current only."
+
+[node name="LogSessionDepth" type="SpinBox" parent="VBoxContainer/LogSessionDepthRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+min_value = 1.0
+max_value = 50.0
+value = 5.0
+allow_greater = false
+allow_lesser = false
+tooltip_text = "How many session log files to keep on disk (including the current session). The log window only shows the current session. 1 keeps current only."
+
+[node name="LogSessionDepthResetButton" type="Button" parent="VBoxContainer/LogSessionDepthRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default"
+
+[node name="ResetSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ResetUserDataRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ResetUserDataLabel" type="Label" parent="VBoxContainer/ResetUserDataRow"]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Reset all stored user preferences (language, startup, autosave, shortcuts, recent files, window layout)."
+autowrap_mode = 3
+vertical_alignment = 1
+
+[node name="ResetUserDataButton" type="Button" parent="VBoxContainer/ResetUserDataRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+focus_mode = 0
+text = "Reset User Data"
+tooltip_text = "Reset all Cue2 preferences stored for this user. Show files are not deleted."

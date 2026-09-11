@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://0dv6dq3u20ku"]
+
+[node name="SaveDialog" type="FileDialog"]
+auto_translate_mode = 1
+title = "Save Session"
+initial_position = 4
+size = Vector2i(600, 400)
+popup_window = true
+access = 2
+use_native_dialog = true

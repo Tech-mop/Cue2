@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://pwhj8yu66imj"]
+
+[ext_resource type="Script" uid="uid://cuus0hko7u34q" path="res://src/UI/Settings/SettingsInputMap.cs" id="1_cpxnm"]
+
+[node name="SettingsInputMap" type="ScrollContainer" unique_id=861039373]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_cpxnm")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=201081640]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1101794652]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1483722601]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Input Map"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer" unique_id=1459481422]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="MarginContainer/VBoxContainer" unique_id=984029917]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Click a binding to reassign. Press Esc to cancel. "
+autowrap_mode = 2
+
+[node name="InputsContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=2130983715]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 6

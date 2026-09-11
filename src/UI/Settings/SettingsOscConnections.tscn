@@ -1,0 +1,202 @@
+[gd_scene format=3 uid="uid://c1b0pu4blunqr"]
+
+[ext_resource type="Script" uid="uid://ce2wgiyvepmb" path="res://src/UI/Settings/SettingsOscConnections.cs" id="1_7heie"]
+
+[node name="SettingsOscConnections" type="ScrollContainer" unique_id=1434870131]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 1
+script = ExtResource("1_7heie")
+
+[node name="RootVBox" type="VBoxContainer" parent="." unique_id=1221312673]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(360, 440)
+theme_override_constants/separation = 6
+
+[node name="Header" type="Label" parent="RootVBox" unique_id=1019684407]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "OSC Connections"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="RootVBox" unique_id=1356946780]
+layout_mode = 2
+
+[node name="VSplit" type="VSplitContainer" parent="RootVBox" unique_id=1806929510]
+layout_mode = 2
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(200)
+split_offset = 200
+
+[node name="SettingsPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=1604544420]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="StatusRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=872463998]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StatusLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/StatusRow" unique_id=582235779]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "No connections"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="ToolbarRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1593053750]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NewOscButton" type="Button" parent="RootVBox/VSplit/SettingsPane/ToolbarRow" unique_id=416671847]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+text = "New OSC Connection"
+
+[node name="ColumnHeaders" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1997901653]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="NameLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders" unique_id=1285110903]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Name"
+horizontal_alignment = 1
+
+[node name="TransportLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders" unique_id=300487754]
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Xport"
+horizontal_alignment = 1
+
+[node name="InterfaceLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders" unique_id=262952769]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Interface"
+horizontal_alignment = 1
+
+[node name="DestinationLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders" unique_id=1865376866]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Destination"
+horizontal_alignment = 1
+
+[node name="PortLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders" unique_id=1128466629]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Port"
+horizontal_alignment = 1
+
+[node name="StatusHeaderSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders"]
+custom_minimum_size = Vector2(12, 0)
+layout_mode = 2
+
+[node name="RetryHeaderSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+
+[node name="HeaderSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/ColumnHeaders" unique_id=1046432732]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+
+[node name="ConnectionsScroll" type="ScrollContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1450754346]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ConnectionsContainer" type="VBoxContainer" parent="RootVBox/VSplit/SettingsPane/ConnectionsScroll" unique_id=1188871531]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="TestSendRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1706494680]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TestPathLineEdit" type="LineEdit" parent="RootVBox/VSplit/SettingsPane/TestSendRow" unique_id=1603491520]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "OSC path to send for testing. Args after a space (e.g. /jump 2) are accepted."
+placeholder_text = "/test/path"
+
+[node name="TestArgsLineEdit" type="LineEdit" parent="RootVBox/VSplit/SettingsPane/TestSendRow" unique_id=740007549]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Optional args: 1 0.5 \"hi\" true"
+placeholder_text = "args"
+
+[node name="TestSendButton" type="Button" parent="RootVBox/VSplit/SettingsPane/TestSendRow" unique_id=1422870552]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Send the test message on the selected connection (or all, if chosen)."
+focus_mode = 0
+text = "Test send"
+
+[node name="MonitorPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=2107561550]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+theme_override_constants/separation = 4
+
+[node name="MonitorHeaderRow" type="HBoxContainer" parent="RootVBox/VSplit/MonitorPane" unique_id=1241893019]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MonitorHeader" type="Label" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=1874921167]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "OSC Send Monitor"
+vertical_alignment = 1
+
+[node name="ListenCheckBox" type="CheckBox" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=1161362278]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When checked, outgoing OSC messages are printed in the log below."
+focus_mode = 0
+button_pressed = true
+text = "Listen"
+
+[node name="MonitorSpacer" type="Control" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=443925898]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ClearLogButton" type="Button" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=2111593225]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Clear"
+
+[node name="MonitorLog" type="CodeEdit" parent="RootVBox/VSplit/MonitorPane" unique_id=1016468747]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+editable = false

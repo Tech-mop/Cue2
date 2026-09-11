@@ -1,0 +1,170 @@
+[gd_scene load_steps=15 format=4 uid="uid://dpemt56x826sd"]
+
+[ext_resource type="Script" uid="uid://3yuk1k68yla8" path="res://src/UI/Windows/SubWindowHandles.cs" id="1_a3t1e"]
+[ext_resource type="Texture2D" uid="uid://duxbn13mi4oiw" path="res://src/UI/Assets/icon32.png" id="2_kyqqy"]
+[ext_resource type="Texture2D" uid="uid://c7jh2vkj0tntc" path="res://src/UI/Assets/icons.png" id="3_pq2sv"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_x7bw5"]
+atlas = ExtResource("3_pq2sv")
+region = Rect2(64, 0, 32, 32)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_a3t1e"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.243137, 0.113725, 0, 1)
+
+[node name="SubWindowHandles" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+script = ExtResource("1_a3t1e")
+
+[node name="HeaderHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 10)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 24.0
+grow_horizontal = 2
+mouse_default_cursor_shape = 6
+
+[node name="HeaderBar" type="HBoxContainer" parent="."]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 24.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="TitleCue2Menu" type="Button" parent="HeaderBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+size_flags_stretch_ratio = 0.0
+tooltip_text = "Cue-2 is a simple and free playback software for events."
+focus_mode = 0
+theme_override_constants/icon_max_width = 23
+theme_override_icons/icon = ExtResource("2_kyqqy")
+icon_alignment = 1
+expand_icon = true
+
+[node name="BoxContainer" type="BoxContainer" parent="HeaderBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ExitButton" type="Button" parent="HeaderBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Exit Cue2"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(1, 0.785524, 0.749968, 1)
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = SubResource("AtlasTexture_x7bw5")
+icon_alignment = 1
+expand_icon = true
+
+[node name="Border" type="Panel" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_a3t1e")
+
+[node name="RightHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_default_cursor_shape = 10
+
+[node name="LeftHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+grow_vertical = 2
+mouse_default_cursor_shape = 10
+
+[node name="BottomHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_default_cursor_shape = 9
+
+[node name="BottomRightCornerHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -5.0
+offset_top = -5.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_default_cursor_shape = 12
+
+[node name="BottomLeftCornerHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -5.0
+offset_right = 5.0
+grow_vertical = 0
+mouse_default_cursor_shape = 11
+
+[node name="TopRightCornerHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -5.0
+offset_bottom = 5.0
+grow_horizontal = 0
+mouse_default_cursor_shape = 11
+
+[node name="TopLeftCornerHandle" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+anchors_preset = 0
+offset_right = 5.0
+offset_bottom = 5.0
+mouse_default_cursor_shape = 12

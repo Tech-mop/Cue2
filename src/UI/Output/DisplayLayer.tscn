@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3 uid="uid://dwnssjgckgb8p"]
+
+[sub_resource type="Gradient" id="Gradient_32vqv"]
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_u6vgu"]
+gradient = SubResource("Gradient_32vqv")
+width = 700
+
+[node name="DisplayLayer" type="Control"]
+clip_contents = true
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+size_flags_horizontal = 0
+size_flags_vertical = 0
+
+[node name="LayerOutput" type="TextureRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+texture = SubResource("GradientTexture1D_u6vgu")
+expand_mode = 1
+stretch_mode = 5
+

@@ -1,0 +1,65 @@
+[gd_scene load_steps=2 format=3 uid="uid://b53mk1xolhtmv"]
+
+[ext_resource type="Script" uid="uid://cpmrb8wngqhax" path="res://src/UI/Settings/SettingsOscConnectionCard.cs" id="1_fa8p6"]
+
+[node name="SettingsOscConnectionCard" type="HBoxContainer"]
+size_flags_horizontal = 3
+script = ExtResource("1_fa8p6")
+
+[node name="NameLineEdit" type="LineEdit" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TransportOption" type="OptionButton" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "UDP (datagram) or TCP (binary framed OSC)."
+
+[node name="InterfaceOptionButton" type="OptionButton" parent="."]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text_overrun_behavior = 1
+fit_to_longest_item = false
+
+[node name="DestinationLineEdit" type="LineEdit" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PortLineEdit" type="LineEdit" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StatusIndicator" type="ColorRect" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(12, 12)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 0
+tooltip_text = "Not Connected"
+color = Color(0.45, 0.45, 0.45, 1)
+
+[node name="RetryButton" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+tooltip_text = "Retry TCP connection"
+focus_mode = 0
+theme_override_constants/icon_max_width = 24
+expand_icon = true
+
+[node name="DeleteButton" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 24
+expand_icon = true

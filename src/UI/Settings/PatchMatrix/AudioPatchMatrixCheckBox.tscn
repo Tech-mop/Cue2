@@ -1,0 +1,28 @@
+[gd_scene load_steps=3 format=3 uid="uid://cbdaknpeq3im1"]
+
+[ext_resource type="Script" uid="uid://ctv46gxu5v3od" path="res://src/UI/Settings/PatchMatrix/AudioMatrixCheckBox.cs" id="1_1i3t0"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1i3t0"]
+bg_color = Color(0.228197, 0.228197, 0.228197, 1)
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.327472, 0.327472, 0.327472, 1)
+
+[node name="AudioPatchMatrixCheckBox" type="CheckBox"]
+custom_minimum_size = Vector2(32, 32)
+offset_right = 32.0
+offset_bottom = 32.0
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+script = ExtResource("1_1i3t0")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 32.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_1i3t0")

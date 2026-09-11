@@ -1,0 +1,411 @@
+[gd_scene format=3 uid="uid://begopskfmco7t"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_0cx45"]
+[ext_resource type="Script" uid="uid://bu61tdqw7n060" path="res://src/App/Cue2Base.cs" id="2_5r320"]
+[ext_resource type="PackedScene" uid="uid://cd4xfma7ijlpi" path="res://src/UI/Shell/Header.tscn" id="3_7gle1"]
+[ext_resource type="PackedScene" uid="uid://db8fxhod3yfo6" path="res://src/UI/Shell/MainTitleBar.tscn" id="3_7xm62"]
+[ext_resource type="PackedScene" uid="uid://bya2tf86xcdn6" path="res://src/UI/Shell/CueListUi.tscn" id="4_7gle1"]
+[ext_resource type="PackedScene" uid="uid://c7uaftlqmt1qj" path="res://src/UI/Shell/ActiveCueContainer.tscn" id="6_jn5cm"]
+[ext_resource type="PackedScene" uid="uid://cm5s0bi03612d" path="res://src/UI/Inspectors/ShellInspector.tscn" id="7_7gle1"]
+[ext_resource type="PackedScene" uid="uid://dge4tv6ikfteh" path="res://src/UI/Inspectors/LibraryInspector.tscn" id="7_ht2vi"]
+[ext_resource type="PackedScene" uid="uid://c2oerlmq8wmp7" path="res://src/UI/Inspectors/AudioInspector.tscn" id="8_7gle1"]
+[ext_resource type="PackedScene" uid="uid://b6v72f8k5o0oy" path="res://src/UI/Shell/Footer.tscn" id="8_jn5cm"]
+[ext_resource type="PackedScene" uid="uid://ghgo66ss8d58" path="res://src/UI/Inspectors/ConnectionInspector.tscn" id="9_7xm62"]
+[ext_resource type="PackedScene" uid="uid://d6ybxbmxkpib" path="res://src/UI/Inspectors/VideoInspector.tscn" id="9_ht2vi"]
+[ext_resource type="PackedScene" uid="uid://cn3w3e20ljw3m" path="res://src/UI/Inspectors/TimelineInspector.tscn" id="9_r56tl"]
+[ext_resource type="Script" uid="uid://b54ov4k1klk3j" path="res://src/UI/Inspectors/VideoInspector.cs" id="10_ht2vi"]
+[ext_resource type="PackedScene" uid="uid://cyiqeed4tohet" path="res://src/UI/Inspectors/TextInspector.tscn" id="10_text"]
+[ext_resource type="PackedScene" uid="uid://dyosfip3iclit" path="res://src/UI/Inspectors/ControlInspector.tscn" id="11_ctrl"]
+[ext_resource type="Script" uid="uid://vrjj42fn2k2a" path="res://src/UI/Windows/FileDialogue.cs" id="12_6nwf4"]
+[ext_resource type="Script" uid="uid://bpxw1fu0sgxtl" path="res://src/App/MainWindowHandles.cs" id="12_7xm62"]
+[ext_resource type="Script" uid="uid://b6p30ddy04yla" path="res://src/UI/Windows/OpenDialog.cs" id="14_5gc0s"]
+[ext_resource type="Script" uid="uid://dt1xvmnrr6u75" path="res://src/UI/Inspectors/InspectorTabsController.cs" id="15_insp_tabs"]
+[ext_resource type="Script" path="res://src/UI/Shell/SessionLoadOverlay.cs" id="16_sess_load"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_e2apv"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.00392157, 0.231373, 0.25098, 1)
+
+[node name="Cue2Base" type="Control" unique_id=1838126996]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme = ExtResource("1_0cx45")
+theme_type_variation = &"AtlasIcons"
+script = ExtResource("2_5r320")
+
+[node name="Panel" type="Panel" parent="." unique_id=1419799970]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=822002420]
+clip_contents = true
+custom_minimum_size = Vector2(5, 0)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="BoxContainer" type="BoxContainer" parent="MarginContainer" unique_id=1026935193]
+layout_direction = 2
+layout_mode = 2
+vertical = true
+
+[node name="TitleBarSpacer" type="BoxContainer" parent="MarginContainer/BoxContainer" unique_id=1609597833]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+
+[node name="Header" parent="MarginContainer/BoxContainer" unique_id=1832227011 instance=ExtResource("3_7gle1")]
+layout_mode = 2
+
+[node name="VSplitContainer" type="VSplitContainer" parent="MarginContainer/BoxContainer" unique_id=1449471864]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="HSplitContainer" type="HSplitContainer" parent="MarginContainer/BoxContainer/VSplitContainer" unique_id=1775225660]
+clip_contents = true
+layout_direction = 2
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TabContainer" type="TabContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer" unique_id=2144526718]
+clip_contents = true
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+current_tab = 0
+tabs_visible = false
+drag_to_rearrange_enabled = true
+
+[node name="CueListUi" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer/TabContainer" unique_id=2092298391 instance=ExtResource("4_7gle1")]
+unique_name_in_owner = true
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="Passive Cues" type="MarginContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer/TabContainer" unique_id=1392566475]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="HSplitContainer" type="HSplitContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer" unique_id=1806784331]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.3
+
+[node name="ActiveCueContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer/HSplitContainer" unique_id=188779598 instance=ExtResource("6_jn5cm")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HSplitContainer2" type="HSplitContainer" parent="MarginContainer/BoxContainer/VSplitContainer" unique_id=139014194]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ShellInspector" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2" unique_id=342859456 instance=ExtResource("7_7gle1")]
+unique_name_in_owner = true
+visible = false
+clip_contents = true
+layout_mode = 2
+size_flags_stretch_ratio = 0.3
+
+[node name="InspectorTabs" type="TabContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2" unique_id=2050946412]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+current_tab = 3
+drag_to_rearrange_enabled = true
+tab_focus_mode = 0
+script = ExtResource("15_insp_tabs")
+
+[node name="Library" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=1755330176 instance=ExtResource("7_ht2vi")]
+visible = false
+layout_mode = 2
+
+[node name="Timeline" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=2102696013 instance=ExtResource("9_r56tl")]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="Audio" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=1937287223 instance=ExtResource("8_7gle1")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+metadata/_tab_index = 2
+
+[node name="Visual" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=1649765970 instance=ExtResource("9_ht2vi")]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("10_ht2vi")
+metadata/_tab_index = 3
+
+[node name="Text" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=1649765971 instance=ExtResource("10_text")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+metadata/_tab_index = 4
+
+[node name="Connection" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=2027123769 instance=ExtResource("9_7xm62")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+metadata/_tab_index = 5
+
+[node name="Control" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer2/InspectorTabs" unique_id=245796318 instance=ExtResource("11_ctrl")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Footer" parent="MarginContainer/BoxContainer" unique_id=149458541 instance=ExtResource("8_jn5cm")]
+layout_mode = 2
+
+[node name="SessionLoadOverlay" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+z_index = 20
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 30.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("16_sess_load")
+
+[node name="Dim" type="ColorRect" parent="SessionLoadOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.04, 0.05, 0.055, 0.88)
+
+[node name="Center" type="CenterContainer" parent="SessionLoadOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="SessionLoadOverlay/Center"]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+
+[node name="CardMargin" type="MarginContainer" parent="SessionLoadOverlay/Center/Card"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="SessionLoadOverlay/Center/Card/CardMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Opening show…"
+horizontal_alignment = 1
+
+[node name="ProgressBar" type="ProgressBar" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+max_value = 100.0
+show_percentage = false
+
+[node name="StatusLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Reading showfile…"
+horizontal_alignment = 1
+
+[node name="DetailLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.72, 0.74, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="MainWindowHandles" type="Control" parent="." unique_id=1985802328]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("12_7xm62")
+
+[node name="HeaderHandle" type="Control" parent="MainWindowHandles" unique_id=569233195]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(10, 28)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 5.0
+offset_right = -6.0
+offset_bottom = 22.0
+grow_horizontal = 2
+mouse_default_cursor_shape = 6
+
+[node name="MainTitleBar" parent="MainWindowHandles" unique_id=1021798260 instance=ExtResource("3_7xm62")]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 1
+anchors_preset = 10
+anchor_bottom = 0.0
+grow_vertical = 1
+
+[node name="RightHandle" type="Control" parent="MainWindowHandles" unique_id=53748771]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_default_cursor_shape = 10
+
+[node name="LeftHandle" type="Control" parent="MainWindowHandles" unique_id=1851783089]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+grow_vertical = 2
+mouse_default_cursor_shape = 10
+
+[node name="BottomHandle" type="Control" parent="MainWindowHandles" unique_id=1894430175]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_default_cursor_shape = 9
+
+[node name="TopHandle" type="Control" parent="MainWindowHandles" unique_id=846264988]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+mouse_default_cursor_shape = 9
+
+[node name="BottomRightCornerHandle" type="Control" parent="MainWindowHandles" unique_id=1635508645]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -5.0
+offset_top = -5.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_default_cursor_shape = 12
+
+[node name="BottomLeftCornerHandle" type="Control" parent="MainWindowHandles" unique_id=620352602]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -5.0
+offset_right = 5.0
+grow_vertical = 0
+mouse_default_cursor_shape = 11
+
+[node name="TopRightCornerHandle" type="Control" parent="MainWindowHandles" unique_id=113004726]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -5.0
+offset_bottom = 5.0
+grow_horizontal = 0
+mouse_default_cursor_shape = 11
+
+[node name="TopLeftCornerHandle" type="Control" parent="MainWindowHandles" unique_id=1306502810]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 0
+offset_right = 5.0
+offset_bottom = 5.0
+mouse_default_cursor_shape = 12
+
+[node name="Border" type="Panel" parent="MainWindowHandles" unique_id=1318516804]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_e2apv")
+
+[node name="FileDialog" type="FileDialog" parent="." unique_id=732834157]
+title = "Open a File"
+initial_position = 2
+size = Vector2i(371, 175)
+ok_button_text = "Open"
+file_mode = 0
+access = 2
+use_native_dialog = true
+script = ExtResource("12_6nwf4")
+
+[node name="OpenDialog" type="FileDialog" parent="." unique_id=979686721]
+unique_name_in_owner = true
+auto_translate_mode = 1
+title = "Open a File"
+initial_position = 2
+size = Vector2i(600, 400)
+popup_window = true
+ok_button_text = "Open"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.c2,*.C2 ; Cue2 Session")
+use_native_dialog = true
+script = ExtResource("14_5gc0s")
+
+[connection signal="file_selected" from="FileDialog" to="FileDialog" method="_on_file_selected"]

@@ -1,0 +1,242 @@
+[gd_scene format=3 uid="uid://dkcda72hd8100"]
+
+[ext_resource type="Script" uid="uid://6lb4vs6gc0ic" path="res://src/UI/Settings/SettingsVideoOutput.cs" id="1_video_out"]
+
+[node name="SettingsVideoOutput" type="ScrollContainer" unique_id=1892952445]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_video_out")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=292205485]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=1840966347]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Video / Image"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=856981270]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer" unique_id=633544848]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Live house-output controls plus show-scoped appearance and performance options. Disable and blackout are runtime-only (not saved with the show)."
+autowrap_mode = 3
+
+[node name="LiveHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1630006973]
+layout_mode = 2
+
+[node name="LiveSectionLabel" type="Label" parent="VBoxContainer/LiveHeader" unique_id=2086011074]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Live output control"
+
+[node name="DisableRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1517253684]
+layout_mode = 2
+
+[node name="DisableLabel" type="Label" parent="VBoxContainer/DisableRow" unique_id=1417409562]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Closes all display windows without destroying the canvas layout. Cues may still run; video is not shown on house screens."
+text = "Disable output"
+vertical_alignment = 1
+
+[node name="DisableOutputCheckBox" type="CheckBox" parent="VBoxContainer/DisableRow" unique_id=590719280]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Closes all display windows without destroying the canvas layout. Cues may still run; video is not shown on house screens."
+focus_mode = 0
+text = "Close all displays"
+
+[node name="BlackoutRow" type="HBoxContainer" parent="VBoxContainer" unique_id=72894513]
+layout_mode = 2
+
+[node name="BlackoutLabel" type="Label" parent="VBoxContainer/BlackoutRow" unique_id=2051624675]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Keeps display windows open but covers all layers with black. Useful for scene changes without stopping cues."
+text = "Blackout"
+vertical_alignment = 1
+
+[node name="BlackoutCheckBox" type="CheckBox" parent="VBoxContainer/BlackoutRow" unique_id=1298353393]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Keeps display windows open but covers all layers with black. Useful for scene changes without stopping cues."
+focus_mode = 0
+text = "Black out all layers"
+
+[node name="HSeparatorLive" type="HSeparator" parent="VBoxContainer" unique_id=1206009941]
+layout_mode = 2
+
+[node name="AppearanceHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1291451588]
+layout_mode = 2
+
+[node name="AppearanceSectionLabel" type="Label" parent="VBoxContainer/AppearanceHeader" unique_id=832428956]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Appearance (show)"
+
+[node name="BackgroundRow" type="HBoxContainer" parent="VBoxContainer" unique_id=462136670]
+layout_mode = 2
+
+[node name="BackgroundLabel" type="Label" parent="VBoxContainer/BackgroundRow" unique_id=433845383]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Solid colour behind all layers on every output window. Saved with the showfile."
+text = "Output background"
+vertical_alignment = 1
+
+[node name="BackgroundColorPicker" type="ColorPickerButton" parent="VBoxContainer/BackgroundRow" unique_id=1696154644]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 22)
+layout_mode = 2
+tooltip_text = "Solid colour behind all layers on every output window. Saved with the showfile."
+focus_mode = 0
+
+[node name="BackgroundColorResetButton" type="Button" parent="VBoxContainer/BackgroundRow" unique_id=1965971444]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparatorAppearance" type="HSeparator" parent="VBoxContainer" unique_id=2110584266]
+layout_mode = 2
+
+[node name="PerfHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=728149767]
+layout_mode = 2
+
+[node name="PerfSectionLabel" type="Label" parent="VBoxContainer/PerfHeader" unique_id=1153005667]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Performance (show)"
+
+[node name="PerfDescription" type="Label" parent="VBoxContainer" unique_id=671694549]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Saved with the showfile. Affects decode/present behaviour, inspector preview scale, and output window vsync."
+autowrap_mode = 3
+
+[node name="QualityRow" type="HBoxContainer" parent="VBoxContainer" unique_id=282000262]
+layout_mode = 2
+
+[node name="QualityLabel" type="Label" parent="VBoxContainer/QualityRow" unique_id=477104815]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Soft knobs over prefetch ring size, drop-lateness threshold, and max frames presented per tick. Saved with the showfile."
+text = "Decode / present"
+vertical_alignment = 1
+
+[node name="QualityModeOption" type="OptionButton" parent="VBoxContainer/QualityRow" unique_id=1317086833]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Soft knobs over prefetch ring size, drop-lateness threshold, and max frames presented per tick. Saved with the showfile."
+focus_mode = 0
+selected = 1
+item_count = 3
+popup/item_0/text = "Prefer quality"
+popup/item_0/id = 0
+popup/item_1/text = "Balanced"
+popup/item_1/id = 1
+popup/item_2/text = "Prefer performance"
+popup/item_2/id = 2
+
+[node name="QualityModeResetButton" type="Button" parent="VBoxContainer/QualityRow" unique_id=71654807]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PreviewRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1221838786]
+layout_mode = 2
+
+[node name="PreviewLabel" type="Label" parent="VBoxContainer/PreviewRow" unique_id=882011856]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Inspector video previewer only — never affects house outputs. Saved with the showfile."
+text = "Preview quality"
+vertical_alignment = 1
+
+[node name="PreviewQualityOption" type="OptionButton" parent="VBoxContainer/PreviewRow" unique_id=1244617765]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Inspector video previewer only — never affects house outputs. Saved with the showfile."
+focus_mode = 0
+selected = 0
+item_count = 3
+popup/item_0/text = "Full"
+popup/item_0/id = 0
+popup/item_1/text = "Half"
+popup/item_1/id = 1
+popup/item_2/text = "Quarter"
+popup/item_2/id = 2
+
+[node name="PreviewQualityResetButton" type="Button" parent="VBoxContainer/PreviewRow" unique_id=1369177795]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="VSyncRow" type="HBoxContainer" parent="VBoxContainer" unique_id=200663910]
+layout_mode = 2
+
+[node name="VSyncLabel" type="Label" parent="VBoxContainer/VSyncRow" unique_id=810271229]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Frame pacing on output windows. Prefer VSync reduces tearing; Off / Low latency can reduce present lag on projectors (may tear). Saved with the showfile."
+text = "Output vsync"
+vertical_alignment = 1
+
+[node name="VSyncOption" type="OptionButton" parent="VBoxContainer/VSyncRow" unique_id=814399374]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Frame pacing on output windows. Prefer VSync reduces tearing; Off / Low latency can reduce present lag on projectors (may tear). Saved with the showfile."
+focus_mode = 0
+selected = 0
+item_count = 3
+popup/item_0/text = "Prefer VSync"
+popup/item_0/id = 0
+popup/item_1/text = "Off"
+popup/item_1/id = 1
+popup/item_2/text = "Low latency present"
+popup/item_2/id = 2
+
+[node name="VSyncResetButton" type="Button" parent="VBoxContainer/VSyncRow" unique_id=1206092729]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true

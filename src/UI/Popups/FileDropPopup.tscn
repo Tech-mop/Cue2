@@ -1,0 +1,100 @@
+[gd_scene format=3 uid="uid://cwvgtrsfp0vjh"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_theme"]
+[ext_resource type="Script" uid="uid://ddcjfwkgmammb" path="res://src/UI/Popups/FileDropPopup.cs" id="1_qyoqp"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="1_scr2m"]
+
+[node name="FileDropPopup" type="Window" unique_id=1424155408]
+disable_3d = true
+oversampling_override = 1.0
+title = "File Dropped"
+initial_position = 4
+size = Vector2i(480, 320)
+borderless = true
+theme = ExtResource("1_theme")
+script = ExtResource("1_qyoqp")
+
+[node name="Panel" type="Panel" parent="." unique_id=741722731]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1337969999]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=479946794]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer" unique_id=2038879069]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+text = "File Dropped"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FileOptionsContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer" unique_id=2035131928]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/FileOptionsContainer" unique_id=271002947]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="OptionsListContiner" type="VBoxContainer" parent="MarginContainer/VBoxContainer/FileOptionsContainer/MarginContainer" unique_id=1935868392]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="DropFileName" type="Label" parent="MarginContainer/VBoxContainer/FileOptionsContainer/MarginContainer/OptionsListContiner" unique_id=1765762191]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+text = "Files Dropped"
+tooltip_text = ""
+autowrap_mode = 3
+
+[node name="DropTargetLabel" type="Label" parent="MarginContainer/VBoxContainer/FileOptionsContainer/MarginContainer/OptionsListContiner" unique_id=2030158069]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Drop Location: Cue Number: - Name: "
+autowrap_mode = 3
+
+[node name="ActionBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=987654321]
+layout_mode = 2
+alignment = 2
+
+[node name="CancelButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar" unique_id=987654322]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cancel"
+
+[node name="CreateButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar" unique_id=987654323]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Create Cues"
+
+[node name="SubWindowHandles" parent="." unique_id=1614905911 instance=ExtResource("1_scr2m")]

@@ -1,0 +1,283 @@
+[gd_scene format=3 uid="uid://db8fxhod3yfo6"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_2nc7k"]
+[ext_resource type="Texture2D" uid="uid://duxbn13mi4oiw" path="res://src/UI/Assets/icon32.png" id="1_bd8jg"]
+[ext_resource type="Script" uid="uid://durt6x5sjer6n" path="res://src/UI/Shell/MainTitleBarUI.cs" id="1_ijer2"]
+[ext_resource type="Texture2D" uid="uid://ba5et57nkc3mo" path="res://src/UI/Assets/icon_atlas_texture.tres" id="2_yo7v7"]
+[ext_resource type="Texture2D" uid="uid://c7jh2vkj0tntc" path="res://src/UI/Assets/icons.png" id="3_skmbr"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ky0v5"]
+atlas = ExtResource("3_skmbr")
+region = Rect2(160, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_nuux0"]
+atlas = ExtResource("3_skmbr")
+region = Rect2(128, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ijer2"]
+atlas = ExtResource("3_skmbr")
+region = Rect2(32, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0baon"]
+atlas = ExtResource("3_skmbr")
+region = Rect2(96, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_w68qa"]
+atlas = ExtResource("3_skmbr")
+region = Rect2(64, 0, 32, 32)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_menu"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_menu_hover"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+bg_color = Color(0.12, 0.14, 0.16, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_menu_pressed"]
+content_margin_left = 10.0
+content_margin_top = 4.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+bg_color = Color(0.00392157, 0.231373, 0.25098, 0.55)
+
+[node name="MainTitleBar" type="Control"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme = ExtResource("1_2nc7k")
+script = ExtResource("1_ijer2")
+
+[node name="TitleBarBackground" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0588235, 0.0588235, 0.0588235, 1)
+
+[node name="TitleLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 23.0
+grow_horizontal = 2
+theme_override_font_sizes/font_size = 9
+text = "Cue2"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 24.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="TitleCue2Menu" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+size_flags_stretch_ratio = 0.0
+tooltip_text = "About Cue2"
+focus_mode = 0
+theme_override_constants/icon_max_width = 23
+theme_override_icons/icon = ExtResource("1_bd8jg")
+icon_alignment = 1
+expand_icon = true
+
+[node name="TitleMainMenu" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Show application menu"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(0.592157, 0.294118, 0.0313726, 1)
+theme_override_colors/icon_hover_pressed_color = Color(0.592157, 0.294118, 0.0313726, 1)
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = SubResource("AtlasTexture_ky0v5")
+toggle_mode = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="MainMenuContainer" type="HBoxContainer" parent="HBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="MainMenuFile" type="Button" parent="HBoxContainer/MainMenuContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_menu")
+theme_override_styles/hover = SubResource("StyleBoxFlat_menu_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_menu_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_menu")
+theme_override_font_sizes/font_size = 11
+text = "File"
+flat = true
+clip_text = false
+
+[node name="MainMenuEdit" type="Button" parent="HBoxContainer/MainMenuContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_menu")
+theme_override_styles/hover = SubResource("StyleBoxFlat_menu_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_menu_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_menu")
+theme_override_font_sizes/font_size = 11
+text = "Edit"
+flat = true
+clip_text = false
+
+[node name="MainMenuPlayback" type="Button" parent="HBoxContainer/MainMenuContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_menu")
+theme_override_styles/hover = SubResource("StyleBoxFlat_menu_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_menu_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_menu")
+theme_override_font_sizes/font_size = 11
+text = "Playback"
+flat = true
+clip_text = false
+
+[node name="MainMenuView" type="Button" parent="HBoxContainer/MainMenuContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_menu")
+theme_override_styles/hover = SubResource("StyleBoxFlat_menu_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_menu_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_menu")
+theme_override_font_sizes/font_size = 11
+text = "View"
+flat = true
+clip_text = false
+
+[node name="MainMenuHelp" type="Button" parent="HBoxContainer/MainMenuContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxEmpty_menu")
+theme_override_styles/hover = SubResource("StyleBoxFlat_menu_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_menu_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_menu")
+theme_override_font_sizes/font_size = 11
+text = "Help"
+flat = true
+clip_text = false
+
+[node name="SpacerContainer1" type="Container" parent="HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ShowModeButton" type="CheckButton" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 24)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Show Mode locks cue editing for live performance.
+Off = Edit Mode (default): full cue editing.
+On = Show Mode: inspectors hidden, shell edits and cue structure locked.
+Saved with the showfile."
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+text = "Show Mode"
+
+[node name="AboutButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "About and Help.
+Version: "
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = SubResource("AtlasTexture_nuux0")
+toggle_mode = true
+text = "
+"
+icon_alignment = 1
+expand_icon = true
+
+[node name="SettingsButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Settings"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = ExtResource("2_yo7v7")
+toggle_mode = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="SpacerContainer2" type="Container" parent="HBoxContainer"]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="WindowMinimizeButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Minimize"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(1, 0.966667, 0.80074, 1)
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = SubResource("AtlasTexture_ijer2")
+icon_alignment = 1
+expand_icon = true
+
+[node name="WindowExpandButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Fullscreen/Windowed"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(0.886735, 1, 0.874574, 1)
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = SubResource("AtlasTexture_0baon")
+icon_alignment = 1
+expand_icon = true
+
+[node name="ExitButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Exit Cue2"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(1, 0.785524, 0.749968, 1)
+theme_override_constants/icon_max_width = 12
+theme_override_icons/icon = SubResource("AtlasTexture_w68qa")
+icon_alignment = 1
+expand_icon = true

@@ -1,0 +1,79 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/UI/Settings/MidiInputActionCard.cs" id="1_card"]
+
+[sub_resource type="StyleBoxFlat" id="MidiInputCardStyle"]
+draw_center = true
+bg_color = Color(0.12, 0.12, 0.12, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.35, 0.35, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="MidiInputActionCard" type="PanelContainer"]
+custom_minimum_size = Vector2(250, 0)
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("MidiInputCardStyle")
+script = ExtResource("1_card")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="Content" type="HBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="ActionName" type="Label" parent="MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.4
+mouse_filter = 0
+theme_override_font_sizes/font_size = 10
+text = "ActionName"
+vertical_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="BindingButton" type="Button" parent="MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "None"
+clip_text = true
+text_overrun_behavior = 1
+tooltip_text = "Click to capture MIDI binding. Esc cancels."
+
+[node name="ResetButton" type="Button" parent="MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+visible = false
+tooltip_text = "Reset to default (no MIDI)"
+
+[node name="ClearButton" type="Button" parent="MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Clear MIDI binding"

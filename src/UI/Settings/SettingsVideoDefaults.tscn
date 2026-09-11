@@ -1,0 +1,447 @@
+[gd_scene format=3 uid="uid://cpxapul4025nc"]
+
+[ext_resource type="Script" uid="uid://csvidefdef9x3n" path="res://src/UI/Settings/SettingsVideoDefaults.cs" id="1_video_def"]
+
+[node name="SettingsVideoDefaults" type="ScrollContainer" unique_id=1454064975]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_video_def")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=2047845961]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=1973652829]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Video Defaults"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=1061684747]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer" unique_id=117046011]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Defaults applied when a new video or image component is created. File path and routing matrix stay independent of these defaults."
+autowrap_mode = 3
+
+[node name="OutputHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=341941267]
+layout_mode = 2
+
+[node name="OutputSectionLabel" type="Label" parent="VBoxContainer/OutputHeader" unique_id=767342834]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Output"
+
+[node name="TargetLayerRow" type="HBoxContainer" parent="VBoxContainer" unique_id=2024590222]
+layout_mode = 2
+
+[node name="TargetLayerLabel" type="Label" parent="VBoxContainer/TargetLayerRow" unique_id=2052837585]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Target layer"
+vertical_alignment = 1
+
+[node name="TargetLayerOption" type="OptionButton" parent="VBoxContainer/TargetLayerRow" unique_id=1613224591]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Default video target layer for new video/image components."
+focus_mode = 0
+
+[node name="TargetLayerResetButton" type="Button" parent="VBoxContainer/TargetLayerRow" unique_id=1989582364]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparatorOut" type="HSeparator" parent="VBoxContainer" unique_id=1401839036]
+layout_mode = 2
+
+[node name="LayoutHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=987559417]
+layout_mode = 2
+
+[node name="LayoutSectionLabel" type="Label" parent="VBoxContainer/LayoutHeader" unique_id=2048674681]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Layout"
+
+[node name="ExpandRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1308995558]
+layout_mode = 2
+
+[node name="ExpandLabel" type="Label" parent="VBoxContainer/ExpandRow" unique_id=1703168343]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Expand"
+vertical_alignment = 1
+
+[node name="ExpandOption" type="OptionButton" parent="VBoxContainer/ExpandRow" unique_id=1364575635]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+tooltip_text = "Default TextureRect expand mode for new video components."
+focus_mode = 0
+
+[node name="ExpandResetButton" type="Button" parent="VBoxContainer/ExpandRow" unique_id=415275758]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="StretchRow" type="HBoxContainer" parent="VBoxContainer" unique_id=54538261]
+layout_mode = 2
+
+[node name="StretchLabel" type="Label" parent="VBoxContainer/StretchRow" unique_id=1567772415]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Stretch"
+vertical_alignment = 1
+
+[node name="StretchOption" type="OptionButton" parent="VBoxContainer/StretchRow" unique_id=990123536]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+tooltip_text = "Default TextureRect stretch mode for new video components."
+focus_mode = 0
+
+[node name="StretchResetButton" type="Button" parent="VBoxContainer/StretchRow" unique_id=558217673]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OpacityRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1740429467]
+layout_mode = 2
+
+[node name="OpacityLabel" type="Label" parent="VBoxContainer/OpacityRow" unique_id=1088409911]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Opacity %"
+vertical_alignment = 1
+
+[node name="OpacityInput" type="LineEdit" parent="VBoxContainer/OpacityRow" unique_id=1325253947]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+tooltip_text = "Default opacity (0–100%) for new video components."
+text = "100"
+alignment = 1
+
+[node name="OpacityResetButton" type="Button" parent="VBoxContainer/OpacityRow" unique_id=1479220408]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer" unique_id=137838831]
+layout_mode = 2
+
+[node name="PlaybackHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1315095346]
+layout_mode = 2
+
+[node name="PlaybackSectionLabel" type="Label" parent="VBoxContainer/PlaybackHeader" unique_id=576228724]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Playback"
+
+[node name="LoopRow" type="HBoxContainer" parent="VBoxContainer" unique_id=135949809]
+layout_mode = 2
+
+[node name="LoopLabel" type="Label" parent="VBoxContainer/LoopRow" unique_id=1998946932]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Loop"
+vertical_alignment = 1
+
+[node name="LoopCheckBox" type="CheckBox" parent="VBoxContainer/LoopRow" unique_id=1938406075]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When on, new video components loop indefinitely (overrides play count)."
+focus_mode = 0
+text = "Loop"
+
+[node name="LoopResetButton" type="Button" parent="VBoxContainer/LoopRow" unique_id=1065797411]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PlayCountRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1876337811]
+layout_mode = 2
+
+[node name="PlayCountLabel" type="Label" parent="VBoxContainer/PlayCountRow" unique_id=1419085983]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Play count"
+vertical_alignment = 1
+
+[node name="PlayCountInput" type="LineEdit" parent="VBoxContainer/PlayCountRow" unique_id=323024614]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+tooltip_text = "Default number of plays when loop is off."
+text = "1"
+alignment = 1
+
+[node name="PlayCountResetButton" type="Button" parent="VBoxContainer/PlayCountRow" unique_id=1111071378]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="ImageDurationRow" type="HBoxContainer" parent="VBoxContainer" unique_id=903286348]
+layout_mode = 2
+
+[node name="ImageDurationLabel" type="Label" parent="VBoxContainer/ImageDurationRow" unique_id=39442860]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Image Duration"
+vertical_alignment = 1
+tooltip_text = "Default duration for still-image components only (not video). 0 or 'Until stopped' = hold until stop."
+
+[node name="ImageDurationInput" type="LineEdit" parent="VBoxContainer/ImageDurationRow" unique_id=386622885]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default duration for still-image components only (not video). 0 or 'Until stopped' = hold until stop."
+text = "Until stopped"
+alignment = 1
+
+[node name="ImageDurationResetButton" type="Button" parent="VBoxContainer/ImageDurationRow" unique_id=246712640]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator3" type="HSeparator" parent="VBoxContainer" unique_id=356864036]
+layout_mode = 2
+
+[node name="AudioHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=671594602]
+layout_mode = 2
+
+[node name="AudioSectionLabel" type="Label" parent="VBoxContainer/AudioHeader" unique_id=1864588607]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Embedded audio"
+
+[node name="UseAudioRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1261756258]
+layout_mode = 2
+
+[node name="UseAudioLabel" type="Label" parent="VBoxContainer/UseAudioRow" unique_id=90227141]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Use audio"
+vertical_alignment = 1
+
+[node name="UseAudioCheckBox" type="CheckBox" parent="VBoxContainer/UseAudioRow" unique_id=1299920290]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When on, new video components enable embedded audio if the file has any. Still images always ignore this."
+focus_mode = 0
+button_pressed = true
+text = "Use audio"
+
+[node name="UseAudioResetButton" type="Button" parent="VBoxContainer/UseAudioRow" unique_id=1363289642]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="AudioOutputRow" type="HBoxContainer" parent="VBoxContainer" unique_id=653354374]
+layout_mode = 2
+
+[node name="AudioOutputLabel" type="Label" parent="VBoxContainer/AudioOutputRow" unique_id=1155237154]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Audio output"
+vertical_alignment = 1
+
+[node name="AudioOutputOption" type="OptionButton" parent="VBoxContainer/AudioOutputRow" unique_id=1322453036]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Default embedded-audio output for new video components.
+Preferred uses Default Patch (or the first patch)."
+focus_mode = 0
+
+[node name="AudioOutputResetButton" type="Button" parent="VBoxContainer/AudioOutputRow" unique_id=766355438]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="AudioVolumeRow" type="HBoxContainer" parent="VBoxContainer" unique_id=792146246]
+layout_mode = 2
+
+[node name="AudioVolumeLabel" type="Label" parent="VBoxContainer/AudioVolumeRow" unique_id=1913942507]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Audio volume"
+vertical_alignment = 1
+
+[node name="AudioVolumeInput" type="LineEdit" parent="VBoxContainer/AudioVolumeRow" unique_id=753557996]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+tooltip_text = "Default embedded audio volume (dB)."
+text = "0dB"
+alignment = 1
+
+[node name="AudioVolumeResetButton" type="Button" parent="VBoxContainer/AudioVolumeRow" unique_id=638083939]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PanRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1823206990]
+layout_mode = 2
+
+[node name="PanLabel" type="Label" parent="VBoxContainer/PanRow" unique_id=661446570]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Pan"
+vertical_alignment = 1
+
+[node name="PanSlider" type="HSlider" parent="VBoxContainer/PanRow" unique_id=1661422646]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Default stereo pan for embedded audio."
+min_value = -100.0
+scrollable = false
+
+[node name="PanInput" type="LineEdit" parent="VBoxContainer/PanRow" unique_id=1744588096]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+tooltip_text = "Pan: C, L/R, L50, R25, or −100…100"
+text = "C"
+alignment = 1
+
+[node name="PanResetButton" type="Button" parent="VBoxContainer/PanRow" unique_id=15746947]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator4" type="HSeparator" parent="VBoxContainer" unique_id=200882489]
+layout_mode = 2
+
+[node name="FadesHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=27324541]
+layout_mode = 2
+
+[node name="FadesSectionLabel" type="Label" parent="VBoxContainer/FadesHeader" unique_id=1135757783]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Fades"
+
+[node name="FadeInRow" type="HBoxContainer" parent="VBoxContainer" unique_id=81243065]
+layout_mode = 2
+
+[node name="FadeInLabel" type="Label" parent="VBoxContainer/FadeInRow" unique_id=967964567]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Fade in"
+vertical_alignment = 1
+
+[node name="FadeInInput" type="LineEdit" parent="VBoxContainer/FadeInRow" unique_id=290347150]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default fade-in duration (0 = immediate)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeInResetButton" type="Button" parent="VBoxContainer/FadeInRow" unique_id=1883184643]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="FadeOutRow" type="HBoxContainer" parent="VBoxContainer" unique_id=648716144]
+layout_mode = 2
+
+[node name="FadeOutLabel" type="Label" parent="VBoxContainer/FadeOutRow" unique_id=841099172]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Fade out"
+vertical_alignment = 1
+
+[node name="FadeOutInput" type="LineEdit" parent="VBoxContainer/FadeOutRow" unique_id=2009699815]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default fade-out duration (0 = immediate / session stop fade)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeOutResetButton" type="Button" parent="VBoxContainer/FadeOutRow" unique_id=467839173]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true

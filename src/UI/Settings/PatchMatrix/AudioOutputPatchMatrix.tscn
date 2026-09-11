@@ -1,0 +1,183 @@
+[gd_scene load_steps=2 format=3 uid="uid://dgy2bmmm4rjpt"]
+
+[ext_resource type="Script" uid="uid://7blngcdj0grc" path="res://src/UI/Settings/PatchMatrix/AudioOutputPatchMatrix.cs" id="1_ntaie"]
+
+[node name="AudioOutputPatchMatrix" type="PanelContainer"]
+custom_minimum_size = Vector2(400, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 0
+script = ExtResource("1_ntaie")
+
+[node name="MainMargin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="MatrixGrid" type="GridContainer" parent="MainMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme_override_constants/h_separation = 5
+theme_override_constants/v_separation = 5
+columns = 2
+
+[node name="TopLeftContainer" type="PanelContainer" parent="MainMargin/MatrixGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainMargin/MatrixGrid/TopLeftContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PatchName" type="LineEdit" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Name of the patch"
+text = "Audio Patch"
+alignment = 1
+
+[node name="VolumeRow" type="HBoxContainer" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="VolumeLabel" type="Label" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/VolumeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Sub-master level for this patch. Applied after cue volume and before device outputs."
+mouse_filter = 1
+text = "Volume"
+
+[node name="PatchVolumeInput" type="LineEdit" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/VolumeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+tooltip_text = "Patch sub-master volume (dB). Drag vertically to scrub. Applied to all cues using this patch."
+alignment = 1
+text = "0.0dB"
+placeholder_text = "0.0dB"
+
+[node name="RefreshButton" type="Button" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer"]
+layout_mode = 2
+focus_mode = 0
+text = "Refresh"
+
+[node name="DeletePatchButton" type="Button" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Delete Patch"
+
+[node name="Expanded" type="BoxContainer" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 0
+alignment = 1
+
+[node name="ExpandedButton" type="Button" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/Expanded"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+tooltip_text = "Collapse channels"
+flat = true
+
+[node name="Line2D" type="Line2D" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/Expanded"]
+position = Vector2(0, 2)
+points = PackedVector2Array(8, 8, 12, 13, 16, 8)
+width = 2.0
+default_color = Color(0.340659, 0.340659, 0.340659, 1)
+
+[node name="Collapsed" type="BoxContainer" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 0
+alignment = 1
+
+[node name="CollapsedButton" type="Button" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/Collapsed"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+tooltip_text = "Expand channels"
+flat = true
+
+[node name="Line2D" type="Line2D" parent="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/Collapsed"]
+points = PackedVector2Array(5, 6, 10, 10, 5, 14)
+width = 2.0
+default_color = Color(0.340659, 0.340659, 0.340659, 1)
+
+[node name="TopContainer" type="PanelContainer" parent="MainMargin/MatrixGrid"]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(40, 150)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MainMargin/MatrixGrid/TopContainer"]
+layout_mode = 2
+
+[node name="DeviceOutputsListHBoxContainer" type="HBoxContainer" parent="MainMargin/MatrixGrid/TopContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LeftContainer" type="PanelContainer" parent="MainMargin/MatrixGrid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 40)
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="ChannelList" type="VBoxContainer" parent="MainMargin/MatrixGrid/LeftContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/separation = 2
+
+[node name="TestingExampleChannel" type="HBoxContainer" parent="MainMargin/MatrixGrid/LeftContainer/ChannelList"]
+visible = false
+layout_mode = 2
+
+[node name="Channel1Label" type="LineEdit" parent="MainMargin/MatrixGrid/LeftContainer/ChannelList/TestingExampleChannel"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "The output from your cue arrives. Routing this will send your  audio output to the device you connect it to."
+mouse_filter = 1
+text = "Channel 1"
+alignment = 2
+max_length = 24
+emoji_menu_enabled = false
+virtual_keyboard_enabled = false
+
+[node name="AddChannelButton" type="Button" parent="MainMargin/MatrixGrid/LeftContainer/ChannelList"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "Add Channel +"
+
+[node name="MatrixPanelContainer" type="PanelContainer" parent="MainMargin/MatrixGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+
+[node name="PatchMatrixContainer" type="GridContainer" parent="MainMargin/MatrixGrid/MatrixPanelContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+
+[connection signal="pressed" from="MainMargin/MatrixGrid/TopLeftContainer/VBoxContainer/RefreshButton" to="." method="_onRefreshButtonPressed"]

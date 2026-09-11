@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://c5ni11gl5rj53"]
+
+[ext_resource type="Script" path="res://src/UI/Preview/TextPreviewer.cs" id="1_textprev"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_canvas"]
+bg_color = Color(0.072613, 0.072613, 0.072613, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.921569, 0.435294, 0.007843, 1)
+
+[node name="TextPreviewer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_textprev")
+
+[node name="ViewArea" type="Control" parent="."]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="CanvasArea" type="Panel" parent="ViewArea"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 100.0
+offset_bottom = 100.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_canvas")
+
+[node name="LayerHost" type="Control" parent="ViewArea"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="TextBackground" type="ColorRect" parent="ViewArea/LayerHost"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="TextDisplay" type="RichTextLabel" parent="ViewArea/LayerHost"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+bbcode_enabled = false
+fit_content = false
+scroll_active = false

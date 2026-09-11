@@ -1,0 +1,81 @@
+[gd_scene load_steps=6 format=3 uid="uid://b1hhiqmg2m3c"]
+
+[ext_resource type="Script" uid="uid://3goayevjdix0" path="res://src/UI/Preview/VideoPreviewer.cs" id="1_dviul"]
+[ext_resource type="Material" uid="uid://c33ls3l1g8yrd" path="res://src/UI/Output/VideoTextureRectMaterial.tres" id="2_avyjy"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4rb8y"]
+bg_color = Color(0.07261301, 0.07261301, 0.07261301, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.92156863, 0.43529412, 0.007843138, 1)
+
+[sub_resource type="Gradient" id="Gradient_brprv"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_paorf"]
+gradient = SubResource("Gradient_brprv")
+
+[node name="VideoPreviewer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+script = ExtResource("1_dviul")
+
+[node name="VBoxContainer2" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ViewArea" type="Control" parent="VBoxContainer2"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CanvasArea" type="Panel" parent="VBoxContainer2/ViewArea"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 100.0
+offset_bottom = 100.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_4rb8y")
+
+[node name="PreviewTextRect" type="TextureRect" parent="VBoxContainer2/ViewArea"]
+unique_name_in_owner = true
+material = ExtResource("2_avyjy")
+layout_mode = 0
+offset_right = 500.0
+offset_bottom = 500.0
+size_flags_vertical = 3
+texture = SubResource("GradientTexture2D_paorf")
+expand_mode = 1
+stretch_mode = 4
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer2"]
+layout_mode = 2
+
+[node name="PlayPauseButton" type="Button" parent="VBoxContainer2/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+focus_mode = 0
+theme_override_constants/icon_max_width = 14
+
+[node name="SeekProgressBar" type="ProgressBar" parent="VBoxContainer2/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 25)
+layout_mode = 2
+show_percentage = false
+
+[node name="CurrentTimeLabel" type="Label" parent="VBoxContainer2/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "00:00.000"

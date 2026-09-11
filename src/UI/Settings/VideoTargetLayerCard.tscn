@@ -1,0 +1,125 @@
+[gd_scene load_steps=2 format=3 uid="uid://duk02eyqpwjxe"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_iu32m"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.349484, 0.349484, 0.349484, 1)
+
+[node name="VideoTargetLayerCard" type="PanelContainer"]
+custom_minimum_size = Vector2(140, 0)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_iu32m")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="DisplayNameLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="AccordianCollapseButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="DeleteLayerButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_direction = 3
+layout_mode = 2
+theme_override_constants/icon_max_width = 14
+icon_alignment = 1
+expand_icon = true
+
+[node name="DisplaySettingsAccordianContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer"]
+layout_mode = 2
+
+[node name="SizeLabel" type="Label" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+text = "Size:"
+
+[node name="SizeXLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Size X"
+
+[node name="SizeLabel2" type="Label" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer"]
+layout_mode = 2
+text = "x"
+
+[node name="SizeYLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Size Y"
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer"]
+layout_mode = 2
+
+[node name="PosLabel" type="Label" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer2"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+text = "Pos:"
+
+[node name="PosXLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer2"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Pos X"
+
+[node name="SizeLabel2" type="Label" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer2"]
+layout_mode = 2
+text = "x"
+
+[node name="PosYLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer2"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Pos Y"
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer"]
+layout_mode = 2
+
+[node name="TransparentLabel" type="Label" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer4"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+text = "Transparent:"
+
+[node name="TransparentCheckBox" type="CheckBox" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer4"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer"]
+layout_mode = 2
+
+[node name="TestPatternLabel" type="Label" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer3"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+text = "Test Pattern:"
+
+[node name="TestPatternCheckBox" type="CheckBox" parent="MarginContainer/VBoxContainer/DisplaySettingsAccordianContainer/HBoxContainer3"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0

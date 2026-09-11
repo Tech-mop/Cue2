@@ -1,0 +1,146 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/UI/Inspectors/InspectorMidiOutputCard.cs" id="1_midi_card"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_midi"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.1, 0.1, 0.1, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.45, 0.35, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+corner_detail = 5
+
+[node name="InspectorMidiOutputCard" type="PanelContainer"]
+custom_minimum_size = Vector2(300, 0)
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_midi")
+script = ExtResource("1_midi_card")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HeaderRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "MIDI Output"
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_constants/icon_max_width = 18
+icon_alignment = 1
+expand_icon = true
+
+[node name="DeviceRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DeviceLabel" type="Label" parent="MarginContainer/VBoxContainer/DeviceRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.48, 0.55, 1)
+theme_override_font_sizes/font_size = 9
+text = "Device"
+
+[node name="DeviceOption" type="OptionButton" parent="MarginContainer/VBoxContainer/DeviceRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+
+[node name="FieldsRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TypeOption" type="OptionButton" parent="MarginContainer/VBoxContainer/FieldsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+
+[node name="ChannelSpin" type="SpinBox" parent="MarginContainer/VBoxContainer/FieldsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+focus_mode = 0
+min_value = 1.0
+max_value = 16.0
+value = 1.0
+rounded = true
+prefix = "ch"
+theme_override_font_sizes/font_size = 10
+
+[node name="Data1Spin" type="SpinBox" parent="MarginContainer/VBoxContainer/FieldsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+focus_mode = 0
+min_value = 0.0
+max_value = 127.0
+rounded = true
+prefix = "n"
+theme_override_font_sizes/font_size = 10
+
+[node name="Data2Spin" type="SpinBox" parent="MarginContainer/VBoxContainer/FieldsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+focus_mode = 0
+min_value = 0.0
+max_value = 127.0
+value = 100.0
+rounded = true
+prefix = "v"
+theme_override_font_sizes/font_size = 10
+
+[node name="DurationRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DurationLabel" type="Label" parent="MarginContainer/VBoxContainer/DurationRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Note length (s):"
+
+[node name="DurationSpin" type="SpinBox" parent="MarginContainer/VBoxContainer/DurationRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+focus_mode = 0
+min_value = 0.0
+max_value = 3600.0
+step = 0.05
+theme_override_font_sizes/font_size = 10
+
+[node name="TestSendButton" type="Button" parent="MarginContainer/VBoxContainer/DurationRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Test Send"

@@ -1,0 +1,136 @@
+[gd_scene format=3 uid="uid://dyosfip3iclit"]
+
+[ext_resource type="Script" uid="uid://fmf5xt21s2hb" path="res://src/UI/Inspectors/ControlInspector.cs" id="1_ctrl"]
+
+[node name="Control" type="Control" unique_id=1449240123]
+clip_contents = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+tooltip_text = "Control commands to itself or other cues."
+script = ExtResource("1_ctrl")
+metadata/_tab_index = 6
+
+[node name="InfoLabel" type="Label" parent="." unique_id=1677092476]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -82.0
+offset_top = -14.0
+offset_right = 82.0
+offset_bottom = 14.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 20
+text = "No shell selected"
+horizontal_alignment = 1
+
+[node name="ContentRoot" type="MarginContainer" parent="." unique_id=1804022147]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="ContentRoot" unique_id=643901888]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HeaderBar" type="FlowContainer" parent="ContentRoot/VBox" unique_id=591315758]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+
+[node name="HeaderLabel" type="Label" parent="ContentRoot/VBox/HeaderBar" unique_id=1217881685]
+layout_mode = 2
+text = "Add control:"
+
+[node name="AddGoButton" type="Button" parent="ContentRoot/VBox/HeaderBar" unique_id=2097489613]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 28)
+layout_mode = 2
+focus_mode = 0
+text = "GO"
+
+[node name="AddPauseButton" type="Button" parent="ContentRoot/VBox/HeaderBar" unique_id=590217785]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 28)
+layout_mode = 2
+focus_mode = 0
+text = "Pause"
+
+[node name="AddStopButton" type="Button" parent="ContentRoot/VBox/HeaderBar" unique_id=2028329557]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 28)
+layout_mode = 2
+focus_mode = 0
+text = "Stop"
+
+[node name="AddResumeButton" type="Button" parent="ContentRoot/VBox/HeaderBar" unique_id=1343087057]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 28)
+layout_mode = 2
+focus_mode = 0
+text = "Resume"
+
+[node name="AddStartNowButton" type="Button" parent="ContentRoot/VBox/HeaderBar" unique_id=1325706088]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 28)
+layout_mode = 2
+tooltip_text = "Start a waiting cue immediately (skip continue/follow and pre-wait)."
+focus_mode = 0
+text = "Start Now"
+
+[node name="AddFadeButton" type="Button" parent="ContentRoot/VBox/HeaderBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 28)
+layout_mode = 2
+tooltip_text = "Fade audio volume and/or video opacity on a target cue."
+focus_mode = 0
+text = "Fade"
+
+[node name="AddSeekButton" type="Button" parent="ContentRoot/VBox/HeaderBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 28)
+layout_mode = 2
+tooltip_text = "Seek playing audio/video on a target cue (absolute or relative time)."
+focus_mode = 0
+text = "Seek"
+
+[node name="AddTranslateLayerButton" type="Button" parent="ContentRoot/VBox/HeaderBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 28)
+layout_mode = 2
+tooltip_text = "Animate a canvas target layer size and/or position."
+focus_mode = 0
+text = "Translate Layer"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ContentRoot/VBox" unique_id=315927529]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ControlCardContainer" type="FlowContainer" parent="ContentRoot/VBox/ScrollContainer" unique_id=1918274202]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8

@@ -1,0 +1,265 @@
+[gd_scene format=3 uid="uid://t1ccfinhqoye"]
+
+[ext_resource type="Script" uid="uid://csauddefa8k2m" path="res://src/UI/Settings/SettingsAudioDefaults.cs" id="1_audio_def"]
+
+[node name="SettingsAudioDefaults" type="ScrollContainer" unique_id=1415245122]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_audio_def")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1991708185]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=112680616]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Audio Defaults"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=795016414]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer" unique_id=352870375]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Defaults applied when a new audio component is created. File path and routing matrix stay independent of these defaults."
+autowrap_mode = 3
+
+[node name="OutputHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=46634442]
+layout_mode = 2
+
+[node name="OutputSectionLabel" type="Label" parent="VBoxContainer/OutputHeader" unique_id=1459674880]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Output"
+
+[node name="OutputRow" type="HBoxContainer" parent="VBoxContainer" unique_id=600390873]
+layout_mode = 2
+
+[node name="OutputLabel" type="Label" parent="VBoxContainer/OutputRow" unique_id=668868344]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Output"
+vertical_alignment = 1
+
+[node name="OutputOption" type="OptionButton" parent="VBoxContainer/OutputRow" unique_id=106810750]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Default audio output for new audio components.
+Preferred uses Default Patch (or the first patch).
+Routing matrix still builds when a file is assigned."
+focus_mode = 0
+
+[node name="OutputResetButton" type="Button" parent="VBoxContainer/OutputRow" unique_id=326721256]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparatorOut" type="HSeparator" parent="VBoxContainer" unique_id=840055179]
+layout_mode = 2
+
+[node name="SectionHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1403338847]
+layout_mode = 2
+
+[node name="SectionLabel" type="Label" parent="VBoxContainer/SectionHeader" unique_id=1547315048]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Playback"
+
+[node name="VolumeRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1459228612]
+layout_mode = 2
+
+[node name="VolumeLabel" type="Label" parent="VBoxContainer/VolumeRow" unique_id=486512095]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Volume"
+vertical_alignment = 1
+
+[node name="VolumeInput" type="LineEdit" parent="VBoxContainer/VolumeRow" unique_id=1842340981]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+tooltip_text = "Default volume for new audio components (dB)."
+text = "0dB"
+alignment = 1
+
+[node name="VolumeResetButton" type="Button" parent="VBoxContainer/VolumeRow" unique_id=710918922]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PanRow" type="HBoxContainer" parent="VBoxContainer" unique_id=2012666958]
+layout_mode = 2
+
+[node name="PanLabel" type="Label" parent="VBoxContainer/PanRow" unique_id=2025820353]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Pan"
+vertical_alignment = 1
+
+[node name="PanSlider" type="HSlider" parent="VBoxContainer/PanRow" unique_id=1932831650]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Default stereo pan (balance) for new audio components."
+min_value = -100.0
+scrollable = false
+
+[node name="PanInput" type="LineEdit" parent="VBoxContainer/PanRow" unique_id=1573863922]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+tooltip_text = "Pan: C, L/R, L50, R25, or −100…100"
+text = "C"
+alignment = 1
+
+[node name="PanResetButton" type="Button" parent="VBoxContainer/PanRow" unique_id=1173709793]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="LoopRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1572061288]
+layout_mode = 2
+
+[node name="LoopLabel" type="Label" parent="VBoxContainer/LoopRow" unique_id=1788494669]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Loop"
+vertical_alignment = 1
+
+[node name="LoopCheckBox" type="CheckBox" parent="VBoxContainer/LoopRow" unique_id=1262515400]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When on, new audio components loop indefinitely (overrides play count)."
+focus_mode = 0
+text = "Loop"
+
+[node name="LoopResetButton" type="Button" parent="VBoxContainer/LoopRow" unique_id=1012298778]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="PlayCountRow" type="HBoxContainer" parent="VBoxContainer" unique_id=331404193]
+layout_mode = 2
+
+[node name="PlayCountLabel" type="Label" parent="VBoxContainer/PlayCountRow" unique_id=2096616251]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Play count"
+vertical_alignment = 1
+
+[node name="PlayCountInput" type="LineEdit" parent="VBoxContainer/PlayCountRow" unique_id=1959259624]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+tooltip_text = "Default number of plays when loop is off."
+text = "1"
+alignment = 1
+
+[node name="PlayCountResetButton" type="Button" parent="VBoxContainer/PlayCountRow" unique_id=154395469]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer" unique_id=395043713]
+layout_mode = 2
+
+[node name="FadesHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1905428292]
+layout_mode = 2
+
+[node name="FadesSectionLabel" type="Label" parent="VBoxContainer/FadesHeader" unique_id=197102491]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Fades"
+
+[node name="FadeInRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1508126500]
+layout_mode = 2
+
+[node name="FadeInLabel" type="Label" parent="VBoxContainer/FadeInRow" unique_id=1338350]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Fade in"
+vertical_alignment = 1
+
+[node name="FadeInInput" type="LineEdit" parent="VBoxContainer/FadeInRow" unique_id=1349276275]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default fade-in duration for new audio components (0 = immediate)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeInResetButton" type="Button" parent="VBoxContainer/FadeInRow" unique_id=794845119]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="FadeOutRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1124607610]
+layout_mode = 2
+
+[node name="FadeOutLabel" type="Label" parent="VBoxContainer/FadeOutRow" unique_id=1512243973]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Fade out"
+vertical_alignment = 1
+
+[node name="FadeOutInput" type="LineEdit" parent="VBoxContainer/FadeOutRow" unique_id=35516269]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Default fade-out duration for new audio components (0 = immediate / session stop fade)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeOutResetButton" type="Button" parent="VBoxContainer/FadeOutRow" unique_id=1001641227]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true

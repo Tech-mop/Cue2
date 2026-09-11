@@ -1,0 +1,100 @@
+[gd_scene load_steps=7 format=3 uid="uid://c7uaftlqmt1qj"]
+
+[ext_resource type="Script" uid="uid://8oabpi8j7qka" path="res://src/UI/Shell/ActiveCueContainer.cs" id="1_d3m5n"]
+[ext_resource type="Texture2D" uid="uid://c7jh2vkj0tntc" path="res://src/UI/Assets/icons.png" id="2_d3m5n"]
+[ext_resource type="PackedScene" uid="uid://dt7rlfag7yr2c" path="res://src/UI/Shell/ActiveCueBar.tscn" id="3_5r80v"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_5r80v"]
+atlas = ExtResource("2_d3m5n")
+region = Rect2(0, 64, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_wpdxk"]
+atlas = ExtResource("2_d3m5n")
+region = Rect2(32, 64, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_buumb"]
+atlas = ExtResource("2_d3m5n")
+region = Rect2(64, 64, 32, 32)
+
+[node name="ActiveCueContainer" type="PanelContainer"]
+clip_contents = true
+custom_minimum_size = Vector2(80, 0)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_d3m5n")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="HeadBar" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/HeadBar"]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Active Cues"
+clip_text = true
+
+[node name="ResumeAllButton" type="Button" parent="VBoxContainer/HeadBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+tooltip_text = "Resumes all paused cues"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(0.470588, 1, 0.470588, 1)
+theme_override_constants/outline_size = 6
+theme_override_constants/icon_max_width = 16
+theme_override_icons/icon = SubResource("AtlasTexture_5r80v")
+icon_alignment = 1
+
+[node name="PauseAllButton" type="Button" parent="VBoxContainer/HeadBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Pause all cues"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(1, 1, 0.470588, 1)
+theme_override_constants/icon_max_width = 16
+theme_override_icons/icon = SubResource("AtlasTexture_wpdxk")
+icon_alignment = 1
+expand_icon = true
+
+[node name="StopAllButton" type="Button" parent="VBoxContainer/HeadBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Stop all cues
+(Single click to fade and stop, double click to hard stop.)"
+focus_mode = 0
+theme_override_colors/icon_hover_color = Color(1, 0.470588, 0.470588, 1)
+theme_override_constants/icon_max_width = 16
+theme_override_icons/icon = SubResource("AtlasTexture_buumb")
+icon_alignment = 1
+expand_icon = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ActiveCueList" type="VBoxContainer" parent="VBoxContainer/ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme_override_constants/separation = 2
+
+[node name="ActiveCueBar" parent="VBoxContainer/ScrollContainer/ActiveCueList" instance=ExtResource("3_5r80v")]
+visible = false
+layout_mode = 2

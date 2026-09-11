@@ -1,0 +1,288 @@
+[gd_scene format=3 uid="uid://b6sx83qucwbua"]
+
+[ext_resource type="Script" uid="uid://c5tqhoc6jmdtj" path="res://src/UI/Settings/SettingsAudio.cs" id="1_audio"]
+
+[node name="SettingsAudio" type="ScrollContainer" unique_id=815269971]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_audio")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1151459202]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer" unique_id=393858503]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Audio"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=946180033]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer" unique_id=2084411263]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Show-scoped playback performance for standalone audio and video embedded audio. Routing lives under Audio Output Patch; new-cue defaults under Cue Defaults."
+autowrap_mode = 3
+
+[node name="PerfHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1295730497]
+layout_mode = 2
+
+[node name="PerfSectionLabel" type="Label" parent="VBoxContainer/PerfHeader" unique_id=1470657630]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Performance"
+
+[node name="LatencyRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1666347828]
+layout_mode = 2
+
+[node name="LatencyLabel" type="Label" parent="VBoxContainer/LatencyRow" unique_id=975360381]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Soft knobs over queue depth, refill threshold, and seek/GO prefetch. Prefer low latency reduces buffer delay; Prefer stability reduces underruns under multi-cue load."
+text = "Latency preset"
+vertical_alignment = 1
+
+[node name="LatencyModeOption" type="OptionButton" parent="VBoxContainer/LatencyRow" unique_id=403327120]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Soft knobs over queue depth, refill threshold, and seek/GO prefetch. Prefer low latency reduces buffer delay; Prefer stability reduces underruns under multi-cue load."
+focus_mode = 0
+selected = 1
+item_count = 3
+popup/item_0/text = "Prefer low latency"
+popup/item_0/id = 0
+popup/item_1/text = "Balanced"
+popup/item_1/id = 1
+popup/item_2/text = "Prefer stability"
+popup/item_2/id = 2
+
+[node name="LatencyModeResetButton" type="Button" parent="VBoxContainer/LatencyRow" unique_id=1154950919]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="DeclickRow" type="HBoxContainer" parent="VBoxContainer" unique_id=926829216]
+layout_mode = 2
+
+[node name="DeclickLabel" type="Label" parent="VBoxContainer/DeclickRow" unique_id=1459246927]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Raised-cosine fade-in after start, seek, and resume to suppress silence-to-sample clicks. 0 = off."
+text = "Declick ramp"
+vertical_alignment = 1
+
+[node name="DeclickSpinBox" type="SpinBox" parent="VBoxContainer/DeclickRow" unique_id=1759231471]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+tooltip_text = "Raised-cosine fade-in after start, seek, and resume to suppress silence-to-sample clicks. 0 = off."
+focus_mode = 2
+max_value = 50.0
+value = 8.0
+alignment = 1
+suffix = "ms"
+
+[node name="DeclickResetButton" type="Button" parent="VBoxContainer/DeclickRow" unique_id=1825660039]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="DeclickHint" type="Label" parent="VBoxContainer/DeclickRow" unique_id=1672638628]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Applies on next start/seek."
+vertical_alignment = 1
+
+[node name="HSeparatorMaster" type="HSeparator" parent="VBoxContainer" unique_id=1272429380]
+layout_mode = 2
+
+[node name="MasterHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1498422229]
+layout_mode = 2
+
+[node name="MasterSectionLabel" type="Label" parent="VBoxContainer/MasterHeader" unique_id=2013589555]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Master output"
+
+[node name="MasterVolumeRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1073812190]
+layout_mode = 2
+
+[node name="MasterVolumeLabel" type="Label" parent="VBoxContainer/MasterVolumeRow" unique_id=1589463277]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Session-wide gain applied to all cue audio (standalone and video embedded). Enter dB (0dB = full)."
+text = "Master volume"
+vertical_alignment = 1
+
+[node name="MasterVolumeInput" type="LineEdit" parent="VBoxContainer/MasterVolumeRow" unique_id=1116425194]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+tooltip_text = "Session-wide gain applied to all cue audio (standalone and video embedded). Enter dB (0dB = full)."
+text = "0.0dB"
+alignment = 1
+max_length = 12
+
+[node name="MasterVolumeResetButton" type="Button" parent="VBoxContainer/MasterVolumeRow" unique_id=224680656]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="MasterMuteRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1041202699]
+layout_mode = 2
+
+[node name="MasterMuteLabel" type="Label" parent="VBoxContainer/MasterMuteRow" unique_id=961462202]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Silences all cue audio immediately without changing master volume. Runtime only — not saved with the showfile."
+text = "Master mute"
+vertical_alignment = 1
+
+[node name="MasterMuteCheckBox" type="CheckBox" parent="VBoxContainer/MasterMuteRow" unique_id=781261302]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Silences all cue audio immediately without changing master volume. Runtime only — not saved with the showfile."
+focus_mode = 0
+text = "Mute all outputs"
+
+[node name="HSeparatorLimits" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LimitsHeader" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LimitsSectionLabel" type="Label" parent="VBoxContainer/LimitsHeader"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Output protection"
+
+[node name="LimitsDescription" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Applied after mixing each cue path (standalone and video audio). Max level hard-clamps peaks to avoid digital overload; min level zeros near-silence (noise gate). Concurrent cues still sum on the device — leave master headroom for dense stacks."
+autowrap_mode = 3
+
+[node name="OutputMaxRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="OutputMaxLabel" type="Label" parent="VBoxContainer/OutputMaxRow"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Peak clamp ceiling after mix (dBFS). Samples above this absolute level are limited. 0dB = full scale."
+text = "Max level"
+vertical_alignment = 1
+
+[node name="OutputMaxInput" type="LineEdit" parent="VBoxContainer/OutputMaxRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+tooltip_text = "Peak clamp ceiling after mix (dBFS). Samples above this absolute level are limited. 0dB = full scale."
+text = "0.0dB"
+alignment = 1
+max_length = 12
+
+[node name="OutputMaxResetButton" type="Button" parent="VBoxContainer/OutputMaxRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OutputMinRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="OutputMinLabel" type="Label" parent="VBoxContainer/OutputMinRow"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Silence floor after mix (dBFS). Samples quieter than this become digital silence. −120dB effectively disables the gate."
+text = "Min level (silence)"
+vertical_alignment = 1
+
+[node name="OutputMinInput" type="LineEdit" parent="VBoxContainer/OutputMinRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+tooltip_text = "Silence floor after mix (dBFS). Samples quieter than this become digital silence. −120dB effectively disables the gate."
+text = "-90.0dB"
+alignment = 1
+max_length = 12
+
+[node name="OutputMinResetButton" type="Button" parent="VBoxContainer/OutputMinRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="HSeparatorPerf" type="HSeparator" parent="VBoxContainer" unique_id=937025652]
+layout_mode = 2
+
+[node name="DevicesHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=1542163043]
+layout_mode = 2
+
+[node name="DevicesSectionLabel" type="Label" parent="VBoxContainer/DevicesHeader" unique_id=1615453656]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Open devices"
+
+[node name="DevicesDescription" type="Label" parent="VBoxContainer" unique_id=648053672]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Open playback interfaces: sample rate, bit depth, output channels, and device buffer size in sample frames."
+autowrap_mode = 3
+
+[node name="OpenDevicesList" type="ItemList" parent="VBoxContainer" unique_id=1937833110]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+focus_mode = 0
+
+[node name="RefreshDevicesButton" type="Button" parent="VBoxContainer" unique_id=424236387]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 0
+text = "Refresh device list"
+
+[node name="HSeparatorRelated" type="HSeparator" parent="VBoxContainer" unique_id=197867050]
+layout_mode = 2

@@ -1,0 +1,52 @@
+[gd_scene load_steps=3 format=3 uid="uid://cd4xfma7ijlpi"]
+
+[ext_resource type="Script" uid="uid://bm26sjwgtda8d" path="res://src/UI/Shell/HeaderUI.cs" id="1_hgo6x"]
+[ext_resource type="Theme" uid="uid://7h1277c0156g" path="res://src/UI/Assets/GO_theme.tres" id="1_yk0o2"]
+
+[node name="HeaderContainer" type="Control"]
+custom_minimum_size = Vector2(0, 50)
+layout_direction = 2
+layout_mode = 3
+anchors_preset = 0
+offset_right = 713.0
+offset_bottom = 66.0
+size_flags_horizontal = 3
+script = ExtResource("1_hgo6x")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GoButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(50, 50)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+focus_mode = 0
+theme = ExtResource("1_yk0o2")
+text = "GO"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HBoxContainer"]
+layout_mode = 2
+
+[node name="StandbyCueText" type="LineEdit" parent="HBoxContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Next cue to be played (current selection)."
+placeholder_text = "Standby Cue"
+editable = false
+
+[node name="StandbyCueNote" type="LineEdit" parent="HBoxContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Notes for the standby cue."
+placeholder_text = "Notes"
+editable = false

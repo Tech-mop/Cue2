@@ -1,0 +1,59 @@
+# Godot-specific ignores
+.godot/
+*.godot
+.import/
+*.import
+export.cfg
+export_presets.cfg
+*.translation
+*.oid
+
+# Mono-specific ignores
+.mono/
+data_/
+mono_crash..json
+obj/
+*.csproj
+*.sln
+*.csproj.old
+*.csproj.old.*
+*.user
+*.userprefs
+*.suo
+*.pidb
+*.usertasks
+.sln.docstates
+.ntvs
+.nuke
+.config/dotnet-tools.json
+Packages/
+
+exports/
+builds/
+
+# IDE / local tooling (never commit)
+.idea/
+.vs/
+.opencode/
+*.run/
+*.run.xml
+*.sln.DotSettings.user
+
+# Leftovers
+Backup/
+UpgradeLog.htm
+*.tmp
+.DS_Store
+.DS_Store*
+**/.DS_Store
+
+# Not in the public repo yet
+/docs/
+/tools/
+/AGENTS.md
+
+# System/tool-specific ignores
+.directory
+*~
+
+/src/Dumper.cs

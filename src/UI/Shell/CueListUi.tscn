@@ -1,0 +1,255 @@
+[gd_scene format=3 uid="uid://bya2tf86xcdn6"]
+
+[ext_resource type="Script" uid="uid://bvggf4vdf2pc0" path="res://src/Domain/Cuelist/CueList.cs" id="1_sahw6"]
+[ext_resource type="Script" uid="uid://dk2tysiqglmso" path="res://src/UI/Shell/CuelistZebraBackground.cs" id="zebra_bg_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_a77uv"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_swmxb"]
+draw_center = false
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5921569, 0.29411766, 0.03137255, 1)
+
+[node name="CueList" type="Control" unique_id=161913303]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 1152.0
+offset_bottom = 648.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_sahw6")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=291285150]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 2
+
+[node name="CueListHeader" type="HBoxContainer" parent="VBoxContainer" unique_id=554570955]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="HeaderColorPad" type="Control" parent="VBoxContainer/CueListHeader" unique_id=1138382840]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(3, 15)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+
+[node name="AddCueButton" type="Button" parent="VBoxContainer/CueListHeader" unique_id=322322361]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Add a new cue.
+Inserts below selection."
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="HeaderIssuePad" type="Control" parent="VBoxContainer/CueListHeader" unique_id=862596437]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(14, 15)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+
+[node name="ExpandAllButton" type="Button" parent="VBoxContainer/CueListHeader" unique_id=149189949]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Expand/Collapse all groups."
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="NumberNameColumns" type="HBoxContainer" parent="VBoxContainer/CueListHeader" unique_id=919714740]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="NumberHeaderLabel" type="Label" parent="VBoxContainer/CueListHeader/NumberNameColumns" unique_id=1062638864]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.45822102, 0.5533762, 0.6033557, 1)
+theme_override_font_sizes/font_size = 9
+text = "Number"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NumberNameResizeGrip" type="ColorRect" parent="VBoxContainer/CueListHeader/NumberNameColumns" unique_id=1418651586]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(4, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 3
+tooltip_text = "Drag to resize Number / Name columns"
+mouse_default_cursor_shape = 10
+color = Color(0.1391398, 0.1391398, 0.1391398, 1)
+
+[node name="NameHeaderLabel" type="Label" parent="VBoxContainer/CueListHeader/NumberNameColumns" unique_id=491216741]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.45822102, 0.5533762, 0.6033557, 1)
+theme_override_font_sizes/font_size = 9
+text = "Name"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TimeColumns" type="HBoxContainer" parent="VBoxContainer/CueListHeader" unique_id=1570449753]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 2
+
+[node name="PreWaitHeaderLabel" type="Label" parent="VBoxContainer/CueListHeader/TimeColumns" unique_id=2030640554]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_default_cursor_shape = 10
+theme_override_colors/font_color = Color(0.45822102, 0.5533762, 0.6033557, 1)
+theme_override_font_sizes/font_size = 9
+text = "Pre-Wait"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DurationHeaderLabel" type="Label" parent="VBoxContainer/CueListHeader/TimeColumns" unique_id=1719703825]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.45822102, 0.5533762, 0.6033557, 1)
+theme_override_font_sizes/font_size = 9
+text = "Duration"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PostWaitHeaderLabel" type="Label" parent="VBoxContainer/CueListHeader/TimeColumns" unique_id=1575280087]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.45822102, 0.5533762, 0.6033557, 1)
+theme_override_font_sizes/font_size = 9
+text = "Post-Wait"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FollowHeaderLabel" type="Label" parent="VBoxContainer/CueListHeader/TimeColumns" unique_id=1482502634]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Continue mode: auto-continue (→) or auto-follow (↳)."
+theme_override_colors/font_color = Color(0.45822102, 0.5533762, 0.6033557, 1)
+theme_override_font_sizes/font_size = 9
+text = "↳"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HeaderScrollPad" type="Control" parent="VBoxContainer/CueListHeader"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+
+[node name="Cue List" type="ScrollContainer" parent="VBoxContainer" unique_id=785083590]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+metadata/_tab_index = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/Cue List" unique_id=1920498494]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="CuelistZebraBackground" type="Control" parent="VBoxContainer/Cue List/MarginContainer" unique_id=1971151039]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+script = ExtResource("zebra_bg_script")
+
+[node name="ScrollContentVBox" type="VBoxContainer" parent="VBoxContainer/Cue List/MarginContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="CueContainer" type="VBoxContainer" parent="VBoxContainer/Cue List/MarginContainer/ScrollContentVBox" unique_id=105568765]
+unique_name_in_owner = true
+y_sort_enabled = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="ScrollEndPad" type="Control" parent="VBoxContainer/Cue List/MarginContainer/ScrollContentVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+mouse_filter = 0
+tooltip_text = ""
+
+[node name="ReorderCueControl" type="Control" parent="." unique_id=2011399606]
+unique_name_in_owner = true
+anchors_preset = 0
+mouse_filter = 2
+
+[node name="Panel" type="Panel" parent="ReorderCueControl" unique_id=127315451]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_a77uv")
+
+[node name="ReorderIndicatorPanel" type="Panel" parent="ReorderCueControl" unique_id=1898163865]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_swmxb")
+
+[node name="PanelContainer" type="PanelContainer" parent="ReorderCueControl" unique_id=1653035702]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ReorderCueControl/PanelContainer" unique_id=1773503659]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ReorderLocationLabel" type="Label" parent="ReorderCueControl/PanelContainer/VBoxContainer" unique_id=1673967597]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Where"
+
+[node name="ReorderListContainer" type="VBoxContainer" parent="ReorderCueControl/PanelContainer/VBoxContainer" unique_id=466251885]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2

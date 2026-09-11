@@ -1,0 +1,142 @@
+[gd_scene load_steps=5 format=3 uid="uid://b03yr6xdtbbx1"]
+
+[ext_resource type="Script" uid="uid://bmbs6kyrh6uq7" path="res://src/App/Launcher/LaunchManager.cs" id="1_bv1pb"]
+[ext_resource type="Script" uid="uid://blrla7wswmdn4" path="res://src/App/Launcher/LauncherHandles.cs" id="2_e3u3p"]
+
+[sub_resource type="Gradient" id="Gradient_e57xn"]
+colors = PackedColorArray(0.169245, 0.169245, 0.169245, 1, 0.114897, 0.114897, 0.114897, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_wnmk3"]
+gradient = SubResource("Gradient_e57xn")
+
+[node name="Launcher" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_bv1pb")
+
+[node name="launcherHandles" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_e3u3p")
+
+[node name="DragBar" type="TextureRect" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+mouse_default_cursor_shape = 6
+texture = SubResource("GradientTexture1D_wnmk3")
+
+[node name="Right" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_default_cursor_shape = 10
+
+[node name="Bottom" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_default_cursor_shape = 9
+
+[node name="Corner" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -5.0
+offset_top = -5.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_default_cursor_shape = 12
+
+[node name="LeftColumn" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(196, 0)
+layout_mode = 0
+offset_left = 2.0
+offset_top = 12.0
+offset_right = 198.0
+offset_bottom = 78.0
+mouse_filter = 2
+
+[node name="Label" type="Label" parent="LeftColumn"]
+layout_mode = 2
+text = "Cue2"
+horizontal_alignment = 1
+
+[node name="New" type="Button" parent="LeftColumn"]
+custom_minimum_size = Vector2(196, 31)
+layout_mode = 2
+text = "New Show"
+
+[node name="Open Template" type="Button" parent="LeftColumn"]
+visible = false
+custom_minimum_size = Vector2(196, 31)
+layout_mode = 2
+
+[node name="Button3" type="Button" parent="LeftColumn"]
+visible = false
+custom_minimum_size = Vector2(196, 31)
+layout_mode = 2
+
+[node name="Exit" type="Button" parent="LeftColumn"]
+custom_minimum_size = Vector2(196, 31)
+layout_mode = 2
+text = "Exit"
+
+[node name="CenterColumn" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 1
+anchors_preset = 13
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="RightColumn" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="FileDialog" type="FileDialog" parent="."]
+initial_position = 4
+size = Vector2i(392, 175)
+
+[connection signal="gui_input" from="launcherHandles/DragBar" to="launcherHandles" method="_on_drag_bar_gui_input"]
+[connection signal="gui_input" from="launcherHandles/Right" to="launcherHandles" method="_on_right_gui_input"]
+[connection signal="gui_input" from="launcherHandles/Bottom" to="launcherHandles" method="_on_bottom_gui_input"]
+[connection signal="gui_input" from="launcherHandles/Corner" to="launcherHandles" method="_on_corner_gui_input"]
+[connection signal="pressed" from="LeftColumn/New" to="." method="_on_new_pressed"]
+[connection signal="pressed" from="LeftColumn/Exit" to="." method="_on_exit_pressed"]

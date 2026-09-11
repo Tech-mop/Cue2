@@ -1,0 +1,178 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/UI/Settings/SettingsUpdates.cs" id="1_updates"]
+
+[node name="SettingsUpdates" type="ScrollContainer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_updates")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Updates"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Intro" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Check GitHub Releases for a newer Cue2. Install never runs during playback."
+autowrap_mode = 3
+
+[node name="CurrentRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="CurrentCaption" type="Label" parent="VBoxContainer/CurrentRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "This version"
+vertical_alignment = 1
+
+[node name="CurrentVersionLabel" type="Label" parent="VBoxContainer/CurrentRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Cue2"
+vertical_alignment = 1
+
+[node name="LastCheckRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LastCheckCaption" type="Label" parent="VBoxContainer/LastCheckRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Last checked"
+vertical_alignment = 1
+
+[node name="LastCheckLabel" type="Label" parent="VBoxContainer/LastCheckRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Never"
+vertical_alignment = 1
+
+[node name="StatusRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="StatusCaption" type="Label" parent="VBoxContainer/StatusRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Status"
+vertical_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer/StatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = ""
+autowrap_mode = 3
+vertical_alignment = 1
+
+[node name="LatestRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LatestCaption" type="Label" parent="VBoxContainer/LatestRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Latest release"
+vertical_alignment = 1
+
+[node name="LatestVersionLabel" type="Label" parent="VBoxContainer/LatestRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "—"
+vertical_alignment = 1
+
+[node name="NotesCaption" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Release notes"
+
+[node name="NotesEdit" type="TextEdit" parent="VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Release notes appear here after a check."
+editable = false
+wrap_mode = 1
+
+[node name="CheckOnStartupCheck" type="CheckBox" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Check for updates when Cue2 starts"
+focus_mode = 0
+
+[node name="IncludePrereleaseCheck" type="CheckBox" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Include pre-release versions"
+focus_mode = 0
+
+[node name="ButtonRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CheckNowButton" type="Button" parent="VBoxContainer/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Check Now"
+
+[node name="OpenReleasePageButton" type="Button" parent="VBoxContainer/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Open release page"
+
+[node name="SkipVersionButton" type="Button" parent="VBoxContainer/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Skip this version"
+
+[node name="ActionRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DownloadButton" type="Button" parent="VBoxContainer/ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Download"
+
+[node name="InstallRestartButton" type="Button" parent="VBoxContainer/ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Install and Restart"
+
+[node name="InstallConfirmDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Install and Restart"
+ok_button_text = "Install and Restart"
+dialog_text = "Cue2 will close and install the update. Unsaved show changes will be lost."

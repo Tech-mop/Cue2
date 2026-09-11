@@ -1,0 +1,233 @@
+[gd_scene load_steps=2 format=3 uid="uid://6vou7cplmgmo"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_atxoy"]
+
+[node name="CueLightInstance" type="PanelContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="CueLightCollapseButton" type="Button" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+tooltip_text = "Show units configuration."
+focus_mode = 0
+theme_type_variation = &"AtlasIcons"
+theme_override_constants/icon_max_width = 12
+icon_alignment = 1
+expand_icon = true
+
+[node name="OptionButton" type="OptionButton" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+selected = 0
+item_count = 1
+popup/item_0/text = "CL-P1"
+popup/item_0/id = 0
+
+[node name="NameLineEdit" type="LineEdit" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+placeholder_text = "Name"
+max_length = 16
+
+[node name="IpLineEdit" type="LineEdit" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+placeholder_text = "Ip Address"
+alignment = 1
+max_length = 16
+
+[node name="ConnectionStatusColourRect" type="ColorRect" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(12, 12)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = "Not Connected"
+color = Color(1, 0, 0, 1)
+
+[node name="CheckConnectionButton" type="Button" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+tooltip_text = "Recheck network connection"
+focus_mode = 0
+expand_icon = true
+
+[node name="Control" type="Control" parent="VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="IdentifyButton" type="Button" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+tooltip_text = "Connected Cue-Light will run a blue chase until disabled. "
+focus_mode = 0
+toggle_mode = true
+text = "Identify"
+icon_alignment = 1
+expand_icon = true
+
+[node name="EnabledToggle" type="CheckButton" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Enabled
+Disable/Enable - When disabled it maintains connection to the unit but does not send any cues. "
+focus_mode = 0
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_atxoy")
+button_pressed = true
+
+[node name="DeleteButton" type="Button" parent="VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(26, 26)
+layout_mode = 2
+tooltip_text = "Delete Cue Light"
+focus_mode = 0
+icon_alignment = 1
+expand_icon = true
+
+[node name="ConfigAccordian" type="VBoxContainer" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/ConfigAccordian"]
+layout_mode = 2
+text = "Wi-fi ands ethernet config"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/ConfigAccordian"]
+layout_mode = 2
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="VBoxContainer/ConfigAccordian"]
+layout_mode = 2
+
+[node name="VBoxContainer2" type="GridContainer" parent="VBoxContainer/ConfigAccordian/HBoxContainer2"]
+layout_mode = 2
+columns = 2
+
+[node name="Control" type="Control" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+
+[node name="Label2" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+text = "Ethernet"
+
+[node name="Label11" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+text = "DHCP"
+
+[node name="CheckButton2" type="CheckButton" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+
+[node name="Label8" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+text = "IP"
+
+[node name="LineEdit6" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Label9" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+text = "Subnet"
+
+[node name="LineEdit7" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Label10" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+layout_mode = 2
+text = "Gateway"
+
+[node name="LineEdit8" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer2"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="VBoxContainer3" type="VBoxContainer" parent="VBoxContainer/ConfigAccordian/HBoxContainer2"]
+layout_mode = 2
+
+[node name="CheckButton" type="CheckButton" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer3"]
+layout_mode = 2
+
+[node name="VSeparator" type="VSeparator" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer3"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="GridContainer" parent="VBoxContainer/ConfigAccordian/HBoxContainer2"]
+layout_mode = 2
+columns = 2
+
+[node name="Label9" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "Wi-fi"
+
+[node name="Control2" type="Control" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label3" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "SSID"
+
+[node name="LineEdit" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Label4" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "Pass"
+
+[node name="LineEdit2" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Label5" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "DHCP"
+
+[node name="CheckButton" type="CheckButton" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label6" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "IP"
+
+[node name="LineEdit3" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Label7" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "Subnet"
+
+[node name="LineEdit4" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Label8" type="Label" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+layout_mode = 2
+text = "Gateway"
+
+[node name="LineEdit5" type="LineEdit" parent="VBoxContainer/ConfigAccordian/HBoxContainer2/VBoxContainer"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="Button" type="Button" parent="VBoxContainer/ConfigAccordian/HBoxContainer2"]
+layout_mode = 2
+size_flags_vertical = 0
+text = "Submit Config"

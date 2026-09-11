@@ -1,0 +1,102 @@
+[gd_scene load_steps=4 format=3 uid="uid://cb7g4xgryo2dg"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_root"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_compfill"]
+bg_color = Color(0.718824, 0.339529, 0.00611765, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ret6o"]
+bg_color = Color(0.221176, 0.104471, 0.00188235, 0.72)
+border_width_bottom = 1
+border_color = Color(0.552941, 0.261176, 0.00470588, 1)
+
+[node name="ComponentProgressBar" type="PanelContainer"]
+custom_minimum_size = Vector2(0, 20)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxEmpty_root")
+
+[node name="ComponentProgress" type="ProgressBar" parent="."]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_default_cursor_shape = 2
+theme_override_styles/fill = SubResource("StyleBoxFlat_compfill")
+show_percentage = false
+
+[node name="ComponentFadeProgress" type="ProgressBar" parent="ComponentProgress"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/fill = SubResource("StyleBoxFlat_ret6o")
+step = 1.0
+fill_mode = 2
+show_percentage = false
+
+[node name="MarginContainer" type="MarginContainer" parent="ComponentProgress"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_right = 10
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ComponentProgress/MarginContainer"]
+layout_mode = 2
+
+[node name="ComponentPause" type="Button" parent="ComponentProgress/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+focus_mode = 0
+theme_override_constants/icon_max_width = 14
+
+[node name="ComponentIcon" type="TextureRect" parent="ComponentProgress/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(16, 16)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+tooltip_text = ""
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ComponentLabel" type="Label" parent="ComponentProgress/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Name"
+horizontal_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="ComponentTime" type="Label" parent="ComponentProgress/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "0"
+horizontal_alignment = 2
+
+[node name="ComponentStop" type="Button" parent="ComponentProgress/MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+focus_mode = 0
+theme_override_constants/icon_max_width = 14

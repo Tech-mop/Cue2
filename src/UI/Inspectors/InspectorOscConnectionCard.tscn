@@ -1,0 +1,83 @@
+[gd_scene load_steps=3 format=3 uid="uid://cst0ttvboq673"]
+
+[ext_resource type="Script" uid="uid://df61v4wulavnm" path="res://src/UI/Inspectors/InspectorOscConnectionCard.cs" id="1_yd7b6"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_yd7b6"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.1, 0.1, 0.1, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4117647, 0.19607843, 0, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+corner_detail = 5
+
+[node name="InspectorOscConnectionCard" type="PanelContainer"]
+custom_minimum_size = Vector2(300, 0)
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_yd7b6")
+script = ExtResource("1_yd7b6")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Empty Component"
+
+[node name="TestSendButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Test"
+tooltip_text = "Send this OSC message now (does not GO the cue)."
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_constants/icon_max_width = 18
+icon_alignment = 1
+expand_icon = true
+
+[node name="OscConnectionLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4480424, 0.48326254, 0.5528739, 1)
+theme_override_font_sizes/font_size = 8
+
+[node name="CommandTextEdit" type="LineEdit" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+placeholder_text = "/command/path or /jump 2"
+tooltip_text = "OSC address path (must start with /). You can include args after a space, e.g. /jump 2 — they move into the args field."
+
+[node name="ArgsTextEdit" type="LineEdit" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+placeholder_text = "args: 1 0.5 \"hello\" true"
+tooltip_text = "Optional arguments: ints, floats, quoted strings, true/false. Space or comma separated."

@@ -1,0 +1,802 @@
+[gd_scene format=3 uid="uid://ceydom3514ip"]
+
+[ext_resource type="Script" uid="uid://c8tujh2ove2m6" path="res://src/UI/Settings/SettingsCanvasEditor.cs" id="1_r0ob0"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.06, 0.06, 0.06, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.18, 0.18, 0.18, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_canvas_bg"]
+bg_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_canvas_outline"]
+bg_color = Color(0, 0, 0, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.0113369, 0.218073, 0.244462, 1)
+
+[node name="CanvasEditor" type="Control" unique_id=1136064775]
+clip_contents = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_r0ob0")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1978728804]
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="MainVBox" type="VBoxContainer" parent="MarginContainer" unique_id=1087767163]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="HeaderHBox" type="HBoxContainer" parent="MarginContainer/MainVBox" unique_id=418139583]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HeaderLabel" type="Label" parent="MarginContainer/MainVBox/HeaderHBox" unique_id=1409044870]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "CANVAS EDITOR"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HeaderSpacer" type="Control" parent="MarginContainer/MainVBox/HeaderHBox" unique_id=523877097]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ZoomControlHBoxContainer" type="HBoxContainer" parent="MarginContainer/MainVBox/HeaderHBox" unique_id=464041450]
+layout_mode = 2
+
+[node name="ZoomOutButton" type="Button" parent="MarginContainer/MainVBox/HeaderHBox/ZoomControlHBoxContainer" unique_id=2074394010]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+focus_mode = 0
+text = "-"
+
+[node name="ZoomPercentLabel" type="LineEdit" parent="MarginContainer/MainVBox/HeaderHBox/ZoomControlHBoxContainer" unique_id=1302053884]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+tooltip_text = "Canvas Zoom. Ctrl + Scroll"
+text = "20"
+placeholder_text = "Zoom %"
+alignment = 1
+
+[node name="ZoomInButton" type="Button" parent="MarginContainer/MainVBox/HeaderHBox/ZoomControlHBoxContainer" unique_id=73896311]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+focus_mode = 0
+text = "+"
+
+[node name="FitButton" type="Button" parent="MarginContainer/MainVBox/HeaderHBox/ZoomControlHBoxContainer" unique_id=1513167215]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+tooltip_text = "Fit canvas to view"
+focus_mode = 0
+text = "Fit"
+
+[node name="BodyScroll" type="ScrollContainer" parent="MarginContainer/MainVBox"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 1
+
+[node name="BodyHSplit" type="HSplitContainer" parent="MarginContainer/MainVBox/BodyScroll" unique_id=1003660165]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(180)
+split_offset = 180
+
+[node name="LeftPanel" type="PanelContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit" unique_id=443773294]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+clip_contents = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="LeftVBox" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel" unique_id=1224385540]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="CanvasSelectButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=796344770]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Canvas"
+
+[node name="ScreensHeaderRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=1950831975]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ScreensHeader" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox/ScreensHeaderRow" unique_id=1772834398]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "SCREENS"
+vertical_alignment = 1
+uppercase = true
+
+[node name="RefreshScreensButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox/ScreensHeaderRow" unique_id=197240560]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+tooltip_text = "Refresh all screens and outputs (restore closed windows, re-check displays)"
+focus_mode = 0
+flat = true
+
+[node name="ScreensTree" type="Tree" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=1067622962]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+hide_root = true
+select_mode = 1
+
+[node name="AddScreenButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=1017429665]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+ Screen"
+
+[node name="LeftSeparator" type="HSeparator" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=1715718818]
+layout_mode = 2
+
+[node name="LayersHeader" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=2098652188]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "TARGET LAYERS"
+uppercase = true
+
+[node name="LayersTree" type="Tree" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=379689084]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+hide_root = true
+select_mode = 1
+
+[node name="LayerButtonsHBox" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox" unique_id=1457803014]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AddTargetLayerButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox/LayerButtonsHBox" unique_id=1871261665]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "+ Layer"
+
+[node name="MoveLayerUpButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox/LayerButtonsHBox" unique_id=1351384295]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+tooltip_text = "Move selected layer up (toward top / drawn on top)"
+focus_mode = 0
+disabled = true
+text = "↑"
+
+[node name="MoveLayerDownButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/LeftPanel/LeftVBox/LayerButtonsHBox" unique_id=158765135]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+tooltip_text = "Move selected layer down (toward bottom / drawn behind)"
+focus_mode = 0
+disabled = true
+text = "↓"
+
+[node name="CenterRightSplit" type="HSplitContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit" unique_id=256912890]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(-220)
+split_offset = -220
+
+[node name="CenterPanel" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit" unique_id=386143506]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel" unique_id=1527729094]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_canvas_bg")
+horizontal_scroll_mode = 3
+vertical_scroll_mode = 3
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel/ScrollContainer" unique_id=166595456]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Viewport" type="SubViewport" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel/ScrollContainer/SubViewportContainer" unique_id=1566985774]
+unique_name_in_owner = true
+transparent_bg = true
+handle_input_locally = false
+render_target_update_mode = 4
+
+[node name="CanvasLayer" type="CanvasLayer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel/ScrollContainer/SubViewportContainer/Viewport" unique_id=1161452653]
+unique_name_in_owner = true
+
+[node name="CanvasControl" type="Control" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel/ScrollContainer/SubViewportContainer/Viewport/CanvasLayer" unique_id=411151513]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="CanvasOutlinePanel" type="Panel" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel/ScrollContainer/SubViewportContainer/Viewport/CanvasLayer/CanvasControl" unique_id=250958691]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(10, 10)
+layout_mode = 0
+offset_right = 10.0
+offset_bottom = 10.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_canvas_outline")
+
+[node name="ControlsLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/CenterPanel" unique_id=1669559873]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.412004, 0.412004, 0.412004, 1)
+theme_override_font_sizes/font_size = 9
+text = "Drag: move  ·  Handles: resize  ·  Click: select  ·  Ctrl+Scroll: zoom  ·  MMB: pan  ·  Fit: fit view"
+horizontal_alignment = 1
+vertical_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="RightPanel" type="PanelContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit" unique_id=1837942953]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+clip_contents = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="RightVBox" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel" unique_id=1300739996]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PropsHeader" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox" unique_id=1700920953]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "PROPERTIES"
+uppercase = true
+
+[node name="PropsScroll" type="ScrollContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox" unique_id=817194258]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PropsContent" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll" unique_id=1197160199]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="EmptyPropsLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent" unique_id=1586360227]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 11
+text = "Select an item in the structure tree."
+autowrap_mode = 3
+
+[node name="CanvasProps" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent" unique_id=1844587417]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="CanvasPropsTitle" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps" unique_id=1919235669]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Canvas"
+
+[node name="CanvasSizeLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps" unique_id=818962699]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Size"
+
+[node name="CanvasSizeRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps" unique_id=1630790214]
+layout_mode = 2
+
+[node name="CanvasSizeX" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps/CanvasSizeRow" unique_id=516810286]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Width"
+alignment = 1
+
+[node name="CanvasSizeXLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps/CanvasSizeRow" unique_id=115239866]
+layout_mode = 2
+text = "×"
+
+[node name="CanvasSizeY" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps/CanvasSizeRow" unique_id=1847118719]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Height"
+alignment = 1
+
+[node name="CanvasTestPatternRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps" unique_id=1847118720]
+layout_mode = 2
+
+[node name="CanvasTestPatternCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps/CanvasTestPatternRow" unique_id=1847118721]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Test Pattern"
+
+[node name="CanvasTestPatternResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/CanvasProps/CanvasTestPatternRow" unique_id=1847118722]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OutputProps" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent" unique_id=546475739]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="OutputPropsTitle" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1742070231]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Screen"
+
+[node name="ScreenNameLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1793757190]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Name"
+
+[node name="ScreenNameLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=353812833]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Screen name"
+
+[node name="OutputAssignLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=46131831]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Output"
+
+[node name="ScreenOutputRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1257133646]
+layout_mode = 2
+
+[node name="ScreenOutputOption" type="OptionButton" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenOutputRow" unique_id=1915574461]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+fit_to_longest_item = false
+
+[node name="ScreenOutputResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenOutputRow" unique_id=773003394]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OutputResolutionLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=29524953]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 10
+text = "Virtual Output"
+
+[node name="OutputSizeLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1342131592]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Size"
+
+[node name="OutputSizeRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=493174150]
+layout_mode = 2
+
+[node name="SizeXLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputSizeRow" unique_id=472125966]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "W"
+alignment = 1
+
+[node name="OutputSizeXLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputSizeRow" unique_id=2027341135]
+layout_mode = 2
+text = "×"
+
+[node name="SizeYLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputSizeRow" unique_id=1897631751]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "H"
+alignment = 1
+
+[node name="ScreenSizeResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputSizeRow" unique_id=1693200814]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="ScreenKeepAspectRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=2135327871]
+layout_mode = 2
+
+[node name="ScreenKeepAspectCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenKeepAspectRow" unique_id=1015340604]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "When enabled, changing width or height updates the other to preserve aspect ratio."
+focus_mode = 0
+text = "Keep Aspect"
+
+[node name="ScreenKeepAspectResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenKeepAspectRow" unique_id=1827416016]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="OutputPosLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=487064296]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Canvas Position"
+
+[node name="OutputPosRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1699685914]
+layout_mode = 2
+
+[node name="PosXLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputPosRow" unique_id=931705597]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "X"
+alignment = 1
+
+[node name="OutputPosXLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputPosRow" unique_id=1272110206]
+layout_mode = 2
+text = "×"
+
+[node name="PosYLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputPosRow" unique_id=1509029953]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Y"
+alignment = 1
+
+[node name="ScreenPosResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/OutputPosRow" unique_id=13226252]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="DisplayOffsetLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=2033241184]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Display Offset"
+
+[node name="DisplayOffsetRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1389758902]
+layout_mode = 2
+
+[node name="DisplayOffsetXLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/DisplayOffsetRow" unique_id=355107657]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Horizontal offset of the output window from the target display origin (pixels)."
+placeholder_text = "X"
+alignment = 1
+
+[node name="DisplayOffsetXLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/DisplayOffsetRow" unique_id=2136255590]
+layout_mode = 2
+text = "×"
+
+[node name="DisplayOffsetYLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/DisplayOffsetRow" unique_id=1033705725]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Vertical offset of the output window from the target display origin (pixels)."
+placeholder_text = "Y"
+alignment = 1
+
+[node name="ScreenDisplayOffsetResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/DisplayOffsetRow" unique_id=1319204932]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="ScreenTransparentRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=162948056]
+layout_mode = 2
+
+[node name="OutputTransparentCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenTransparentRow" unique_id=842041021]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Transparency may not work if defined size matches the display resolution."
+focus_mode = 0
+text = "Transparent"
+
+[node name="ScreenTransparentResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenTransparentRow" unique_id=856804113]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="ScreenTestPatternRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=1647161196]
+layout_mode = 2
+
+[node name="OutputTestPatternCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenTestPatternRow" unique_id=1030238989]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Test Pattern"
+
+[node name="ScreenTestPatternResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps/ScreenTestPatternRow" unique_id=1763126283]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="DeleteScreenButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/OutputProps" unique_id=960451581]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Delete Screen"
+
+[node name="LayerProps" type="VBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent" unique_id=1228127032]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="LayerPropsTitle" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=1512632610]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Target Layer"
+
+[node name="LayerNameLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=1061040314]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Name"
+
+[node name="LayerNameLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=463260004]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Layer name"
+
+[node name="LayerSizeLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=639562647]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Size"
+
+[node name="LayerSizeRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=753746726]
+layout_mode = 2
+
+[node name="LayerSizeXLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerSizeRow" unique_id=532744564]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "W"
+alignment = 1
+
+[node name="LayerSizeXLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerSizeRow" unique_id=224164713]
+layout_mode = 2
+text = "×"
+
+[node name="LayerSizeYLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerSizeRow" unique_id=1652018898]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "H"
+alignment = 1
+
+[node name="LayerSizeResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerSizeRow" unique_id=1938825983]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="LayerKeepAspectRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=1154798629]
+layout_mode = 2
+
+[node name="LayerKeepAspectCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerKeepAspectRow" unique_id=607326515]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "When enabled, changing width or height updates the other to preserve aspect ratio."
+focus_mode = 0
+text = "Keep Aspect"
+
+[node name="LayerKeepAspectResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerKeepAspectRow" unique_id=798746911]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="LayerPosLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=1638915489]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Canvas Position"
+
+[node name="LayerPosRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=35410117]
+layout_mode = 2
+
+[node name="LayerPosXLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerPosRow" unique_id=1795235265]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "X"
+alignment = 1
+
+[node name="LayerPosXLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerPosRow" unique_id=1760727900]
+layout_mode = 2
+text = "×"
+
+[node name="LayerPosYLineEdit" type="LineEdit" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerPosRow" unique_id=1173261774]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Y"
+alignment = 1
+
+[node name="LayerPosResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerPosRow" unique_id=279667151]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="LayerTransparentRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=262981490]
+layout_mode = 2
+
+[node name="LayerTransparentCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerTransparentRow" unique_id=1265705543]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Transparent"
+
+[node name="LayerTransparentResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerTransparentRow" unique_id=2029555529]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="LayerTestPatternRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=417364249]
+layout_mode = 2
+
+[node name="LayerTestPatternCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerTestPatternRow" unique_id=535514686]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Test Pattern"
+
+[node name="LayerTestPatternResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerTestPatternRow" unique_id=850684173]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="LayerLockRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=417364250]
+layout_mode = 2
+
+[node name="LayerLockCheckBox" type="CheckBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerLockRow" unique_id=535514687]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "When locked, Translate Layer control cues cannot move or resize this layer"
+focus_mode = 0
+text = "Lock"
+
+[node name="LayerLockResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerLockRow" unique_id=850684174]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="DeleteLayerButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=478338729]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Delete Layer"

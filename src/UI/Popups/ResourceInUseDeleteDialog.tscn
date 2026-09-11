@@ -1,0 +1,124 @@
+[gd_scene format=3 uid="uid://e6771x0vumw2"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_theme"]
+[ext_resource type="Script" uid="uid://ssuqbqu8y6ya" path="res://src/UI/Popups/ResourceInUseDeleteDialog.cs" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="2_handles"]
+
+[node name="ResourceInUseDeleteDialog" type="Window" unique_id=1571014218]
+disable_3d = true
+oversampling_override = 1.0
+title = "Resource in use"
+initial_position = 4
+size = Vector2i(400, 240)
+borderless = true
+theme = ExtResource("1_theme")
+script = ExtResource("1_script")
+
+[node name="Panel" type="Panel" parent="." unique_id=1306697382]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1601272450]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1183166167]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1060361821]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+text = "Delete resource?"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ContentScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer" unique_id=712616262]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ContentMargin" type="MarginContainer" parent="MarginContainer/VBoxContainer/ContentScroll" unique_id=780035647]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="ContentVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin" unique_id=749323867]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="SummaryLabel" type="Label" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox" unique_id=525841446]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+text = "This resource is used by cues."
+autowrap_mode = 3
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox" unique_id=166484113]
+layout_mode = 2
+
+[node name="OptionsLabel" type="Label" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox" unique_id=187278995]
+layout_mode = 2
+text = "When deleting:"
+
+[node name="UnassignCheck" type="CheckBox" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox" unique_id=1443343747]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Unassign (set to No Output)"
+
+[node name="ReplaceRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox" unique_id=1708827399]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ReplaceCheck" type="CheckBox" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox/ReplaceRow" unique_id=1274210678]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Replace with"
+
+[node name="ReplaceOption" type="OptionButton" parent="MarginContainer/VBoxContainer/ContentScroll/ContentMargin/ContentVBox/ReplaceRow" unique_id=486820803]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ActionBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=975717043]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 2
+
+[node name="CancelButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar" unique_id=467407052]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cancel"
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/VBoxContainer/ActionBar" unique_id=961910906]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Delete"
+
+[node name="SubWindowHandles" parent="." unique_id=1236998693 instance=ExtResource("2_handles")]

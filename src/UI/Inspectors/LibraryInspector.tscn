@@ -1,0 +1,199 @@
+[gd_scene format=3 uid="uid://dge4tv6ikfteh"]
+
+[ext_resource type="Script" uid="uid://c5ghh34qg0bx4" path="res://src/UI/Inspectors/LibraryInspector.cs" id="1_lib"]
+
+[node name="Library" type="Control" unique_id=774513523]
+clip_contents = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_lib")
+metadata/_tab_index = 0
+
+[node name="RootMargin" type="MarginContainer" parent="." unique_id=1610479227]
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="ContentScroll" type="ScrollContainer" parent="RootMargin" unique_id=884422001]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="VBox" type="VBoxContainer" parent="RootMargin/ContentScroll" unique_id=207461511]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="Toolbar" type="HBoxContainer" parent="RootMargin/ContentScroll/VBox" unique_id=1342102930]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SaveButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=1410500423]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Save the focused cue into the selected library folder."
+text = "Save to Library…"
+
+[node name="LoadButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=1552985048]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Insert the selected library cue into the cuelist."
+disabled = true
+text = "Load"
+
+[node name="Sep1" type="VSeparator" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=191602000]
+layout_mode = 2
+
+[node name="NewFolderButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=1709526067]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Create a folder under the selected library folder."
+text = "New Folder"
+
+[node name="RenameButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=36465602]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Rename the selected entry or folder."
+disabled = true
+text = "Rename"
+
+[node name="DeleteButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=1966141449]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Delete the selected entry or folder."
+disabled = true
+text = "Delete"
+
+[node name="RefreshButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=274384068]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Reload library folders and entries from disk."
+text = "Refresh"
+
+[node name="OpenFolderButton" type="Button" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=833949254]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Open the library folder in the system file manager."
+text = "Reveal"
+
+[node name="Spacer" type="Control" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=1124984748]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SearchEdit" type="LineEdit" parent="RootMargin/ContentScroll/VBox/Toolbar" unique_id=36975981]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+placeholder_text = "Search…"
+clear_button_enabled = true
+
+[node name="OptionsBar" type="HBoxContainer" parent="RootMargin/ContentScroll/VBox" unique_id=56637992]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="InsertModeLabel" type="Label" parent="RootMargin/ContentScroll/VBox/OptionsBar" unique_id=1424828235]
+layout_mode = 2
+text = "Insert:"
+
+[node name="InsertModeOption" type="OptionButton" parent="RootMargin/ContentScroll/VBox/OptionsBar" unique_id=957499641]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CopyMediaCheck" type="CheckBox" parent="RootMargin/ContentScroll/VBox/OptionsBar" unique_id=81289556]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When loading, copy packaged media into the current show folder (if media backup allows)."
+button_pressed = true
+text = "Copy media into show"
+
+[node name="MainSplit" type="HSplitContainer" parent="RootMargin/ContentScroll/VBox" unique_id=1458371849]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(200)
+split_offset = 200
+
+[node name="LeftPanel" type="VBoxContainer" parent="RootMargin/ContentScroll/VBox/MainSplit" unique_id=623850154]
+clip_contents = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.35
+theme_override_constants/separation = 2
+
+[node name="FoldersHeader" type="Label" parent="RootMargin/ContentScroll/VBox/MainSplit/LeftPanel" unique_id=2092811813]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Folders"
+
+[node name="FolderTree" type="Tree" parent="RootMargin/ContentScroll/VBox/MainSplit/LeftPanel" unique_id=13468296]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 80)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+hide_root = true
+
+[node name="RightPane" type="VBoxContainer" parent="RootMargin/ContentScroll/VBox/MainSplit" unique_id=386873278]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.65
+theme_override_constants/separation = 4
+
+[node name="EntriesHeader" type="Label" parent="RootMargin/ContentScroll/VBox/MainSplit/RightPane" unique_id=1736676969]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Cues"
+
+[node name="EntryList" type="ItemList" parent="RootMargin/ContentScroll/VBox/MainSplit/RightPane" unique_id=487769293]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="EmptyLabel" type="Label" parent="RootMargin/ContentScroll/VBox/MainSplit/RightPane" unique_id=523930546]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Library is empty. Select a cue and click Save to Library."
+autowrap_mode = 3
+
+[node name="DetailLabel" type="Label" parent="RootMargin/ContentScroll/VBox/MainSplit/RightPane" unique_id=1523639329]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+size_flags_vertical = 0
+text = "Select a library cue to see details."
+autowrap_mode = 3
+
+[node name="PathLabel" type="Label" parent="RootMargin/ContentScroll/VBox" unique_id=1370235212]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+autowrap_mode = 3

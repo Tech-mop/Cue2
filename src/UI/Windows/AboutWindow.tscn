@@ -1,0 +1,190 @@
+[gd_scene load_steps=5 format=3 uid="uid://82ylja0fq6y0"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_a0dr7"]
+[ext_resource type="Script" uid="uid://ufyvoyx782er" path="res://src/UI/Windows/AboutWindow.cs" id="2_a0dr7"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="3_37dlf"]
+[ext_resource type="Texture2D" uid="uid://dd3d4mvor8g41" path="res://src/UI/Assets/Cue2Logo.svg" id="3_q1kyy"]
+
+[node name="AboutWindow" type="Window"]
+disable_3d = true
+oversampling_override = 1.0
+title = "Cue2 Log"
+initial_position = 4
+size = Vector2i(600, 450)
+borderless = true
+theme = ExtResource("1_a0dr7")
+script = ExtResource("2_a0dr7")
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+text = "About"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Control" type="Control" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Cue2Logo" type="TextureRect" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+custom_minimum_size = Vector2(150, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+texture = ExtResource("3_q1kyy")
+expand_mode = 1
+stretch_mode = 4
+
+[node name="Control3" type="Control" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VersionLabel" type="Label" parent="MarginContainer/VBoxContainer/HBoxContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cue2 "
+
+[node name="CopyrightLabel" type="Label" parent="MarginContainer/VBoxContainer/HBoxContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Control2" type="Control" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LogContainer" type="TabContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+tab_alignment = 1
+current_tab = 0
+
+[node name="Authors" type="MarginContainer" parent="MarginContainer/VBoxContainer/LogContainer"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+metadata/_tab_index = 0
+
+[node name="AuthorsScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/LogContainer/Authors"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/LogContainer/Authors/AuthorsScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="AuthorsRichTextLabel" type="RichTextLabel" parent="MarginContainer/VBoxContainer/LogContainer/Authors/AuthorsScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+
+[node name="LinkButton" type="LinkButton" parent="MarginContainer/VBoxContainer/LogContainer/Authors/AuthorsScrollContainer/VBoxContainer"]
+layout_mode = 2
+text = "Want to contribue? Visit our Github"
+uri = "https://github.com/Tech-mop/Cue2"
+
+[node name="License" type="MarginContainer" parent="MarginContainer/VBoxContainer/LogContainer"]
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+metadata/_tab_index = 1
+
+[node name="LicenseScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/LogContainer/License"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/LogContainer/License/LicenseScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="LicenseRichTextLabel" type="RichTextLabel" parent="MarginContainer/VBoxContainer/LogContainer/License/LicenseScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Cue2LicenseLinkButton" type="LinkButton" parent="MarginContainer/VBoxContainer/LogContainer/License/LicenseScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "View License Online"
+
+[node name="Third-party Licenses" type="HSplitContainer" parent="MarginContainer/VBoxContainer/LogContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+split_offset = 200
+metadata/_tab_index = 2
+
+[node name="LeftScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses"]
+layout_mode = 2
+
+[node name="MenuVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses/LeftScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="RightScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses/MarginContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses/MarginContainer/RightScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="LicensesRichTextLabel" type="RichTextLabel" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses/MarginContainer/RightScroll/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "
+"
+metadata/_tab_index = 2
+
+[node name="LicenseLinkButton" type="LinkButton" parent="MarginContainer/VBoxContainer/LogContainer/Third-party Licenses/MarginContainer/RightScroll/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "View License Online"
+
+[node name="SubWindowHandles" parent="." instance=ExtResource("3_37dlf")]

@@ -1,0 +1,219 @@
+[gd_scene format=3 uid="uid://d207a67e3ebww"]
+
+[ext_resource type="Script" uid="uid://c5iiiivhxukfl" path="res://src/UI/Shell/ShellBar.cs" id="1_34bmx"]
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_o55rx"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_nqr4j"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_o55rx"]
+
+[node name="ShellBar" type="PanelContainer" unique_id=1656289669]
+custom_minimum_size = Vector2(0, 24)
+offset_right = 497.0
+offset_bottom = 28.0
+size_flags_horizontal = 3
+size_flags_vertical = 0
+focus_mode = 1
+theme = ExtResource("1_o55rx")
+script = ExtResource("1_34bmx")
+
+[node name="GroupPanel" type="Panel" parent="." unique_id=983908998]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_nqr4j")
+
+[node name="ShellPanel" type="Panel" parent="." unique_id=1833970842]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_o55rx")
+
+[node name="OuterHBox" type="HBoxContainer" parent="." unique_id=447259498]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 1
+
+[node name="ColorPanel" type="HBoxContainer" parent="OuterHBox" unique_id=401562755]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(3, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="ContentVBox" type="VBoxContainer" parent="OuterHBox" unique_id=1802820417]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="RowHBox" type="HBoxContainer" parent="OuterHBox/ContentVBox" unique_id=863852636]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme_override_constants/separation = 2
+
+[node name="LeadingHBox" type="HBoxContainer" parent="OuterHBox/ContentVBox/RowHBox" unique_id=463159175]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="DragBar" type="Button" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=1623156521]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+focus_mode = 0
+mouse_default_cursor_shape = 6
+theme_override_colors/icon_normal_color = Color(0.72, 0.78, 0.82, 0.95)
+theme_override_colors/icon_hover_color = Color(1, 1, 1, 1)
+theme_override_constants/icon_max_width = 14
+theme_override_font_sizes/font_size = 10
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="IssueIndicator" type="Button" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=1346666512]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(14, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+focus_mode = 0
+mouse_filter = 2
+theme_override_colors/icon_normal_color = Color(1, 0.502, 0.435, 1)
+theme_override_colors/icon_pressed_color = Color(1, 0.4, 0.35, 1)
+theme_override_colors/icon_hover_color = Color(1, 0.6, 0.55, 1)
+theme_override_constants/icon_max_width = 12
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="TreeIndent" type="Control" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=1623326595]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="CollapseButton" type="Button" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=615413234]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+focus_mode = 0
+mouse_filter = 2
+theme_override_constants/icon_max_width = 10
+flat = true
+icon_alignment = 1
+expand_icon = true
+
+[node name="CueNumLineEdit" type="LineEdit" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=2006635508]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+focus_mode = 0
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+theme_override_font_sizes/font_size = 10
+max_length = 5
+
+[node name="CueNameLineEdit" type="LineEdit" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=818707626]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+focus_mode = 0
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+theme_override_font_sizes/font_size = 10
+placeholder_text = "New Shell"
+max_length = 100
+
+[node name="MemoLineEdit" type="LineEdit" parent="OuterHBox/ContentVBox/RowHBox/LeadingHBox" unique_id=1074613158]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(40, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+focus_mode = 0
+mouse_filter = 1
+mouse_default_cursor_shape = 0
+theme_override_font_sizes/font_size = 10
+placeholder_text = "Memo"
+max_length = 500
+
+[node name="TrailingHBox" type="HBoxContainer" parent="OuterHBox/ContentVBox/RowHBox" unique_id=1880518185]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="PreWaitLineEdit" type="LineEdit" parent="OuterHBox/ContentVBox/RowHBox/TrailingHBox" unique_id=1689429683]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 10
+select_all_on_focus = true
+
+[node name="DurationLineEdit" type="LineEdit" parent="OuterHBox/ContentVBox/RowHBox/TrailingHBox" unique_id=251596191]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+focus_mode = 0
+mouse_default_cursor_shape = 0
+theme_override_font_sizes/font_size = 10
+editable = false
+
+[node name="PostWaitLineEdit" type="LineEdit" parent="OuterHBox/ContentVBox/RowHBox/TrailingHBox" unique_id=807332117]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 10
+select_all_on_focus = true
+
+[node name="FollowButton" type="Button" parent="OuterHBox/ContentVBox/RowHBox/TrailingHBox" unique_id=734183930]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 20)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+tooltip_text = "Continue mode (click to cycle):
+None → Auto-continue → Auto-follow
+→  Auto-continue (after post-wait)
+↳  Auto-follow (after cue completes)"
+focus_mode = 0
+flat = true
+
+[node name="ShellChildContainer" type="VBoxContainer" parent="OuterHBox/ContentVBox" unique_id=1807176771]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 0
+theme_override_constants/separation = 0

@@ -1,0 +1,166 @@
+[gd_scene format=3 uid="uid://qpd51yjbtlxs"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_theme"]
+[ext_resource type="Script" uid="uid://bq8k2m1n4p7xw" path="res://src/UI/Windows/FirstTimeStartupWindow.cs" id="2_script"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="3_handles"]
+[ext_resource type="Texture2D" uid="uid://dd3d4mvor8g41" path="res://src/UI/Assets/Cue2Logo.svg" id="4_logo"]
+
+[node name="FirstTimeStartupWindow" type="Window" unique_id=1007346644]
+disable_3d = true
+oversampling_override = 1.0
+title = "Welcome to Cue2"
+initial_position = 2
+size = Vector2i(480, 560)
+unresizable = true
+borderless = true
+always_on_top = true
+theme = ExtResource("1_theme")
+script = ExtResource("2_script")
+
+[node name="Panel" type="Panel" parent="." unique_id=1156861978]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1124716041]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=828037778]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1149433284]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+text = "Welcome"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LogoRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1038163550]
+layout_mode = 2
+alignment = 1
+
+[node name="Cue2Logo" type="TextureRect" parent="MarginContainer/VBoxContainer/LogoRow" unique_id=1386987858]
+custom_minimum_size = Vector2(160, 54)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("4_logo")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="WelcomeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1807174893]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="LinksVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1785260113]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="DocsLinkButton" type="LinkButton" parent="MarginContainer/VBoxContainer/LinksVBox" unique_id=502321050]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Documentation — docs.cue2.live"
+uri = "https://docs.cue2.live/"
+
+[node name="WebsiteLinkButton" type="LinkButton" parent="MarginContainer/VBoxContainer/LinksVBox" unique_id=2093275794]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Website — cue2.live"
+uri = "https://www.cue2.live/"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=1377832129]
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="GetStartedButton" type="Button" parent="MarginContainer/VBoxContainer" unique_id=545403292]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Let's \"Go\"!"
+
+[node name="LanguageRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=830600041]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LanguageLabel" type="Label" parent="MarginContainer/VBoxContainer/LanguageRow" unique_id=1223232515]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "Language"
+vertical_alignment = 1
+
+[node name="LanguageOptionButton" type="OptionButton" parent="MarginContainer/VBoxContainer/LanguageRow" unique_id=343183931]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Application interface language. Applies immediately and is saved as a user preference."
+focus_mode = 0
+
+[node name="UiScaleRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1857283858]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="UiScaleLabel" type="Label" parent="MarginContainer/VBoxContainer/UiScaleRow" unique_id=1661600261]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "UI Scaling"
+vertical_alignment = 1
+
+[node name="UiScaleNum" type="LineEdit" parent="MarginContainer/VBoxContainer/UiScaleRow" unique_id=50972086]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+tooltip_text = "Scales whole UI.
+Caution: Will apply on Enter."
+text = "100%"
+alignment = 1
+max_length = 6
+
+[node name="UiScaleSlider" type="HSlider" parent="MarginContainer/VBoxContainer/UiScaleRow" unique_id=1332264839]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+tooltip_text = "Scales whole UI.
+Caution: Will apply on mouse release."
+focus_mode = 0
+min_value = 25.0
+max_value = 400.0
+value = 100.0
+rounded = true
+
+[node name="UiScaleResetButton" type="Button" parent="MarginContainer/VBoxContainer/UiScaleRow" unique_id=724602962]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
+[node name="SubWindowHandles" parent="." unique_id=2115200944 instance=ExtResource("3_handles")]

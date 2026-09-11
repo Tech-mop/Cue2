@@ -1,0 +1,27 @@
+<!--
+SPDX-FileCopyrightText: 2025-2026 Samuel Moxham
+SPDX-License-Identifier: MIT
+-->
+<Project Sdk="Godot.NET.Sdk/4.7.1">  
+<PropertyGroup>  
+<TargetFramework>net8.0</TargetFramework>  
+<EnableDynamicLoading>true</EnableDynamicLoading>  
+<AllowUnsafeBlocks>true</AllowUnsafeBlocks>  
+<!-- Rug.Osc is .NET Framework-only; NU1701 is expected and accepted for net8.0. -->
+<NoWarn>$(NoWarn);NU1701</NoWarn>
+</PropertyGroup>  
+<ItemGroup>  
+<PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />  
+
+ <PackageReference Include="Rug.Osc" Version="1.2.5" />
+<PackageReference Include="SDL3-CS" Version="3.4.14.1" />  
+<PackageReference Include="SDL3-CS.Native" Version="3.4.2" />  
+<PackageReference Update="GodotSharp" Version="4.7.1" />  
+</ItemGroup>  
+<ItemGroup>
+  <Compile Remove="bin\**" />
+</ItemGroup>  
+<ItemGroup>
+  <EmbeddedResource Remove="bin\**" />
+</ItemGroup>
+</Project> 

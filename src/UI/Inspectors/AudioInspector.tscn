@@ -1,0 +1,457 @@
+[gd_scene format=3 uid="uid://c2oerlmq8wmp7"]
+
+[ext_resource type="Script" uid="uid://ceriyergi0tea" path="res://src/UI/Inspectors/AudioInspector.cs" id="1_hjudx"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hjudx"]
+bg_color = Color(0, 0.055, 0.06, 1)
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_bbkhr"]
+color = Color(0.243137, 0.113725, 0, 1)
+grow_begin = 2.0
+grow_end = 2.0
+vertical = true
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_raut8"]
+color = Color(0.921569, 0.435294, 0.00784314, 1)
+grow_begin = 2.0
+grow_end = 2.0
+thickness = 2
+vertical = true
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_hjudx"]
+color = Color(0.592157, 0.294118, 0.0313726, 1)
+grow_begin = 2.0
+grow_end = 2.0
+thickness = 3
+vertical = true
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_6fqv6"]
+color = Color(0.0235294, 0.329412, 0.360784, 1)
+grow_begin = 2.0
+grow_end = 2.0
+vertical = true
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_4h5an"]
+color = Color(0.0117647, 0.513726, 0.560784, 1)
+grow_begin = 2.0
+grow_end = 2.0
+thickness = 2
+vertical = true
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_i246q"]
+color = Color(0.0313726, 0.407843, 0.443137, 1)
+grow_begin = 2.0
+grow_end = 2.0
+thickness = 3
+vertical = true
+
+[node name="AudioInspector" type="Control" unique_id=1292482587]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_hjudx")
+metadata/_tab_index = 1
+
+[node name="InfoLabel" type="Label" parent="." unique_id=2079549888]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -65.5
+offset_top = -11.1667
+offset_right = 65.5
+offset_bottom = 11.1667
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 20
+text = "No shell selected"
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=2102639603]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="ShellScroll" type="ScrollContainer" parent="MarginContainer" unique_id=1511517039]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/ShellScroll" unique_id=1568951025]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="SelectFileContainer" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer" unique_id=549228717]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ButtonSelectFile" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer" unique_id=695613521]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Select File"
+
+[node name="FileUrlColumn" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
+[node name="FileURL" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer/FileUrlColumn" unique_id=470711093]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "URL (Can drag and drop files here)"
+
+[node name="FileMetadataLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer/FileUrlColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="DeleteAudioComponentButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 0.502, 0.435, 1)
+theme_override_constants/icon_max_width = 14
+text = "Delete"
+tooltip_text = "Remove the audio component from this cue."
+expand_icon = true
+
+[node name="Spacer" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer" unique_id=1439553204]
+custom_minimum_size = Vector2(0, 5)
+layout_mode = 2
+
+[node name="InspectorContent" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer" unique_id=613218714]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=340417569]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="StartTimeLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=796960291]
+layout_mode = 2
+text = "Start Time:"
+
+[node name="StartTimeInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=1746075234]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+tooltip_text = "m:s:ms"
+placeholder_text = "00m:00s.000ms"
+
+[node name="EndTimeLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=1553326666]
+layout_mode = 2
+text = "End Time:"
+
+[node name="EndTimeInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=561618994]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+tooltip_text = "m:s:ms"
+placeholder_text = "00m:00s.000ms"
+
+[node name="DurationLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=354885632]
+layout_mode = 2
+text = "Duration:"
+
+[node name="DurationValue" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=63512769]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+tooltip_text = "m:s:ms"
+placeholder_text = "00m:00s.000ms"
+editable = false
+
+[node name="FileDurationLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=64575606]
+layout_mode = 2
+text = "File Duration:"
+
+[node name="FileDurationValue" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer3" unique_id=1603900997]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+tooltip_text = "m:s:ms"
+placeholder_text = "00m:00s.000ms"
+editable = false
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1572076840]
+layout_mode = 2
+
+[node name="VolumeLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=594745295]
+layout_mode = 2
+text = "Volume:"
+
+[node name="VolumeInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=106118232]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+
+[node name="PanLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Stereo pan (balance) before routing matrix. Stereo files only."
+mouse_filter = 1
+text = "Pan:"
+
+[node name="PanSlider" type="HSlider" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Stereo pan: L ← C → R. Applied before the routing matrix."
+min_value = -100.0
+max_value = 100.0
+step = 1.0
+value = 0.0
+scrollable = false
+
+[node name="PanInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+tooltip_text = "Pan: C, L/R, L50, R25, or −100…100"
+placeholder_text = "C"
+alignment = 1
+
+[node name="LoopLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=2095724579]
+layout_mode = 2
+tooltip_text = "Loop indefinitely. This overrules playcount."
+mouse_filter = 1
+text = "Loop:"
+
+[node name="LoopInput" type="CheckBox" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=1638865599]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Loop indefinitely. This overrules playcount."
+focus_mode = 0
+
+[node name="PlaycountLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=1492257648]
+layout_mode = 2
+tooltip_text = "The number of times the audio loops then stops."
+mouse_filter = 1
+text = "Playcount:"
+
+[node name="PlayCountInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=12896584]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "The number of times the audio loops then stops."
+
+[node name="FadeRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
+layout_mode = 2
+
+[node name="FadeInLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+layout_mode = 2
+tooltip_text = "Fade-in duration at play start (0 = immediate)."
+mouse_filter = 1
+text = "Fade in:"
+
+[node name="FadeInInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+tooltip_text = "Fade-in duration at play start (0 = immediate)."
+text = "0:00.000"
+alignment = 1
+
+[node name="FadeOutLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+layout_mode = 2
+tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
+mouse_filter = 1
+text = "Fade out:"
+
+[node name="FadeOutInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
+text = "0:00.000"
+alignment = 1
+
+[node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1603489166]
+layout_mode = 2
+
+[node name="OutputLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1397347937]
+layout_mode = 2
+text = "Output:"
+
+[node name="OutputOptionButton" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1802915753]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+focus_mode = 0
+selected = 0
+item_count = 1
+popup/item_0/text = "No output selected"
+popup/item_0/id = 0
+popup/item_0/disabled = true
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=210010495]
+layout_mode = 2
+
+[node name="RoutingCollapseButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer" unique_id=545839289]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+focus_mode = 0
+theme_type_variation = &"AtlasIcons"
+theme_override_constants/icon_max_width = 12
+icon_alignment = 1
+expand_icon = true
+
+[node name="RoutingMatrixLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer" unique_id=1013735070]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Routing Matrix"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer" unique_id=1205351962]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_type_variation = &"HSepLight"
+
+[node name="RoutingAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=337451202]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RoutingScroll" type="ScrollContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RoutingAccordian"]
+layout_mode = 2
+size_flags_horizontal = 3
+vertical_scroll_mode = 0
+
+[node name="RoutingContainer" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RoutingAccordian/RoutingScroll" unique_id=409762368]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RoutingMatrixGrid" type="GridContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RoutingAccordian/RoutingScroll/RoutingContainer" unique_id=859822815]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1458483631]
+layout_mode = 2
+
+[node name="WaveformCollapseButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1415507456]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+focus_mode = 0
+theme_type_variation = &"AtlasIcons"
+theme_override_constants/icon_max_width = 12
+icon_alignment = 1
+expand_icon = true
+
+[node name="WaveformLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=950570257]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Waveform"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1434437820]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_type_variation = &"HSepLight"
+
+[node name="WaveformAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1521957115]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian" unique_id=402062261]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+
+[node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer" unique_id=951717597]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_hjudx")
+
+[node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel" unique_id=351993399]
+layout_mode = 2
+
+[node name="StartDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=371983948]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(4, 0)
+layout_mode = 0
+offset_left = 120.0
+offset_right = 128.0
+offset_bottom = 80.0
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxLine_bbkhr")
+theme_override_styles/pressed = SubResource("StyleBoxLine_raut8")
+theme_override_styles/hover = SubResource("StyleBoxLine_hjudx")
+action_mode = 0
+keep_pressed_outside = true
+
+[node name="EndDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=1422629812]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(4, 0)
+layout_mode = 0
+offset_left = 120.0
+offset_right = 128.0
+offset_bottom = 80.0
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxLine_6fqv6")
+theme_override_styles/pressed = SubResource("StyleBoxLine_4h5an")
+theme_override_styles/hover = SubResource("StyleBoxLine_i246q")
+action_mode = 0
+keep_pressed_outside = true
+
+[node name="TimeBar" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel" unique_id=263569630]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(30, 20)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+
+[node name="ZoomSlider" type="HSlider" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian" unique_id=1267338959]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+min_value = 1.0
+max_value = 10.0
+step = 0.1
+value = 1.0
+
+[connection signal="pressed" from="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer/ButtonSelectFile" to="." method="_on_button_select_file_pressed"]

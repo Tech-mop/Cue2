@@ -1,0 +1,70 @@
+[gd_scene load_steps=3 format=3 uid="uid://dckucpjlmrd8r"]
+
+[ext_resource type="Script" uid="uid://blrla7wswmdn4" path="res://src/App/Launcher/LauncherHandles.cs" id="1_ex6ss"]
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="2_kq7bg"]
+
+[node name="VideoOutput" type="Window"]
+mode = 4
+initial_position = 3
+current_screen = 3
+visible = false
+
+[node name="launcherHandles" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_ex6ss")
+
+[node name="DragBar" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 10)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+mouse_default_cursor_shape = 6
+theme = ExtResource("2_kq7bg")
+
+[node name="Right" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_default_cursor_shape = 10
+
+[node name="Bottom" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_default_cursor_shape = 9
+
+[node name="Corner" type="Control" parent="launcherHandles"]
+custom_minimum_size = Vector2(5, 5)
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -5.0
+offset_top = -5.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_default_cursor_shape = 12
+
+[connection signal="gui_input" from="launcherHandles/DragBar" to="launcherHandles" method="_on_drag_bar_gui_input"]
+[connection signal="gui_input" from="launcherHandles/Right" to="launcherHandles" method="_on_right_gui_input"]
+[connection signal="gui_input" from="launcherHandles/Bottom" to="launcherHandles" method="_on_bottom_gui_input"]
+[connection signal="gui_input" from="launcherHandles/Corner" to="launcherHandles" method="_on_corner_gui_input"]

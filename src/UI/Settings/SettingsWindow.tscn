@@ -1,0 +1,346 @@
+[gd_scene format=3 uid="uid://cfw3syjm11bd6"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_gxjl5"]
+[ext_resource type="Script" uid="uid://bf4ggwkuvwx4c" path="res://src/UI/Settings/SettingsWindow.cs" id="2_d8xqf"]
+[ext_resource type="PackedScene" uid="uid://c6jrrmxanudix" path="res://src/UI/Settings/SettingsGeneral.tscn" id="3_d8xqf"]
+[ext_resource type="PackedScene" uid="uid://c1b0pu4blunqr" path="res://src/UI/Settings/SettingsOscConnections.tscn" id="4_sedut"]
+[ext_resource type="PackedScene" uid="uid://ci4ndmhqsbvlh" path="res://src/UI/Settings/SettingsOscListen.tscn" id="5_1s07i"]
+[ext_resource type="PackedScene" uid="uid://pwhj8yu66imj" path="res://src/UI/Settings/SettingsInputMap.tscn" id="6_3i4bl"]
+[ext_resource type="PackedScene" uid="uid://b6sx83qucwbua" path="res://src/UI/Settings/SettingsAudio.tscn" id="7_u2mcb"]
+[ext_resource type="Script" uid="uid://cu1ujebi3h7vu" path="res://src/UI/Settings/SettingsAudioOutputPatch.cs" id="8_cniok"]
+[ext_resource type="PackedScene" uid="uid://msbmpql2gk17" path="res://src/UI/Settings/SettingsCueLights.tscn" id="9_6vrdu"]
+[ext_resource type="PackedScene" uid="uid://ceydom3514ip" path="res://src/UI/Settings/SettingsCanvasEditor.tscn" id="10_cxve1"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="11_51xpo"]
+[ext_resource type="PackedScene" uid="uid://i5x3q04qutpg" path="res://src/UI/Settings/SettingsCue2Prefs.tscn" id="11_giu5g"]
+[ext_resource type="PackedScene" uid="uid://frcr4kkc1rrl" path="res://src/UI/Settings/SettingsCueDefaults.tscn" id="12_cuedef"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsMidi.tscn" id="13_midi"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsMidiInputMap.tscn" id="14_midi_map"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsOscInputMap.tscn" id="15_osc_map"]
+[ext_resource type="PackedScene" uid="uid://t1ccfinhqoye" path="res://src/UI/Settings/SettingsAudioDefaults.tscn" id="16_audiodef"]
+[ext_resource type="PackedScene" uid="uid://cpxapul4025nc" path="res://src/UI/Settings/SettingsVideoDefaults.tscn" id="17_videodef"]
+[ext_resource type="PackedScene" uid="uid://b1bwv107ue24w" path="res://src/UI/Settings/SettingsTextDefaults.tscn" id="18_textdef"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsVideoOutput.tscn" id="19_vidout"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsUpdates.tscn" id="20_updates"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hpi7s"]
+bg_color = Color(0.0980392, 0.0980392, 0.0980392, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.398496, 0.398496, 0.398496, 1)
+corner_detail = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gmb81"]
+bg_color = Color(0.130575, 0.130575, 0.130575, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_jdmuw"]
+bg_color = Color(0.0588235, 0.0588235, 0.0588235, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.00392157, 0.231373, 0.25098, 1)
+
+[node name="SettingsWindow" type="Window" unique_id=1112594222]
+disable_3d = true
+oversampling_override = 1.0
+title = "Cue2 Settings"
+initial_position = 4
+size = Vector2i(1100, 700)
+visible = false
+borderless = true
+theme = ExtResource("1_gxjl5")
+script = ExtResource("2_d8xqf")
+
+[node name="Control" type="Control" parent="." unique_id=301128501]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Panel" type="Panel" parent="Control" unique_id=1020840977]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_hpi7s")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control" unique_id=360685823]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="Control/VBoxContainer" unique_id=2129131132]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+text = "Settings"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="Control/VBoxContainer" unique_id=551512940]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="HSplitContainer" type="HSplitContainer" parent="Control/VBoxContainer/MarginContainer" unique_id=1172585725]
+clip_contents = true
+layout_mode = 2
+split_offsets = PackedInt32Array(20)
+split_offset = 20
+
+[node name="Container" type="VBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer" unique_id=1652184907]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container" unique_id=287238974]
+clip_contents = false
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SettingsTree" type="Tree" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/ScrollContainer" unique_id=2065029580]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+focus_mode = 0
+
+[node name="SaveOptionsContainer" type="VBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container" unique_id=1385716909]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SaveFilterLabel" type="Label" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer" unique_id=743799126]
+layout_mode = 2
+tooltip_text = "Choose which settings categories are included when saving or loading a settings file"
+text = "Save / Load filter"
+horizontal_alignment = 1
+
+[node name="SaveFilterOptionButton" type="Button" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer" unique_id=1998735305]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_gmb81")
+tooltip_text = "Select categories to include when saving or loading settings"
+text = "All"
+
+[node name="SaveLoadButtons" type="HBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer" unique_id=1263377314]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SettingsSaveAs" type="Button" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer/SaveLoadButtons" unique_id=1201490685]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+tooltip_text = "Save selected settings categories to a .c2settings file"
+text = "Save As…"
+
+[node name="SettingsLoad" type="Button" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer/SaveLoadButtons" unique_id=1672747791]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+tooltip_text = "Load selected settings categories from a .c2settings file (undoable)"
+text = "Load…"
+
+[node name="Panel" type="Panel" parent="Control/VBoxContainer/MarginContainer/HSplitContainer" unique_id=1457761424]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RightSide" type="MarginContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel" unique_id=506612916]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 15
+
+[node name="SettingsGeneral" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1335538034 instance=ExtResource("3_d8xqf")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SettingsOscConnections" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1663673901 instance=ExtResource("4_sedut")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsOscListen" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=508370765 instance=ExtResource("5_1s07i")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsOscInputMap" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("15_osc_map")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsMidi" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("13_midi")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsMidiInputMap" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("14_midi_map")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsInputMap" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=861039373 instance=ExtResource("6_3i4bl")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsAudio" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1584277448 instance=ExtResource("7_u2mcb")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="AudioOutputPatch" type="ScrollContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1615057508]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+script = ExtResource("8_cniok")
+
+[node name="HeaderContainer" type="VBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch" unique_id=246974994]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="AudioPatchTitle" type="Label" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch/HeaderContainer" unique_id=415627731]
+layout_mode = 2
+text = "Audio Output Patch"
+
+[node name="HSeparator" type="HSeparator" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch/HeaderContainer" unique_id=943833307]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch/HeaderContainer" unique_id=1360082082]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch/HeaderContainer/ScrollContainer" unique_id=1660253141]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PatchesVBoxContainer" type="VBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch/HeaderContainer/ScrollContainer/VBoxContainer" unique_id=2083750822]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="NewPatchButton" type="Button" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide/AudioOutputPatch/HeaderContainer/ScrollContainer/VBoxContainer" unique_id=884750207]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 0
+text = "New Patch"
+
+[node name="CueLights" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1907431455 instance=ExtResource("9_6vrdu")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="CanvasEditor" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1453730116 instance=ExtResource("10_cxve1")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsVideoOutput" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("19_vidout")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsCue2Prefs" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=238426694 instance=ExtResource("11_giu5g")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsUpdates" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("20_updates")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsCueDefaults" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1372115871 instance=ExtResource("12_cuedef")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SettingsAudioDefaults" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("16_audiodef")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsVideoDefaults" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("17_videodef")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsTextDefaults" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("18_textdef")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="DropMenuFilter" type="PanelContainer" parent="Control" unique_id=791895030]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(170, 0)
+layout_mode = 0
+offset_left = 10.0
+offset_top = 200.0
+offset_right = 190.0
+offset_bottom = 420.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_jdmuw")
+
+[node name="MarginContainer" type="MarginContainer" parent="Control/DropMenuFilter" unique_id=1207696284]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Control/DropMenuFilter/MarginContainer" unique_id=1207696285]
+custom_minimum_size = Vector2(160, 220)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="dmSaveFilterContainer" type="VBoxContainer" parent="Control/DropMenuFilter/MarginContainer/ScrollContainer" unique_id=476435388]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FilterAllCheckBox" type="CheckBox" parent="Control/DropMenuFilter/MarginContainer/ScrollContainer/dmSaveFilterContainer" unique_id=506631013]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+mouse_filter = 1
+button_pressed = true
+text = "All"
+
+[node name="SubWindowHandles" parent="." unique_id=253011151 instance=ExtResource("11_51xpo")]
+
+[connection signal="item_selected" from="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/ScrollContainer/SettingsTree" to="." method="_on_tree_item_selected"]

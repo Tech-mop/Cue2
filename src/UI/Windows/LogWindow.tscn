@@ -1,0 +1,77 @@
+[gd_scene load_steps=4 format=3 uid="uid://cg8mrxu40hjf"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_6ks4u"]
+[ext_resource type="Script" uid="uid://cdui0e054gao7" path="res://src/UI/Windows/LogWindow.cs" id="2_mkhum"]
+[ext_resource type="PackedScene" uid="uid://dpemt56x826sd" path="res://src/UI/Windows/SubWindowHandles.tscn" id="3_a310e"]
+
+[node name="LogWindow" type="Window"]
+disable_3d = true
+oversampling_override = 1.0
+title = "Cue2 Log"
+initial_position = 4
+size = Vector2i(800, 500)
+borderless = true
+theme = ExtResource("1_6ks4u")
+script = ExtResource("2_mkhum")
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+text = "Log"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Toolbar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="LoadMoreButton" type="Button" parent="MarginContainer/VBoxContainer/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Load next 100"
+
+[node name="ShowingLabel" type="Label" parent="MarginContainer/VBoxContainer/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Showing 0/0 Logs"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ClearLogsButton" type="Button" parent="MarginContainer/VBoxContainer/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Clear logs"
+
+[node name="LogContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LogListContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/LogContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="SubWindowHandles" parent="." instance=ExtResource("3_a310e")]

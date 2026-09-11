@@ -1,0 +1,199 @@
+[gd_scene format=3 uid="uid://cpl11wavou62p"]
+
+[ext_resource type="Script" uid="uid://2pj6xq4ykxh4" path="res://src/UI/Settings/SettingsMidi.cs" id="1_midi"]
+
+[node name="SettingsMidi" type="ScrollContainer" unique_id=1830543882]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 1
+script = ExtResource("1_midi")
+
+[node name="RootVBox" type="VBoxContainer" parent="." unique_id=927459057]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(360, 440)
+theme_override_constants/separation = 6
+
+[node name="Header" type="Label" parent="RootVBox" unique_id=1483555073]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "MIDI"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="RootVBox" unique_id=1543918553]
+layout_mode = 2
+
+[node name="VSplit" type="VSplitContainer" parent="RootVBox" unique_id=1628371817]
+layout_mode = 2
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(180)
+split_offset = 180
+
+[node name="SettingsPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=494392471]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="EnableRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=2080742451]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EnableLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=1674146513]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Enable MIDI"
+vertical_alignment = 1
+
+[node name="EnableMidiCheck" type="CheckButton" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=1968392535]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Open all session MIDI inputs and outputs."
+focus_mode = 0
+
+[node name="StatusLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=1708586301]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "MIDI off"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="SessionHeader" type="Label" parent="RootVBox/VSplit/SettingsPane" unique_id=966048716]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Session inputs"
+
+[node name="AddRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1877741019]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/AddRow" unique_id=1950083455]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Add input:"
+vertical_alignment = 1
+
+[node name="AddDeviceOption" type="OptionButton" parent="RootVBox/VSplit/SettingsPane/AddRow" unique_id=2126336052]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Select an available MIDI input to add it to this session."
+focus_mode = 0
+
+[node name="RefreshDevicesButton" type="Button" parent="RootVBox/VSplit/SettingsPane/AddRow" unique_id=65865985]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Refresh"
+
+[node name="SessionDevicesScroll" type="ScrollContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1136254732]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SessionDevicesList" type="VBoxContainer" parent="RootVBox/VSplit/SettingsPane/SessionDevicesScroll" unique_id=1871586032]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="SessionOutputsHeader" type="Label" parent="RootVBox/VSplit/SettingsPane" unique_id=169796384]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Session outputs"
+
+[node name="AddOutputRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1709620867]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddOutputLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/AddOutputRow" unique_id=159457022]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Add output:"
+vertical_alignment = 1
+
+[node name="AddOutputOption" type="OptionButton" parent="RootVBox/VSplit/SettingsPane/AddOutputRow" unique_id=1076795844]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Select an available MIDI output to add it to this session."
+focus_mode = 0
+
+[node name="PanicButton" type="Button" parent="RootVBox/VSplit/SettingsPane/AddOutputRow" unique_id=228167917]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Send All Notes Off / All Sound Off on all open outputs."
+focus_mode = 0
+text = "Panic"
+
+[node name="SessionOutputsScroll" type="ScrollContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1072706560]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SessionOutputsList" type="VBoxContainer" parent="RootVBox/VSplit/SettingsPane/SessionOutputsScroll" unique_id=713060784]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="HintLabel" type="Label" parent="RootVBox/VSplit/SettingsPane" unique_id=232330816]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.55, 0.55, 1)
+theme_override_font_sizes/font_size = 10
+text = "Add session inputs (receive) and outputs (send). Enable MIDI to open both. Cue MIDI Output components send to session outputs. Offline devices stay listed until removed."
+autowrap_mode = 3
+
+[node name="MonitorPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=150066528]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="MonitorHeaderRow" type="HBoxContainer" parent="RootVBox/VSplit/MonitorPane" unique_id=2063123566]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MonitorHeader" type="Label" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=1974915845]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "MIDI Monitor"
+vertical_alignment = 1
+
+[node name="ListenCheckBox" type="CheckBox" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=848158079]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When checked, incoming MIDI messages are printed in the log below."
+focus_mode = 0
+button_pressed = true
+text = "Listen"
+
+[node name="MonitorSpacer" type="Control" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=2122166548]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ClearLogButton" type="Button" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=504927631]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Clear"
+
+[node name="MonitorLog" type="CodeEdit" parent="RootVBox/VSplit/MonitorPane" unique_id=892230597]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+editable = false

@@ -1,0 +1,241 @@
+[gd_scene format=3 uid="uid://ci4ndmhqsbvlh"]
+
+[ext_resource type="Script" uid="uid://njfyern1ut55" path="res://src/UI/Settings/SettingsOscListen.cs" id="1_2j2x1"]
+
+[node name="SettingsOscListen" type="ScrollContainer" unique_id=963197451]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 1
+script = ExtResource("1_2j2x1")
+
+[node name="RootVBox" type="VBoxContainer" parent="." unique_id=1677409952]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(500, 520)
+theme_override_constants/separation = 6
+
+[node name="Header" type="Label" parent="RootVBox" unique_id=462518847]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "OSC Listener"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="RootVBox" unique_id=954198177]
+layout_mode = 2
+
+[node name="VSplit" type="VSplitContainer" parent="RootVBox" unique_id=1247196492]
+layout_mode = 2
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(280)
+split_offset = 280
+
+[node name="SettingsPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=152220095]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="EnableRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1821268902]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EnableLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=2141305131]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Enable OSC Listener"
+vertical_alignment = 1
+
+[node name="EnabledCheckButton" type="CheckButton" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=1527482828]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Bind the UDP receive port and process incoming OSC messages."
+focus_mode = 0
+
+[node name="StatusLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=964856001]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Listener off"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="PortRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=492008157]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PortLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/PortRow" unique_id=1057064416]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "UDP port"
+vertical_alignment = 1
+
+[node name="PortLineEdit" type="LineEdit" parent="RootVBox/VSplit/SettingsPane/PortRow" unique_id=1929226893]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+tooltip_text = "UDP port to receive OSC (1–65535)."
+alignment = 1
+
+[node name="TcpEnabledCheck" type="CheckBox" parent="RootVBox/VSplit/SettingsPane/PortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Also accept OSC over TCP (binary length-prefixed packets)."
+focus_mode = 0
+text = "TCP"
+
+[node name="TcpPortLineEdit" type="LineEdit" parent="RootVBox/VSplit/SettingsPane/PortRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+tooltip_text = "TCP listen port (can match UDP)."
+alignment = 1
+text = "8000"
+
+[node name="SessionNameLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/PortRow" unique_id=1910889266]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Session name"
+vertical_alignment = 1
+
+[node name="SessionNameLineEdit" type="LineEdit" parent="RootVBox/VSplit/SettingsPane/PortRow" unique_id=681670615]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "If set, all received OSC must start with /{SessionName}/… (built-ins and Input Map). Example: /MyShow/Go"
+alignment = 1
+max_length = 20
+
+[node name="IpRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=279792879]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="IpTitle" type="Label" parent="RootVBox/VSplit/SettingsPane/IpRow" unique_id=1418253046]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Local IPv4"
+vertical_alignment = 1
+
+[node name="IpAddressLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/IpRow" unique_id=1155788720]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "—"
+autowrap_mode = 3
+
+[node name="ReplyRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ReplyEnabledCheck" type="CheckBox" parent="RootVBox/VSplit/SettingsPane/ReplyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Reply to the sender of /ping, /playhead, /active, /cue/status (UDP origin address:port)."
+focus_mode = 0
+button_pressed = true
+text = "Reply"
+
+[node name="PushFeedbackCheck" type="CheckBox" parent="RootVBox/VSplit/SettingsPane/ReplyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Push /reply/playhead to the last remote that sent OSC (when selection changes)."
+focus_mode = 0
+text = "Push playhead"
+
+[node name="AllowlistRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AllowlistLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/AllowlistRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Allowlist"
+vertical_alignment = 1
+
+[node name="AllowlistLineEdit" type="LineEdit" parent="RootVBox/VSplit/SettingsPane/AllowlistRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "empty = all · e.g. 192.168.1.10, 10.0.0.5"
+tooltip_text = "Comma-separated IPs allowed to send OSC. Empty = allow everyone. Loopback always allowed when list is set."
+
+[node name="AllowlistApplyButton" type="Button" parent="RootVBox/VSplit/SettingsPane/AllowlistRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Apply"
+tooltip_text = "Apply allowlist changes."
+
+[node name="CommandsHeader" type="Label" parent="RootVBox/VSplit/SettingsPane" unique_id=834704708]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Built-in commands"
+vertical_alignment = 1
+
+[node name="CommandsScroll" type="ScrollContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1736830122]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="CommandsList" type="VBoxContainer" parent="RootVBox/VSplit/SettingsPane/CommandsScroll" unique_id=676825954]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="MonitorPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=902043568]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 3.0
+theme_override_constants/separation = 4
+
+[node name="MonitorHeaderRow" type="HBoxContainer" parent="RootVBox/VSplit/MonitorPane" unique_id=62976951]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MonitorHeader" type="Label" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=2083271421]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "OSC Receive Monitor"
+vertical_alignment = 1
+
+[node name="ListenCheckBox" type="CheckBox" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=785826734]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When checked, incoming OSC messages are printed in the log below."
+focus_mode = 0
+button_pressed = true
+text = "Listen"
+
+[node name="MonitorSpacer" type="Control" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=1001781920]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ClearLogButton" type="Button" parent="RootVBox/VSplit/MonitorPane/MonitorHeaderRow" unique_id=1946317899]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Clear"
+
+[node name="MonitorLog" type="CodeEdit" parent="RootVBox/VSplit/MonitorPane" unique_id=2138237001]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+editable = false
