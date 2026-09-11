@@ -25,17 +25,6 @@ The corresponding source code for the FFmpeg version used to build the bundled l
 
 Attribution is shown in the in-app About dialog.
 
-## Export packaging
-Godot export does **not** embed FFmpeg or RtMidi as loadable OS libraries. Every shipping build is **export → copy natives → platform-sign**.
-
-| Platform | Runbook |
-|----------|---------|
-| All (what ships, layouts) | [docs/export-packaging.md](docs/export-packaging.md) |
-| GitHub Releases / in-app updater | [docs/github-releases.md](docs/github-releases.md) |
-| **macOS** (FFmpeg + Developer ID + notarize + zip) | [docs/macos-codesign.md](docs/macos-codesign.md) |
-| Windows (Authenticode / SmartScreen) | [docs/windows-codesign.md](docs/windows-codesign.md) |
-| FFmpeg license + portable macOS build | [docs/FFmpeg-Licensing.md](docs/FFmpeg-Licensing.md) |
-
 ## Platforms
 Cue-2 targets:
 - Windows 10+
