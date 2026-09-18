@@ -25,6 +25,26 @@ The corresponding source code for the FFmpeg version used to build the bundled l
 
 Attribution is shown in the in-app About dialog.
 
+## Tools
+
+Scripts in `tools/` (see [tools/README.md](tools/README.md)):
+
+```bash
+# Localization catalog (extract UI strings + fill locale columns)
+python tools/i18n/update_catalog.py
+
+# Rebuild bundled RtMidi natives into bin/
+python tools/build-rtmidi-natives.py
+
+# Portable LGPL FFmpeg for macOS (overwrites bin/macos)
+./tools/build-ffmpeg-macos.sh
+
+# Godot export every OS, copy natives, zip/tar.gz + latest.json
+python tools/export-all.py
+```
+
+Signing, notarization, and certificates are **not** in this repository.
+
 ## Platforms
 Cue-2 targets:
 - Windows 10+

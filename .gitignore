@@ -49,8 +49,21 @@ UpgradeLog.htm
 
 # Not in the public repo yet
 /docs/
-/tools/
 /AGENTS.md
+
+# Signing / notarization / certificates stay private
+/tools/macos-sign-and-notarize.sh
+/tools/macos/
+*.p12
+*.pfx
+*.p8
+*.cer
+*.key
+*.mobileprovision
+
+# Python
+__pycache__/
+*.py[cod]
 
 # System/tool-specific ignores
 .directory
