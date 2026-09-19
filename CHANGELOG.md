@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Shell inspector no longer shows “No Selection” in number/name when a cue is selected but those fields are empty.
 - Shell inspector keeps a bottom content margin so the horizontal scrollbar no longer covers the Delete button when scrolled to the bottom.
 - Active cue head progress no longer flickers while dragging a component seek bar. The cue bar keeps tracking live playback until mouse-up, then jumps to the committed seek.
 - Video with embedded audio that underflows the video content will get stuck unfinished in active cue. When audio is EOS and SDL queue has drained, software now switches from audio clock to wall time rebased to last audio position so remaining frames present and EOF can be reached.

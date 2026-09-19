@@ -643,9 +643,9 @@ public partial class ShellInspector : Control
 	private void ClearMultiEditPlaceholders()
 	{
 		if (_cueNum != null)
-			_cueNum.PlaceholderText = UiLocalizer.T("No Selection");
+			_cueNum.PlaceholderText = "";
 		if (_cueName != null)
-			_cueName.PlaceholderText = UiLocalizer.T("No Selection");
+			_cueName.PlaceholderText = "";
 		if (_preWaitInput != null)
 			_preWaitInput.PlaceholderText = "";
 		if (_postWaitInput != null)

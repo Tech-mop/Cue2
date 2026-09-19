@@ -70,7 +70,6 @@ custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "Cue numbers, shorthand identifier. Does not need to be unique. Max length of 5 characters."
-placeholder_text = "No Selection"
 max_length = 5
 
 [node name="CueNameLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer" unique_id=1155908889]
@@ -82,7 +81,6 @@ text = "Name:"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
-placeholder_text = "No Selection"
 max_length = 100
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer" unique_id=538649934]
