@@ -15,6 +15,8 @@ namespace Cue2.App;
 /// Expand button enters non-exclusive <see cref="DisplayServer.WindowMode.Fullscreen"/>.
 /// Title double-click enters <see cref="DisplayServer.WindowMode.Maximized"/> only.
 /// Single-click / drag on the header does not leave fullscreen; drag-out applies to OS maximize only.
+/// On Windows, a borderless window sized exactly to a monitor is demoted from ExclusiveFullscreen
+/// (same 1px guard as video outputs) so chrome and the engine stay in agreement.
 /// </remarks>
 public partial class MainWindowHandles : Control
 {
@@ -52,6 +54,9 @@ public partial class MainWindowHandles : Control
 
 	/// <summary>Skip persistence for one frame while mode/geometry is being applied.</summary>
 	private bool _suppressGeometrySave;
+
+	/// <summary>True while demoting an unwanted ExclusiveFullscreen promotion (avoids SizeChanged loops).</summary>
+	private bool _guardingExclusive;
 
 	/// <summary>Resting border colour (edit or show mode); alert flash fades back to this.</summary>
 	private Color _restBorderColor;
@@ -560,6 +565,149 @@ public partial class MainWindowHandles : Control
 	private void EndGeometrySaveSuppression()
 	{
 		_suppressGeometrySave = false;
+		CallDeferred(nameof(DemoteUnwantedExclusiveFullscreen));
+	}
+
+	/// <summary>
+	/// Windows/Godot promotes a borderless window that exactly covers a monitor to
+	/// ExclusiveFullscreen. Chrome still thinks the window is windowed (or OS-maximized),
+	/// so resize/drag break. Same 1px / demote pattern as video output screens.
+	/// </summary>
+	/// <remarks>
+	/// Expand-button fullscreen stays non-exclusive <see cref="DisplayServer.WindowMode.Fullscreen"/>.
+	/// Header double-click maximize is unchanged; exclusive is never an intended main-window mode.
+	/// </remarks>
+	private void DemoteUnwantedExclusiveFullscreen()
+	{
+		if (_guardingExclusive)
+			return;
+
+		var window = GetWindow();
+		if (window == null || !IsInstanceValid(window))
+			return;
+
+		bool exclusive = IsEngineExclusiveFullscreen(window);
+		bool windowsExactCover = OS.GetName() == "Windows"
+			&& _fillMode == FillMode.None
+			&& IsExactOrNearMonitorCoverage(window);
+
+		if (_fillMode == FillMode.Fullscreen)
+		{
+			if (exclusive)
+				SetWindowMode(window, DisplayServer.WindowMode.Fullscreen);
+			return;
+		}
+
+		if (!exclusive && !windowsExactCover)
+			return;
+
+		_guardingExclusive = true;
+		_suppressGeometrySave = true;
+		try
+		{
+			ForceMainBorderlessWindowed(window);
+			NudgeOffExactMonitorCoverage(window);
+			GD.Print(
+				$"MainWindowHandles:DemoteUnwantedExclusiveFullscreen - exclusive={exclusive} " +
+				$"fill={_fillMode} size={window.Size}");
+		}
+		finally
+		{
+			_guardingExclusive = false;
+			_suppressGeometrySave = false;
+		}
+	}
+
+	/// <summary>
+	/// Proven Godot/Windows path out of ExclusiveFullscreen: briefly drop borderless, nudge size,
+	/// set Windowed, restore borderless (see <c>VideoOutputDevice.ForceBorderlessWindowed</c>).
+	/// </summary>
+	private static void ForceMainBorderlessWindowed(Window window)
+	{
+		int id = window.GetWindowId();
+		bool exclusive = IsEngineExclusiveFullscreen(window);
+
+		if (exclusive)
+		{
+			if (id >= 0)
+				DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.Borderless, false, id);
+			else
+				window.Borderless = false;
+
+			Vector2I s = id >= 0 ? DisplayServer.WindowGetSize(id) : window.Size;
+			if (s.X > 1)
+			{
+				var nudged = new Vector2I(s.X - 1, Mathf.Max(1, s.Y));
+				if (id >= 0)
+					DisplayServer.WindowSetSize(nudged, id);
+				else
+					window.Size = nudged;
+			}
+		}
+
+		SetWindowMode(window, DisplayServer.WindowMode.Windowed);
+
+		if (id >= 0)
+			DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.Borderless, true, id);
+		else
+			window.Borderless = true;
+	}
+
+	/// <summary>
+	/// +1px width when the frame matches a monitor, so Windows cannot re-promote to exclusive.
+	/// Extra pixel hangs off the right edge (same as house-output placement).
+	/// </summary>
+	private static void NudgeOffExactMonitorCoverage(Window window)
+	{
+		if (!TryGetCoveredMonitor(window, out Vector2I monPos, out Vector2I monSize))
+			return;
+
+		ApplyGeometry(window, new Vector2I(monSize.X + 1, monSize.Y), monPos);
+	}
+
+	private static bool IsEngineExclusiveFullscreen(Window window)
+	{
+		int id = window.GetWindowId();
+		if (id >= 0)
+			return DisplayServer.WindowGetMode(id) == DisplayServer.WindowMode.ExclusiveFullscreen;
+		return window.Mode == Window.ModeEnum.ExclusiveFullscreen;
+	}
+
+	/// <summary>
+	/// True when the window is on a monitor origin and its size matches that monitor (or is 1px off).
+	/// </summary>
+	private static bool IsExactOrNearMonitorCoverage(Window window) =>
+		TryGetCoveredMonitor(window, out _, out _);
+
+	/// <summary>
+	/// Finds a monitor this window fully covers (exact size, or ±1px width after a demote nudge).
+	/// </summary>
+	private static bool TryGetCoveredMonitor(Window window, out Vector2I monPos, out Vector2I monSize)
+	{
+		monPos = Vector2I.Zero;
+		monSize = Vector2I.Zero;
+		int id = window.GetWindowId();
+		Vector2I pos = id >= 0 ? DisplayServer.WindowGetPosition(id) : window.Position;
+		Vector2I size = id >= 0 ? DisplayServer.WindowGetSize(id) : window.Size;
+
+		int screens = DisplayServer.GetScreenCount();
+		for (int i = 0; i < screens; i++)
+		{
+			Vector2I p = DisplayServer.ScreenGetPosition(i);
+			Vector2I s = DisplayServer.ScreenGetSize(i);
+			if (pos != p)
+				continue;
+			if (size.Y != s.Y)
+				continue;
+			if (size.X == s.X || size.X == s.X - 1 || size.X == s.X + 1)
+			{
+				monPos = p;
+				monSize = s;
+				return size.X != s.X + 1;
+			}
+		}
+
+		return false;
 	}
 
 	/// <summary>True when chrome or engine reports any fill-screen mode.</summary>
@@ -673,10 +821,20 @@ public partial class MainWindowHandles : Control
 
 	private void OnWindowSizeChanged()
 	{
+		if (_guardingExclusive)
+			return;
+
+		if (!_suppressGeometrySave)
+			CallDeferred(nameof(DemoteUnwantedExclusiveFullscreen));
+
 		if (_suppressGeometrySave)
 			return;
 
 		var win = GetWindow();
+		// Unwanted exclusive is not a real maximize/fullscreen — wait for the demote.
+		if (win != null && IsEngineExclusiveFullscreen(win) && _fillMode != FillMode.Fullscreen)
+			return;
+
 		if (IsEffectivelyFillScreen(win))
 		{
 			PersistWindowState(fill: true);
@@ -703,10 +861,17 @@ public partial class MainWindowHandles : Control
 
 	private void CheckAndDebounceWindowPosition()
 	{
-		if (_suppressGeometrySave)
+		if (_suppressGeometrySave || _guardingExclusive)
 			return;
 
 		var win = GetWindow();
+		if (win != null && IsInstanceValid(win) && IsEngineExclusiveFullscreen(win)
+		    && _fillMode != FillMode.Fullscreen)
+		{
+			DemoteUnwantedExclusiveFullscreen();
+			return;
+		}
+
 		if (IsEffectivelyFillScreen(win))
 			return;
 

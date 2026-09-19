@@ -131,8 +131,8 @@ theme_override_constants/separation = 4
 
 [node name="SaveFilterLabel" type="Label" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer" unique_id=743799126]
 layout_mode = 2
-tooltip_text = "Choose which settings categories are included when saving or loading a settings file"
-text = "Save / Load filter"
+tooltip_text = "Choose which settings categories are included when storing or recalling a settings file"
+text = "Store / Recall Settings"
 horizontal_alignment = 1
 
 [node name="SaveFilterOptionButton" type="Button" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer" unique_id=1998735305]
@@ -140,7 +140,7 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 theme_override_styles/normal = SubResource("StyleBoxFlat_gmb81")
-tooltip_text = "Select categories to include when saving or loading settings"
+tooltip_text = "Select categories to include when storing or recalling settings"
 text = "All"
 
 [node name="SaveLoadButtons" type="HBoxContainer" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer" unique_id=1263377314]
@@ -152,16 +152,16 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
-tooltip_text = "Save selected settings categories to a .c2settings file"
-text = "Save As…"
+tooltip_text = "Store selected settings categories to a .c2settings file"
+text = "Store"
 
 [node name="SettingsLoad" type="Button" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Container/SaveOptionsContainer/SaveLoadButtons" unique_id=1672747791]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
-tooltip_text = "Load selected settings categories from a .c2settings file (undoable)"
-text = "Load…"
+tooltip_text = "Recall selected settings categories from a .c2settings file (undoable)"
+text = "Recall"
 
 [node name="Panel" type="Panel" parent="Control/VBoxContainer/MarginContainer/HSplitContainer" unique_id=1457761424]
 clip_contents = true

@@ -3,8 +3,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Active cue head progress no longer flickers while dragging a component seek bar. The cue bar keeps tracking live playback until mouse-up, then jumps to the committed seek.
 - Video with embedded audio that underflows the video content will get stuck unfinished in active cue. When audio is EOS and SDL queue has drained, software now switches from audio clock to wall time rebased to last audio position so remaining frames present and EOF can be reached.
-- Quit / New / Open **Save & close** on a never-saved session no longer fails silently. It now uses the same File → Save path, which falls through to Save As when there is no show path yet.  
+- Quit / New / Open **Save & close** on a never-saved session no longer fails silently. It now uses the same File → Save path, which falls through to Save As when there is no show path yet.
+- Windows: resizing the main window to the display no longer lets Godot promote it to exclusive fullscreen while Cue2 still thinks it is windowed. Same 1px / demote guard as video outputs. Header double-click still maximizes; the expand button still toggles non-exclusive fullscreen.
+
+### Changed
+- Settings file buttons: **Store / Recall Settings**, **Store**, and **Recall** (was Save / Load), so they are not confused with File → Save / Open for the show.  
 
 ## [0.1.0] - 2026-09-11
 

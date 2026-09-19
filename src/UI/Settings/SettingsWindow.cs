@@ -27,7 +27,7 @@ namespace Cue2.UI.Settings;
 /// (typically app exit).
 /// </summary>
 /// <remarks>
-/// Also hosts independent show-settings save/load (.c2settings) with a multi-select filter
+/// Also hosts independent show-settings store/recall (.c2settings) with a multi-select filter
 /// so users can export or import subsets (e.g. Audio Output Patches only).
 /// </remarks>
 public partial class SettingsWindow : Window
@@ -639,7 +639,7 @@ public partial class SettingsWindow : Window
 		var categories = GetSelectedCategoryIds();
 		if (categories.Count == 0)
 		{
-			LogSettingsFile("Select at least one filter category before saving settings.", LogType.Warning);
+			LogSettingsFile("Select at least one filter category before storing settings.", LogType.Warning);
 			return;
 		}
 
@@ -652,7 +652,7 @@ public partial class SettingsWindow : Window
 		var categories = GetSelectedCategoryIds();
 		if (categories.Count == 0)
 		{
-			LogSettingsFile("Select at least one filter category before loading settings.", LogType.Warning);
+			LogSettingsFile("Select at least one filter category before recalling settings.", LogType.Warning);
 			return;
 		}
 
@@ -670,7 +670,7 @@ public partial class SettingsWindow : Window
 		{
 			FileMode = mode,
 			Access = FileDialog.AccessEnum.Filesystem,
-			Title = mode == FileDialog.FileModeEnum.SaveFile ? "Save Settings" : "Load Settings",
+			Title = mode == FileDialog.FileModeEnum.SaveFile ? "Store Settings" : "Recall Settings",
 			UseNativeDialog = true
 		};
 		_settingsFileDialog.AddFilter(SettingsExport.FileDialogFilter);
@@ -760,12 +760,12 @@ public partial class SettingsWindow : Window
 			}
 
 			file.StoreString(json);
-			LogSettingsFile($"Settings saved to {path} ({categoryIds.Count} categor{(categoryIds.Count == 1 ? "y" : "ies")}).", LogType.Info);
+			LogSettingsFile($"Settings stored to {path} ({categoryIds.Count} categor{(categoryIds.Count == 1 ? "y" : "ies")}).", LogType.Info);
 			GD.Print($"SettingsWindow:SaveSettingsToPath - Wrote {keys.Length} key(s) → {path}");
 		}
 		catch (Exception ex)
 		{
-			LogSettingsFile($"Error saving settings: {ex.Message}", LogType.Error);
+			LogSettingsFile($"Error storing settings: {ex.Message}", LogType.Error);
 			GD.PrintErr($"SettingsWindow:SaveSettingsToPath - {ex}");
 		}
 	}
@@ -836,7 +836,7 @@ public partial class SettingsWindow : Window
 
 			var history = _globalData.HistoryManager;
 			history?.RecordSettingsChange(
-				$"Load settings ({string.Join(", ", categoryIds)})",
+				$"Recall settings ({string.Join(", ", categoryIds)})",
 				null,
 				appliedKeys.ToArray());
 
@@ -844,13 +844,13 @@ public partial class SettingsWindow : Window
 			history?.NotifySettingsApplied(appliedKeys.ToArray());
 
 			LogSettingsFile(
-				$"Settings loaded from {path} ({appliedKeys.Count} key(s): {string.Join(", ", appliedKeys)}).",
+				$"Settings recalled from {path} ({appliedKeys.Count} key(s): {string.Join(", ", appliedKeys)}).",
 				LogType.Info);
 			GD.Print($"SettingsWindow:LoadSettingsFromPath - Applied [{string.Join(", ", appliedKeys)}] from {path}");
 		}
 		catch (Exception ex)
 		{
-			LogSettingsFile($"Error loading settings: {ex.Message}", LogType.Error);
+			LogSettingsFile($"Error recalling settings: {ex.Message}", LogType.Error);
 			GD.PrintErr($"SettingsWindow:LoadSettingsFromPath - {ex}");
 		}
 	}

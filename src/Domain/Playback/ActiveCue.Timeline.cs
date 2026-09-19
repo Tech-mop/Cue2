@@ -378,8 +378,9 @@ public partial class ActiveCue
 
         double media = TryGetMaxOwnMediaContentSeconds();
 
-        // Leaf with own media: media playhead is authoritative (component scrub must move the head bar,
-        // including seek-backward — wall clock alone would stick at the high-water mark).
+        // Leaf with own media: media playhead is authoritative (committed component seeks must
+        // move the head bar, including seek-backward — wall clock alone would stick at the
+        // high-water mark). Uncommitted component scrubs preview on the component row only.
         if (_childActiveCues.Count == 0 && media >= 0)
             return _preWaitSecondsHonored + media;
 
@@ -406,7 +407,8 @@ public partial class ActiveCue
     }
 
     /// <summary>
-    /// After a component-level scrub, snap the body playhead to own media so the head bar updates immediately.
+    /// After a committed component-level seek (mouse-up), snap the body playhead so the head bar
+    /// jumps to the new position immediately rather than waiting for the decoder.
     /// </summary>
     /// <param name="contentLocalSeconds">Content-local time (media time − StartTime).</param>
     private void SyncHeadTimelineFromComponentSeek(double contentLocalSeconds)
@@ -416,7 +418,7 @@ public partial class ActiveCue
 
         double absolute = _preWaitSecondsHonored + contentLocalSeconds;
         SetTimelineSeconds(absolute);
-        // Force head bar to the scrub target even if a decoder seek is still in flight
+        // Force head bar to the committed target even if a decoder seek is still in flight
         // (UpdateHeadProgressUi would otherwise early-return and leave a stale fill).
         ApplyHeadProgressDisplay(absolute, GetPlayableTimelineDuration());
     }
@@ -526,8 +528,9 @@ public partial class ActiveCue
         if (_headIsSeeking)
             return;
 
-        // While any component is mid async seek, hold the last scrub/preview head position
-        // so the bar does not flick back to the pre-seek playhead.
+        // Hold only after a committed component seek (mouse-up). During the drag the head
+        // must keep tracking live playback; the uncommitted scrub is previewed on the
+        // component row only.
         if (AnyComponentDecoderSeeking())
             return;
 

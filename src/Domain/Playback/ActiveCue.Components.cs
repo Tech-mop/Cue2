@@ -318,10 +318,8 @@ public partial class ActiveCue
                         var localPos = progressBar.GetLocalMousePosition();
                         float percent = Mathf.Clamp(localPos.X / progressBar.Size.X, 0f, 1f);
                         pendingContentSeekSec = percent * audioSeekSpan;
-                        progressBar.Value = percent * 100; // Preview
+                        progressBar.Value = percent * 100; // Preview this row only
                         timeLabel.Text = UiUtilities.FormatTime(pendingContentSeekSec);
-                        // Live head preview while scrubbing component.
-                        SyncHeadTimelineFromComponentSeek(pendingContentSeekSec);
                     }
                     else
                     {
@@ -331,6 +329,7 @@ public partial class ActiveCue
                         if (seekPb.IsSeeking)
                         {
                             seekPb.SeekToTotalContentSeconds(pendingContentSeekSec);
+                            // Head bar follows only once the seek is committed (mouse up).
                             SyncHeadTimelineFromComponentSeek(pendingContentSeekSec);
                             GD.Print($"ActiveCue:ProgressBar - Sought to content {pendingContentSeekSec:F3}s on release");
                         }
@@ -346,7 +345,6 @@ public partial class ActiveCue
                     pendingContentSeekSec = percent * audioSeekSpan;
                     progressBar.Value = percent * 100;
                     timeLabel.Text = UiUtilities.FormatTime(pendingContentSeekSec);
-                    SyncHeadTimelineFromComponentSeek(pendingContentSeekSec);
                 }
             };
 
@@ -523,15 +521,15 @@ public partial class ActiveCue
                         }
                         float percent = Mathf.Clamp(localPos.X / progressBar.Size.X, 0f, 1f);
                         pendingContentSeekSec = percent * videoSeekSpan;
-                        progressBar.Value = percent * 100; // Preview
+                        progressBar.Value = percent * 100; // Preview this row only
                         timeLabel.Text = UiUtilities.FormatTime(pendingContentSeekSec);
-                        SyncHeadTimelineFromComponentSeek(pendingContentSeekSec);
                     }
                     else
                     {
                         if (seekPb.IsSeeking)
                         {
                             seekPb.SeekToTotalContentSeconds(pendingContentSeekSec);
+                            // Head bar follows only once the seek is committed (mouse up).
                             SyncHeadTimelineFromComponentSeek(pendingContentSeekSec);
                             GD.Print($"ActiveCue:ProgressBar - Sought to content {pendingContentSeekSec:F3}s on release");
                         }
@@ -545,7 +543,6 @@ public partial class ActiveCue
                     pendingContentSeekSec = percent * videoSeekSpan;
                     progressBar.Value = percent * 100;
                     timeLabel.Text = UiUtilities.FormatTime(pendingContentSeekSec);
-                    SyncHeadTimelineFromComponentSeek(pendingContentSeekSec);
                 }
             };
             ulong videoPanelId = componentPanel.GetInstanceId();
