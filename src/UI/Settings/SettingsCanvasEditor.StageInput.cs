@@ -50,6 +50,7 @@ public partial class SettingsCanvasEditor
         {
             if (mouseEvent.ButtonIndex == MouseButton.Middle)
             {
+                CancelPendingClickCycle();
                 _isPanning = mouseEvent.Pressed;
                 UpdateStageInputProcessing();
                 AcceptEvent();
@@ -65,6 +66,12 @@ public partial class SettingsCanvasEditor
                         UpdateStageInputProcessing();
                         AcceptEvent();
                     }
+                }
+                else if (_pendingClickCycle)
+                {
+                    CompleteClickCycle();
+                    UpdateStageInputProcessing();
+                    AcceptEvent();
                 }
                 else if (_isDraggingCanvas)
                 {
@@ -94,6 +101,11 @@ public partial class SettingsCanvasEditor
                 _canvasLayer.Offset += motionEvent.Relative;
                 AcceptEvent();
             }
+            else if (_pendingClickCycle && PromoteClickCycleToDrag())
+            {
+                UpdateCanvasDrag();
+                AcceptEvent();
+            }
             else if (_isDraggingCanvas && _dragMode != DragMode.None)
             {
                 UpdateCanvasDrag();
@@ -114,12 +126,18 @@ public partial class SettingsCanvasEditor
     {
         if (!IsVisibleInTree() || !_stageInitialized)
             return;
-        if (!_isDraggingCanvas && !_isPanning)
+        if (!_isDraggingCanvas && !_isPanning && !_pendingClickCycle)
             return;
 
         if (@event is InputEventMouseButton mouseEvent && !mouseEvent.Pressed)
         {
-            if (mouseEvent.ButtonIndex == MouseButton.Left && _isDraggingCanvas)
+            if (mouseEvent.ButtonIndex == MouseButton.Left && _pendingClickCycle)
+            {
+                CompleteClickCycle();
+                UpdateStageInputProcessing();
+                GetViewport().SetInputAsHandled();
+            }
+            else if (mouseEvent.ButtonIndex == MouseButton.Left && _isDraggingCanvas)
             {
                 EndCanvasInteraction();
                 UpdateStageInputProcessing();
@@ -143,6 +161,11 @@ public partial class SettingsCanvasEditor
                 _canvasLayer.Offset += motionEvent.Relative;
                 GetViewport().SetInputAsHandled();
             }
+            else if (_pendingClickCycle && PromoteClickCycleToDrag())
+            {
+                UpdateCanvasDrag();
+                GetViewport().SetInputAsHandled();
+            }
             else if (_isDraggingCanvas && _dragMode != DragMode.None)
             {
                 UpdateCanvasDrag();
@@ -156,12 +179,12 @@ public partial class SettingsCanvasEditor
     /// </summary>
     private void UpdateStageInputProcessing()
     {
-        SetProcessInput(IsVisibleInTree() && (_isDraggingCanvas || _isPanning));
+        SetProcessInput(IsVisibleInTree() && (_isDraggingCanvas || _isPanning || _pendingClickCycle));
     }
 
     private void OnStageMouseExited()
     {
-        if (_isDraggingCanvas || _isPanning)
+        if (_isDraggingCanvas || _isPanning || _pendingClickCycle)
             return;
         MouseDefaultCursorShape = CursorShape.Arrow;
         if (_stagePointer != null && IsInstanceValid(_stagePointer))
@@ -240,12 +263,17 @@ public partial class SettingsCanvasEditor
         return local - (_canvasLayer?.Offset ?? Vector2.Zero);
     }
 
+    /// <summary>Pointer movement (stage pixels) before a stacked click becomes a move-drag.</summary>
+    private const float ClickCycleDragSlopPx = 5f;
+
     private bool BeginCanvasInteraction()
     {
+        CancelPendingClickCycle();
+
         Vector2 layerMouse = GetLayerMousePosition();
         Vector2 canvasMouse = GetCanvasMousePosition();
 
-        // 1) Prefer handles / body of current selection
+        // Resize handles of the current selection always win over cycling.
         if (_selectionKind == SelectionKind.Screen || _selectionKind == SelectionKind.Layer)
         {
             if (TryGetSelectedRect(out Vector2I pos, out Vector2I size))
@@ -257,67 +285,134 @@ public partial class SettingsCanvasEditor
                     StartDrag(handle, canvasMouse, pos, size);
                     return true;
                 }
-
-                if (zoomed.Grow(HandleSizePx * 0.5f).HasPoint(layerMouse))
-                {
-                    StartDrag(DragMode.Move, canvasMouse, pos, size);
-                    return true;
-                }
             }
         }
 
-        // 2) Hit-test items (layers first — typically on top conceptually — then screens)
-        // Prefer topmost layer (list order) then screens when picking on stage.
-        if (TryHitTestItem(canvasMouse, out SelectionKind kind, out int id))
-        {
-            if (kind == SelectionKind.Screen)
-            {
-                SelectScreenInTree(id);
-                ApplySelection(SelectionKind.Screen, id, -1);
-            }
-            else if (kind == SelectionKind.Layer)
-            {
-                SelectLayerInTree(id);
-                ApplySelection(SelectionKind.Layer, -1, id);
-            }
+        var hits = CollectHits(canvasMouse);
+        if (hits.Count == 0)
+            return false;
 
+        int current = IndexOfCurrentHit(hits);
+        if (current < 0)
+        {
+            ApplyHit(hits[0]);
             if (TryGetSelectedRect(out Vector2I pos, out Vector2I size))
             {
                 StartDrag(DragMode.Move, canvasMouse, pos, size);
                 return true;
             }
+
+            return false;
+        }
+
+        // Already selected and stacked: click (no drag) cycles; dragging still moves.
+        if (hits.Count > 1)
+        {
+            _pendingClickCycle = true;
+            _clickCycleStartLayer = layerMouse;
+            return true;
+        }
+
+        if (TryGetSelectedRect(out Vector2I movePos, out Vector2I moveSize))
+        {
+            StartDrag(DragMode.Move, canvasMouse, movePos, moveSize);
+            return true;
         }
 
         return false;
     }
 
-    private bool TryHitTestItem(Vector2 canvasMouse, out SelectionKind kind, out int id)
+    /// <summary>
+    /// Items under <paramref name="canvasMouse"/>, top-first: layers (list order) then screens.
+    /// </summary>
+    private static List<(SelectionKind Kind, int Id)> CollectHits(Vector2 canvasMouse)
     {
-        kind = SelectionKind.None;
-        id = -1;
-
-        // Layers first, top-of-stack first (list order / highest ZIndex) so the top layer wins overlaps.
+        var hits = new List<(SelectionKind Kind, int Id)>();
         foreach (var layer in DisplaysManager.Layers)
         {
-            var r = new Rect2(layer.CanvasPosition, layer.Size);
-            if (!r.HasPoint(canvasMouse))
-                continue;
-            kind = SelectionKind.Layer;
-            id = layer.LayerId;
-            return true;
+            if (new Rect2(layer.CanvasPosition, layer.Size).HasPoint(canvasMouse))
+                hits.Add((SelectionKind.Layer, layer.LayerId));
         }
 
         foreach (var screen in DisplaysManager.Screens)
         {
-            var r = new Rect2(screen.CanvasPosition, screen.OutputSize);
-            if (!r.HasPoint(canvasMouse))
-                continue;
-            kind = SelectionKind.Screen;
-            id = screen.OutputId;
-            return true;
+            if (new Rect2(screen.CanvasPosition, screen.OutputSize).HasPoint(canvasMouse))
+                hits.Add((SelectionKind.Screen, screen.OutputId));
         }
 
-        return false;
+        return hits;
+    }
+
+    private int IndexOfCurrentHit(List<(SelectionKind Kind, int Id)> hits)
+    {
+        for (int i = 0; i < hits.Count; i++)
+        {
+            var hit = hits[i];
+            if (_selectionKind == SelectionKind.Layer && hit.Kind == SelectionKind.Layer && hit.Id == _selectedLayerId)
+                return i;
+            if (_selectionKind == SelectionKind.Screen && hit.Kind == SelectionKind.Screen && hit.Id == _selectedScreenId)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private void ApplyHit((SelectionKind Kind, int Id) hit)
+    {
+        if (hit.Kind == SelectionKind.Screen)
+        {
+            SelectScreenInTree(hit.Id);
+            ApplySelection(SelectionKind.Screen, hit.Id, -1);
+        }
+        else if (hit.Kind == SelectionKind.Layer)
+        {
+            SelectLayerInTree(hit.Id);
+            ApplySelection(SelectionKind.Layer, -1, hit.Id);
+        }
+    }
+
+    /// <summary>
+    /// If the pointer moved past slop, convert a stacked click into a move-drag of the current item.
+    /// </summary>
+    /// <returns>True when a drag was started.</returns>
+    private bool PromoteClickCycleToDrag()
+    {
+        if (!_pendingClickCycle)
+            return false;
+        if (GetLayerMousePosition().DistanceTo(_clickCycleStartLayer) < ClickCycleDragSlopPx)
+            return false;
+
+        _pendingClickCycle = false;
+        if (!TryGetSelectedRect(out Vector2I pos, out Vector2I size))
+            return false;
+
+        StartDrag(DragMode.Move, GetCanvasMousePosition(), pos, size);
+        return true;
+    }
+
+    /// <summary>
+    /// Click (no drag) on a stacked selection: select the next layer/screen under the pointer.
+    /// </summary>
+    private void CompleteClickCycle()
+    {
+        if (!_pendingClickCycle)
+            return;
+        _pendingClickCycle = false;
+
+        var hits = CollectHits(GetCanvasMousePosition());
+        if (hits.Count == 0)
+            return;
+
+        int current = IndexOfCurrentHit(hits);
+        int next = current < 0 ? 0 : (current + 1) % hits.Count;
+        ApplyHit(hits[next]);
+        UpdateCanvasGizmos();
+        UpdateStageCursor();
+    }
+
+    private void CancelPendingClickCycle()
+    {
+        _pendingClickCycle = false;
     }
 
     private bool TryGetSelectedRect(out Vector2I pos, out Vector2I size)

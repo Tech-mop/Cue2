@@ -166,6 +166,11 @@ public partial class SettingsCanvasEditor : Control
     private bool _isUpdatingProps;
     private bool _isRebuildingTree;
     private bool _isDraggingCanvas;
+    /// <summary>
+    /// Left-press on a stacked selection: wait to see if this is a click (cycle) or a drag (move).
+    /// </summary>
+    private bool _pendingClickCycle;
+    private Vector2 _clickCycleStartLayer;
     /// <summary>Heavy stage setup is deferred until the panel is actually shown.</summary>
     private bool _stageInitialized;
 
