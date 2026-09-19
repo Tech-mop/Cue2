@@ -9,6 +9,8 @@ Cue-2 offers a reliable and fast way to build sound, video and show control.
 - Text overlays, cue library, session management
 - Low-latency cue triggering
 
+User-facing changes are listed in [CHANGELOG.md](CHANGELOG.md).
+
 ## Free and Open Source
 
 ## Dependencies & Licensing

@@ -36,7 +36,7 @@ public static class Version
     /// Gets the patch version number. 
     /// </summary> 
     /// <value>The patch version integer.</value> 
-    public static readonly int Patch = 0; 
+    public static readonly int Patch = 1; 
  
     /// <summary> 
     /// Gets the version status. Empty for a public release. 

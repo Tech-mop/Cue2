@@ -26,8 +26,9 @@ namespace Cue2.Domain.Playback;
 /// Audio: same pull-based path as pure audio cues (<see cref="AudioSourceDecoder"/> + SDL fill).
 /// </para>
 /// A/V sync strategy: audio is the master clock when present; video presents or drops frames
-/// to stay within a tolerance of that clock. On seek/pause/loop both streams are reset to
-/// the same media timestamp.
+/// to stay within a tolerance of that clock. When the soundtrack ends before the video
+/// stream, the master falls back to wall time so remaining frames can present and the cue can
+/// complete. On seek/pause/loop both streams are reset to the same media timestamp.
 /// </summary>
 public partial class ActiveVideoPlayback : Node, IAudioPlayback
 {
@@ -146,6 +147,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
     private long _pausedAtUs;
     private bool _isExiting;
     private bool _completedEmitted;
+    /// <summary>True after HandleSegmentEnd has deferred CompleteFromEnd (prevents re-entry).</summary>
+    private bool _segmentEndScheduled;
+    /// <summary>
+    /// True after the embedded-audio master has reached EOS and the SDL queue has drained.
+    /// Remaining video continues on the wall clock so a shorter soundtrack cannot stall the cue.
+    /// </summary>
+    private bool _audioMasterExhausted;
     private bool _isDisposed;
     private bool _isPlaying;
     /// <summary>True after the first (and typically only) still-image frame has been shown.</summary>
@@ -578,11 +586,14 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
     /// <summary>
     /// Master media clock in microseconds.
     /// With bound audio streams: audio decode position minus average SDL stream latency.
-    /// Without audio output (silent video / failed bind): wall clock from play start.
+    /// After the soundtrack drains (or with no audio output): wall clock from play start.
     /// </summary>
     /// <remarks>
     /// Must not use the audio decoder as master when no streams are bound — the fill loop
     /// never advances <see cref="AudioSourceDecoder.PositionUs"/>, so presentation freezes.
+    /// Must also stop using audio as master once it has ended: many files have a shorter
+    /// audio stream than video, and a frozen playhead would leave the last frames in the
+    /// ring (too early to present) so the cue would never hit EOS or <c>_endTimeUs</c>.
     /// </remarks>
     private long GetMasterClockUs()
     {
@@ -591,7 +602,10 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
         if (_seekInProgress)
             return _seekTargetUs;
 
-        if (_audioDecoder != null && UseAudio && HasBoundAudioStreams)
+        bool audioMasterExhausted;
+        lock (_lock) audioMasterExhausted = _audioMasterExhausted;
+
+        if (_audioDecoder != null && UseAudio && HasBoundAudioStreams && !audioMasterExhausted)
         {
             long audioUs = _audioDecoder.PositionUs;
             long queuedUs = 0;
@@ -606,7 +620,32 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
             }
             if (count > 0) queuedUs /= count;
             long master = audioUs - queuedUs;
-            return master < _startTimeUs ? _startTimeUs : master;
+            if (master < _startTimeUs)
+                master = _startTimeUs;
+
+            // ~8ms matches present early-tolerance: treat the soundtrack as finished once
+            // decode is at EOS (or past its stream duration) and SDL has drained.
+            const long drainedQueuedUs = 8_000;
+            long audioDurationUs = _audioDecoder.Info?.DurationUs ?? 0;
+            bool audioDone = _audioDecoder.EndOfStream
+                || (audioDurationUs > 0 && audioUs >= audioDurationUs);
+            if (audioDone && queuedUs <= drainedQueuedUs)
+            {
+                lock (_lock)
+                {
+                    if (!_audioMasterExhausted)
+                    {
+                        _audioMasterExhausted = true;
+                        _wallMediaOriginUs = master;
+                        _wallClock.Restart();
+                        GD.Print(
+                            $"ActiveVideoPlayback:GetMasterClockUs - Audio master exhausted at {master}us; " +
+                            "continuing on wall clock");
+                    }
+                }
+            }
+
+            return master;
         }
 
         if (!_wallClock.IsRunning)
@@ -616,22 +655,41 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
 
     private void HandleSegmentEnd()
     {
+        bool loopAgain = false;
         lock (_lock)
         {
-            if (IsStopped || _isExiting || _isFadingOut) return;
+            if (IsStopped || _isExiting || _isFadingOut || _completedEmitted || _segmentEndScheduled)
+                return;
 
             if (_videoComponent.Loop || _currentPlayCount < EffectivePlayCount)
             {
                 _currentPlayCount++;
                 _naturalEndFadeArmed = false;
-                GD.Print($"ActiveVideoPlayback:HandleSegmentEnd - Loop/play {_currentPlayCount}/{EffectivePlayCount}");
-                SeekInternal(_startTimeUs, restartClock: true);
-                return;
+                _audioMasterExhausted = false;
+                loopAgain = true;
+            }
+            else
+            {
+                _segmentEndScheduled = true;
             }
         }
 
+        if (loopAgain)
+        {
+            GD.Print($"ActiveVideoPlayback:HandleSegmentEnd - Loop/play {_currentPlayCount}/{EffectivePlayCount}");
+            SeekInternal(_startTimeUs, restartClock: true);
+            return;
+        }
+
         GD.Print("ActiveVideoPlayback:HandleSegmentEnd - Completed");
-        CallDeferred(nameof(CompleteFromEnd));
+        try
+        {
+            CallDeferred(nameof(CompleteFromEnd));
+        }
+        catch
+        {
+            CompleteFromEnd();
+        }
     }
 
     /// <summary>
@@ -672,6 +730,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
     {
         if (_isFadingOut || IsStopped || _isExiting)
             return;
+
+        // User scrubbed away from the out-point after end was scheduled — stay alive.
+        if (_seekInProgress)
+        {
+            lock (_lock) _segmentEndScheduled = false;
+            return;
+        }
 
         // Safety net if end was hit without early arm (seek into tail, etc.).
         double residual = 0;
@@ -782,6 +847,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
             if (IsStopped || _isExiting) return;
             _isPlaying = true;
             IsPaused = false;
+            _audioMasterExhausted = false;
+            _segmentEndScheduled = false;
             // Wall-clock origin = current media position (used when no audio master).
             // Still images always start their hold timer at 0.
             _wallMediaOriginUs = _videoComponent.IsImage
@@ -912,6 +979,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
             {
                 if (_videoDecoder.EndOfStream)
                     HandleSegmentEnd();
+                break;
+            }
+
+            // Frame is at/past the out-point — do not wait for a clock that may stall short of it.
+            if (_endTimeUs < long.MaxValue && nextPts >= _endTimeUs)
+            {
+                HandleSegmentEnd();
                 break;
             }
 
@@ -1150,6 +1224,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
         lock (_lock)
         {
             _audioFillSuspended = true;
+            _audioMasterExhausted = false;
+            _segmentEndScheduled = false;
         }
 
         if (DeviceStreams != null)
