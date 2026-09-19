@@ -264,39 +264,23 @@ public partial class SaveManager : Node
 	}
 	
 	/// <summary>
-	/// Initiates a save operation. If the session is unnamed or has no path, triggers SaveAs.
-	/// Otherwise, saves to the existing path.
+	/// True when this session already has a name and on-disk path (File → Save can write in place).
+	/// </summary>
+	private bool HasExistingSaveTarget() =>
+		!string.IsNullOrEmpty(_globalData?.SessionName)
+		&& !string.IsNullOrEmpty(_globalData?.SessionPath);
+
+	/// <summary>
+	/// File → Save. If the session is unnamed, has no path, or was opened from a newer format,
+	/// falls through to Save As.
 	/// </summary>
 	private void Save()
 	{
-		if (RejectIfSessionBusy("save"))
-			return;
-
-		if (_globalData.SessionName == null || _globalData.SessionPath == null)
-		{
-			SaveAs();
-			return;
-		}
-
-		// Never overwrite a newer-format original with this build's schema.
-		if (_openedFromNewerFormat)
-		{
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-				"This show was opened from a newer Cue2 format. Use Save As to write a copy " +
-				"this version can own — overwriting the original is blocked.",
-				(int)LogType.Warning);
-			SaveAs();
-			return;
-		}
-
-		_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-			$"Saving session to: {_globalData.SessionPath} with name: {_globalData.SessionName}:", 0);
-		SaveSession(_globalData.SessionPath);
+		BeginSave(forPendingClose: false);
 	}
 
 	/// <summary>
-	/// Opens the save file dialog to allow the user to choose a directory and name for the session.
-	/// Uses the single dialog instance created in <see cref="CreateSaveDialog"/>.
+	/// File → Save As. Opens the save file dialog.
 	/// </summary>
 	/// <remarks>
 	/// Start folder: current show directory when the session is already on disk; otherwise the
@@ -304,19 +288,92 @@ public partial class SaveManager : Node
 	/// </remarks>
 	private void SaveAs()
 	{
-		if (RejectIfSessionBusy("save as"))
+		BeginSaveAs(forPendingClose: false);
+	}
+
+	/// <summary>
+	/// Shared File → Save / unsaved-dialog Save &amp; close path.
+	/// Never-saved and newer-format shows open Save As; otherwise writes in place.
+	/// </summary>
+	/// <param name="forPendingClose">
+	/// True when New / Open / Quit is waiting on this save. Skips the unsaved-dialog busy
+	/// gate and continues that action after a successful write.
+	/// </param>
+	private void BeginSave(bool forPendingClose)
+	{
+		if (RejectIfSessionBusy("save", ignorePendingClose: forPendingClose))
+		{
+			if (forPendingClose)
+				ClearPendingClose();
 			return;
+		}
+
+		if (!HasExistingSaveTarget() || _openedFromNewerFormat)
+		{
+			if (_openedFromNewerFormat && HasExistingSaveTarget())
+			{
+				_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+					"This show was opened from a newer Cue2 format. Use Save As to write a copy " +
+					"this version can own — overwriting the original is blocked.",
+					(int)LogType.Warning);
+			}
+
+			BeginSaveAs(forPendingClose);
+			return;
+		}
+
+		_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+			$"Saving session to: {_globalData.SessionPath} with name: {_globalData.SessionName}:", 0);
+
+		if (!forPendingClose)
+		{
+			SaveSession(_globalData.SessionPath);
+			return;
+		}
+
+		string path = _globalData.SessionPath;
+		TaskUtil.Run(async () =>
+		{
+			bool ok = await SaveSessionAsync(path);
+			if (ok)
+				ExecutePendingClose();
+			else
+				ClearPendingClose();
+		}, "SaveManager.SaveThenClose");
+	}
+
+	/// <summary>
+	/// Pops the Save As file dialog. Used by File → Save As and by <see cref="BeginSave"/>
+	/// when there is no existing show path.
+	/// </summary>
+	/// <param name="forPendingClose">
+	/// When true, a successful file choice continues the pending New / Open / Quit.
+	/// </param>
+	private void BeginSaveAs(bool forPendingClose)
+	{
+		if (RejectIfSessionBusy("save as", ignorePendingClose: forPendingClose))
+		{
+			if (forPendingClose)
+				ClearPendingClose();
+			return;
+		}
 
 		if (_saveDialog == null || !IsInstanceValid(_saveDialog))
 		{
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
 				"SaveManager:SaveAs - Save dialog is not available.", (int)LogType.Error);
+			if (forPendingClose)
+				ClearPendingClose();
 			return;
 		}
 
+		if (forPendingClose)
+			_proceedAfterSaveAs = true;
+
 		ApplySaveDialogStartLocation();
 		_saveDialog.PopupCentered();
-		_globalSignals.EmitSignal(nameof(GlobalSignals.Log), "SaveManager:SaveAs - Waiting on save directory and show name to continue save", 0);
+		_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+			"SaveManager:SaveAs - Waiting on save directory and show name to continue save", 0);
 	}
 
 	/// <summary>
@@ -705,8 +762,12 @@ public partial class SaveManager : Node
 	/// Logs and returns true when New / Open / Save should be refused (open in flight or applying).
 	/// </summary>
 	/// <param name="actionLabel">Short action name for the log message.</param>
+	/// <param name="ignorePendingClose">
+	/// True when Save &amp; close itself is writing — the unsaved dialog / pending New/Open/Quit
+	/// must not block the File → Save path it just requested.
+	/// </param>
 	/// <returns>True if the caller should abort.</returns>
-	private bool RejectIfSessionBusy(string actionLabel)
+	private bool RejectIfSessionBusy(string actionLabel, bool ignorePendingClose = false)
 	{
 		if (_quitStarted)
 		{
@@ -715,7 +776,7 @@ public partial class SaveManager : Node
 			return true;
 		}
 
-		if (IsUnsavedDialogOpen || _pendingClose != PendingCloseKind.None)
+		if (!ignorePendingClose && (IsUnsavedDialogOpen || _pendingClose != PendingCloseKind.None))
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
 				"Finish the unsaved-changes dialog first.", (int)LogType.Info);
@@ -1635,26 +1696,17 @@ public partial class SaveManager : Node
 			return;
 		}
 
-		TaskUtil.Run(SaveThenPendingCloseAsync, "SaveManager.SaveThenClose");
+		// Defer so the overlay has left the tree before File → Save / Save As runs
+		// (native FileDialog from inside the overlay button handler can crash on macOS).
+		CallDeferred(nameof(BeginSaveForPendingClose));
 	}
 
-	private async Task SaveThenPendingCloseAsync()
+	/// <summary>
+	/// Continues New / Open / Quit through the same File → Save path (in-place or Save As).
+	/// </summary>
+	private void BeginSaveForPendingClose()
 	{
-		bool canSaveInPlace = !string.IsNullOrEmpty(_globalData?.SessionPath)
-		                      && !string.IsNullOrEmpty(_globalData.SessionName)
-		                      && !_openedFromNewerFormat;
-		if (canSaveInPlace)
-		{
-			bool ok = await SaveSessionAsync(_globalData.SessionPath);
-			if (ok)
-				ExecutePendingClose();
-			else
-				ClearPendingClose();
-			return;
-		}
-
-		_proceedAfterSaveAs = true;
-		SaveAs();
+		BeginSave(forPendingClose: true);
 	}
 
 	private void OnUnsavedDiscardAndClose()
