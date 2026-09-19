@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cm5s0bi03612d"]
 
 [ext_resource type="Script" uid="uid://bv2kx3l0vphuf" path="res://src/UI/Inspectors/ShellInspector.cs" id="1_frsqn"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="2_colour"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_frsqn"]
 
@@ -96,15 +97,13 @@ layout_mode = 2
 layout_mode = 2
 text = "Colour:"
 
-[node name="ColourPickerButton" type="ColorPickerButton" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer" unique_id=1545370151]
+[node name="ColourPickerButton" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer" unique_id=1545370151 instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
-theme_override_colors/font_color = Color(0.38058, 0.38058, 0.38058, 1)
-text = "Shell Colour"
-color = Color(1, 1, 1, 1)
+tooltip_text = "Shell colour"
 edit_alpha = false
 
 [node name="HSeparator3" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer" unique_id=1558728979]

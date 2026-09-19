@@ -14,6 +14,7 @@ using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
+using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
 using Godot;
 
@@ -47,7 +48,7 @@ public partial class ShellInspector : Control
 	private LineEdit _durationValue;
 	private LineEdit _postWaitInput;
 	private OptionButton _followOption;
-	private ColorPickerButton _colorPicker;
+	private ColourButton _colorPicker;
 	private CheckBox _armedCheckBox;
 	private CheckBox _skipIfDisarmedCheckBox;
 	private CheckBox _onlyOneActiveCheckBox;
@@ -129,7 +130,7 @@ public partial class ShellInspector : Control
 		_durationValue = GetNode<LineEdit>("%DurationValue");
 		_postWaitInput = GetNode<LineEdit>("%PostWaitInput");
 		_followOption = GetNode<OptionButton>("%FollowOption");
-		_colorPicker = GetNode<ColorPickerButton>("%ColourPickerButton");
+		_colorPicker = GetNode<ColourButton>("%ColourPickerButton");
 		_armedCheckBox = GetNodeOrNull<CheckBox>("%ArmedCheckBox");
 		_skipIfDisarmedCheckBox = GetNodeOrNull<CheckBox>("%SkipIfDisarmedCheckBox");
 		_onlyOneActiveCheckBox = GetNodeOrNull<CheckBox>("%OnlyOneActiveCheckBox");

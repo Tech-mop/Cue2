@@ -22,8 +22,11 @@ public partial class UserDataManager : Node
 
 	private const string UserDataFilePath = "user://user_data.json";
 	private const int MaxRecentShowFiles = 12;
+	/// <summary>One row of custom colour chips in the Cue2 colour picker.</summary>
+	public const int MaxRecentCustomColours = 5;
 
 	private List<string> _recentShowFiles = new List<string>();
+	private readonly List<string> _recentCustomColours = new List<string>();
 
 	private Vector2I _lastWindowSize = Vector2I.Zero;
 	private bool _wasMaximized = false;
@@ -159,6 +162,12 @@ public partial class UserDataManager : Node
 	/// </summary>
 	/// <value>A read-only list of absolute file paths to recently used .c2 show files.</value>
 	public IReadOnlyList<string> RecentShowFiles => _recentShowFiles.AsReadOnly();
+
+	/// <summary>
+	/// Recently committed custom colours (HTML RGB, most recent first). App preference, not showfile.
+	/// </summary>
+	/// <value>Up to <see cref="MaxRecentCustomColours"/> hex strings without <c>#</c>.</value>
+	public IReadOnlyList<string> RecentCustomColours => _recentCustomColours.AsReadOnly();
 
 	/// <summary>
 	/// The last recorded size of the main window (when not maximized).
@@ -661,6 +670,40 @@ public partial class UserDataManager : Node
 	}
 
 	/// <summary>
+	/// Records a custom (non-preset) colour as most-recent. Dedupes by RGB hex and caps the list.
+	/// Persists immediately to <c>user://user_data.json</c>.
+	/// </summary>
+	/// <param name="color">Colour to remember; alpha is ignored.</param>
+	public void RememberCustomColour(Color color)
+	{
+		string html = color.ToHtml(false);
+		if (string.IsNullOrWhiteSpace(html))
+			return;
+
+		_recentCustomColours.RemoveAll(h => string.Equals(h, html, StringComparison.OrdinalIgnoreCase));
+		_recentCustomColours.Insert(0, html);
+		while (_recentCustomColours.Count > MaxRecentCustomColours)
+			_recentCustomColours.RemoveAt(_recentCustomColours.Count - 1);
+		SaveUserData();
+	}
+
+	/// <summary>
+	/// Parsed recent custom colours, most recent first.
+	/// </summary>
+	/// <returns>Up to <see cref="MaxRecentCustomColours"/> colours.</returns>
+	public List<Color> GetRecentCustomColours()
+	{
+		var list = new List<Color>(_recentCustomColours.Count);
+		foreach (string html in _recentCustomColours)
+		{
+			if (string.IsNullOrWhiteSpace(html))
+				continue;
+			list.Add(Color.FromString(html, Colors.Black));
+		}
+		return list;
+	}
+
+	/// <summary>
 	/// Resets all persistent user preferences to factory defaults and overwrites
 	/// <c>user://user_data.json</c>. Does not modify showfiles on disk.
 	/// </summary>
@@ -673,6 +716,7 @@ public partial class UserDataManager : Node
 	public void ResetToDefaults()
 	{
 		_recentShowFiles.Clear();
+		_recentCustomColours.Clear();
 
 		_lastWindowSize = Vector2I.Zero;
 		_lastWindowPosition = Vector2I.Zero;
@@ -825,6 +869,7 @@ public partial class UserDataManager : Node
 	private void LoadUserData()
 	{
 		_recentShowFiles.Clear();
+		_recentCustomColours.Clear();
 
 		if (!Godot.FileAccess.FileExists(UserDataFilePath))
 		{
@@ -876,6 +921,24 @@ public partial class UserDataManager : Node
 					{
 						_recentShowFiles.Add(p);
 					}
+				}
+			}
+
+			_recentCustomColours.Clear();
+			if (data.TryGetValue("RecentCustomColours", out var recentColoursValue)
+			    || data.TryGetValue("RecentCustomColors", out recentColoursValue))
+			{
+				var coloursArray = recentColoursValue.AsGodotArray();
+				foreach (var item in coloursArray)
+				{
+					string html = item.AsString();
+					if (string.IsNullOrWhiteSpace(html))
+						continue;
+					if (_recentCustomColours.Exists(h => string.Equals(h, html, StringComparison.OrdinalIgnoreCase)))
+						continue;
+					_recentCustomColours.Add(html);
+					if (_recentCustomColours.Count >= MaxRecentCustomColours)
+						break;
 				}
 			}
 
@@ -1087,6 +1150,7 @@ public partial class UserDataManager : Node
 			GD.PrintErr($"UserDataManager:LoadUserData - Error loading user data: {ex.Message}");
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Error loading user preferences: {ex.Message}", 2);
 			_recentShowFiles.Clear();
+			_recentCustomColours.Clear();
 		}
 	}
 
@@ -1107,6 +1171,11 @@ public partial class UserDataManager : Node
 			}
 
 			data["RecentShowFiles"] = recentsArray;
+
+			var recentColorsArray = new Godot.Collections.Array();
+			foreach (string html in _recentCustomColours)
+				recentColorsArray.Add(html);
+			data["RecentCustomColours"] = recentColorsArray;
 
 			// Window state
 			var winSize = new Dictionary();

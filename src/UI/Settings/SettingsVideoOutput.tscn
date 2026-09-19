@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dkcda72hd8100"]
 
 [ext_resource type="Script" uid="uid://6lb4vs6gc0ic" path="res://src/UI/Settings/SettingsVideoOutput.cs" id="1_video_out"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="2_colour"]
 
 [node name="SettingsVideoOutput" type="ScrollContainer" unique_id=1892952445]
 visible = false
@@ -98,12 +99,13 @@ tooltip_text = "Solid colour behind all layers on every output window. Saved wit
 text = "Output background"
 vertical_alignment = 1
 
-[node name="BackgroundColorPicker" type="ColorPickerButton" parent="VBoxContainer/BackgroundRow" unique_id=1696154644]
+[node name="BackgroundColorPicker" parent="VBoxContainer/BackgroundRow" unique_id=1696154644 instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(80, 22)
 layout_mode = 2
 tooltip_text = "Solid colour behind all layers on every output window. Saved with the showfile."
 focus_mode = 0
+edit_alpha = false
 
 [node name="BackgroundColorResetButton" type="Button" parent="VBoxContainer/BackgroundRow" unique_id=1965971444]
 unique_name_in_owner = true

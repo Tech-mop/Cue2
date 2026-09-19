@@ -1,6 +1,7 @@
 [gd_scene load_steps=2 format=3 uid="uid://msbmpql2gk17"]
 
 [ext_resource type="Script" uid="uid://bvc3582nv4vjj" path="res://src/UI/Settings/SettingsCueLights.cs" id="1_a1h07"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="2_colour"]
 
 [node name="CueLights" type="ScrollContainer"]
 anchors_preset = 15
@@ -41,7 +42,7 @@ text = "LED Colours"
 layout_mode = 2
 text = "     Idle:"
 
-[node name="IdleColour" type="ColorPickerButton" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+[node name="IdleColour" parent="MarginContainer/VBoxContainer/HBoxContainer" instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
@@ -51,7 +52,7 @@ edit_alpha = false
 layout_mode = 2
 text = "    Go:"
 
-[node name="GoColour" type="ColorPickerButton" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+[node name="GoColour" parent="MarginContainer/VBoxContainer/HBoxContainer" instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
@@ -61,7 +62,7 @@ edit_alpha = false
 layout_mode = 2
 text = "    Standby:"
 
-[node name="StandbyColour" type="ColorPickerButton" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+[node name="StandbyColour" parent="MarginContainer/VBoxContainer/HBoxContainer" instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
@@ -71,7 +72,7 @@ edit_alpha = false
 layout_mode = 2
 text = "    Count-In:"
 
-[node name="CountInColour" type="ColorPickerButton" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+[node name="CountInColour" parent="MarginContainer/VBoxContainer/HBoxContainer" instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2

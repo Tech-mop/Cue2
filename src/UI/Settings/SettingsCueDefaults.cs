@@ -3,6 +3,7 @@
 
 using Cue2.Domain.Cues;
 using Cue2.Services;
+using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
 using Godot;
 using AppSettings = Cue2.Domain.ShowSettings.Settings;
@@ -33,7 +34,7 @@ public partial class SettingsCueDefaults : ScrollContainer
     private OptionButton _followOption;
     private Button _followResetButton;
 
-    private ColorPickerButton _colorPicker;
+    private ColourButton _colorPicker;
     private Button _colorResetButton;
 
     private CheckBox _armedCheckBox;
@@ -62,7 +63,7 @@ public partial class SettingsCueDefaults : ScrollContainer
         _postWaitResetButton = GetNode<Button>("%PostWaitResetButton");
         _followOption = GetNode<OptionButton>("%FollowOption");
         _followResetButton = GetNode<Button>("%FollowResetButton");
-        _colorPicker = GetNode<ColorPickerButton>("%ColourPickerButton");
+        _colorPicker = GetNode<ColourButton>("%ColourPickerButton");
         _colorResetButton = GetNode<Button>("%ColourResetButton");
         _armedCheckBox = GetNode<CheckBox>("%ArmedCheckBox");
         _armedResetButton = GetNode<Button>("%ArmedResetButton");

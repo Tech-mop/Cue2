@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Cue2.Domain.Connections;
 using Cue2.Services;
+using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
 using AppSettings = Cue2.Domain.ShowSettings.Settings;
 
@@ -35,10 +36,10 @@ public partial class SettingsCueLights : ScrollContainer
     private VBoxContainer _cueLightsContainer;
     
 
-    private ColorPickerButton _idleColour;
-    private ColorPickerButton _goColour;
-    private ColorPickerButton _standbyColour;
-    private ColorPickerButton _countInColour;
+    private ColourButton _idleColour;
+    private ColourButton _goColour;
+    private ColourButton _standbyColour;
+    private ColourButton _countInColour;
     private LineEdit _brightnessLineEdit;
 
     private Button _testGoButton;
@@ -72,10 +73,10 @@ public partial class SettingsCueLights : ScrollContainer
         _cueLightsContainer = GetNode<VBoxContainer>("%CueLightsContainer");
         
         _newCueLightButton = GetNode<Button>("%NewCueLightButton");
-        _idleColour = GetNode<ColorPickerButton>("%IdleColour");
-        _goColour = GetNode<ColorPickerButton>("%GoColour");
-        _standbyColour = GetNode<ColorPickerButton>("%StandbyColour");
-        _countInColour = GetNode<ColorPickerButton>("%CountInColour");
+        _idleColour = GetNode<ColourButton>("%IdleColour");
+        _goColour = GetNode<ColourButton>("%GoColour");
+        _standbyColour = GetNode<ColourButton>("%StandbyColour");
+        _countInColour = GetNode<ColourButton>("%CountInColour");
         _brightnessLineEdit = GetNode<LineEdit>("%BrightnessLineEdit");
         
         _testGoButton = GetNode<Button>("%TestGoButton");

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://b1bwv107ue24w"]
 
 [ext_resource type="Script" uid="uid://cstextdefb7p4q" path="res://src/UI/Settings/SettingsTextDefaults.cs" id="1_text_def"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="2_colour"]
 
 [node name="SettingsTextDefaults" type="ScrollContainer" unique_id=1466971167]
 visible = false
@@ -235,12 +236,12 @@ layout_mode = 2
 text = "Font colour"
 vertical_alignment = 1
 
-[node name="FontColorPicker" type="ColorPickerButton" parent="VBoxContainer/FontColorRow" unique_id=688804676]
+[node name="FontColorPicker" parent="VBoxContainer/FontColorRow" unique_id=688804676 instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 24)
 layout_mode = 2
 tooltip_text = "Default font colour."
-text = "Colour"
+edit_alpha = true
 color = Color(1, 1, 1, 1)
 
 [node name="FontColorResetButton" type="Button" parent="VBoxContainer/FontColorRow" unique_id=998697452]
@@ -403,12 +404,12 @@ layout_mode = 2
 text = "Outline colour"
 vertical_alignment = 1
 
-[node name="OutlineColorPicker" type="ColorPickerButton" parent="VBoxContainer/OutlineColorRow" unique_id=793684896]
+[node name="OutlineColorPicker" parent="VBoxContainer/OutlineColorRow" unique_id=793684896 instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 24)
 layout_mode = 2
 tooltip_text = "Default outline colour."
-text = "Colour"
+edit_alpha = true
 
 [node name="OutlineColorResetButton" type="Button" parent="VBoxContainer/OutlineColorRow" unique_id=421932515]
 unique_name_in_owner = true
@@ -455,12 +456,12 @@ layout_mode = 2
 text = "Background colour"
 vertical_alignment = 1
 
-[node name="BackgroundColorPicker" type="ColorPickerButton" parent="VBoxContainer/BackgroundColorRow" unique_id=1895806894]
+[node name="BackgroundColorPicker" parent="VBoxContainer/BackgroundColorRow" unique_id=1895806894 instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 24)
 layout_mode = 2
 tooltip_text = "Default background panel colour."
-text = "Colour"
+edit_alpha = true
 color = Color(0, 0, 0, 0.55)
 
 [node name="BackgroundColorResetButton" type="Button" parent="VBoxContainer/BackgroundColorRow" unique_id=880523690]

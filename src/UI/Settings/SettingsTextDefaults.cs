@@ -12,6 +12,7 @@ using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
+using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
 using Godot;
 using AppSettings = Cue2.Domain.ShowSettings.Settings;
@@ -49,7 +50,7 @@ public partial class SettingsTextDefaults : ScrollContainer
     private SpinBox _fontSizeSpin;
     private Button _fontSizeResetButton;
 
-    private ColorPickerButton _fontColorPicker;
+    private ColourButton _fontColorPicker;
     private Button _fontColorResetButton;
 
     private OptionButton _hAlignOption;
@@ -67,13 +68,13 @@ public partial class SettingsTextDefaults : ScrollContainer
     private SpinBox _outlineSizeSpin;
     private Button _outlineSizeResetButton;
 
-    private ColorPickerButton _outlineColorPicker;
+    private ColourButton _outlineColorPicker;
     private Button _outlineColorResetButton;
 
     private CheckBox _backgroundCheckBox;
     private Button _backgroundResetButton;
 
-    private ColorPickerButton _backgroundColorPicker;
+    private ColourButton _backgroundColorPicker;
     private Button _backgroundColorResetButton;
 
     private LineEdit _fadeInInput;
@@ -105,7 +106,7 @@ public partial class SettingsTextDefaults : ScrollContainer
         _fontNameResetButton = GetNode<Button>("%FontNameResetButton");
         _fontSizeSpin = GetNode<SpinBox>("%FontSizeSpin");
         _fontSizeResetButton = GetNode<Button>("%FontSizeResetButton");
-        _fontColorPicker = GetNode<ColorPickerButton>("%FontColorPicker");
+        _fontColorPicker = GetNode<ColourButton>("%FontColorPicker");
         _fontColorResetButton = GetNode<Button>("%FontColorResetButton");
         _hAlignOption = GetNode<OptionButton>("%HAlignOption");
         _hAlignResetButton = GetNode<Button>("%HAlignResetButton");
@@ -117,11 +118,11 @@ public partial class SettingsTextDefaults : ScrollContainer
         _marginsResetButton = GetNode<Button>("%MarginsResetButton");
         _outlineSizeSpin = GetNode<SpinBox>("%OutlineSizeSpin");
         _outlineSizeResetButton = GetNode<Button>("%OutlineSizeResetButton");
-        _outlineColorPicker = GetNode<ColorPickerButton>("%OutlineColorPicker");
+        _outlineColorPicker = GetNode<ColourButton>("%OutlineColorPicker");
         _outlineColorResetButton = GetNode<Button>("%OutlineColorResetButton");
         _backgroundCheckBox = GetNode<CheckBox>("%BackgroundCheckBox");
         _backgroundResetButton = GetNode<Button>("%BackgroundResetButton");
-        _backgroundColorPicker = GetNode<ColorPickerButton>("%BackgroundColorPicker");
+        _backgroundColorPicker = GetNode<ColourButton>("%BackgroundColorPicker");
         _backgroundColorResetButton = GetNode<Button>("%BackgroundColorResetButton");
         _fadeInInput = GetNode<LineEdit>("%FadeInInput");
         _fadeInResetButton = GetNode<Button>("%FadeInResetButton");

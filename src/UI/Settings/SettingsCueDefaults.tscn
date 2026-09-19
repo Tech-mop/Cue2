@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://frcr4kkc1rrl"]
 
 [ext_resource type="Script" uid="uid://c7wki86db4u05" path="res://src/UI/Settings/SettingsCueDefaults.cs" id="1_cue_def"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="2_colour"]
 
 [node name="SettingsCueDefaults" type="ScrollContainer" unique_id=171759099]
 visible = false
@@ -52,13 +53,12 @@ layout_mode = 2
 text = "Colour"
 vertical_alignment = 1
 
-[node name="ColourPickerButton" type="ColorPickerButton" parent="VBoxContainer/ColourRow" unique_id=108706495]
+[node name="ColourPickerButton" parent="VBoxContainer/ColourRow" unique_id=108706495 instance=ExtResource("2_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 24)
 layout_mode = 2
 size_flags_horizontal = 0
 tooltip_text = "Default shell colour for new cues."
-text = "Colour"
 edit_alpha = false
 
 [node name="ColourResetButton" type="Button" parent="VBoxContainer/ColourRow" unique_id=284406574]

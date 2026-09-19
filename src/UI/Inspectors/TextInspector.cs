@@ -16,6 +16,7 @@ using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
 using Cue2.UI.Shell;
+using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
 using Godot;
 using Cue2.UI.Preview;
@@ -67,14 +68,14 @@ public partial class TextInspector : Control
     private OptionButton _hAlignOption;
     private OptionButton _vAlignOption;
     private SpinBox _fontSizeSpin;
-    private ColorPickerButton _fontColorPicker;
+    private ColourButton _fontColorPicker;
     private SpinBox _opacitySpin;
     private SpinBox _marginsSpin;
     private CheckBox _autowrapCheck;
     private SpinBox _outlineSizeSpin;
-    private ColorPickerButton _outlineColorPicker;
+    private ColourButton _outlineColorPicker;
     private CheckBox _backgroundCheck;
-    private ColorPickerButton _backgroundColorPicker;
+    private ColourButton _backgroundColorPicker;
 
     private bool _isSyncingUi;
     private bool _alignOptionsReady;
@@ -172,14 +173,14 @@ public partial class TextInspector : Control
         _hAlignOption = GetNode<OptionButton>("%HAlignOption");
         _vAlignOption = GetNode<OptionButton>("%VAlignOption");
         _fontSizeSpin = GetNode<SpinBox>("%FontSizeSpin");
-        _fontColorPicker = GetNode<ColorPickerButton>("%FontColorPicker");
+        _fontColorPicker = GetNode<ColourButton>("%FontColorPicker");
         _opacitySpin = GetNode<SpinBox>("%OpacitySpin");
         _marginsSpin = GetNode<SpinBox>("%MarginsSpin");
         _autowrapCheck = GetNode<CheckBox>("%AutowrapCheck");
         _outlineSizeSpin = GetNode<SpinBox>("%OutlineSizeSpin");
-        _outlineColorPicker = GetNode<ColorPickerButton>("%OutlineColorPicker");
+        _outlineColorPicker = GetNode<ColourButton>("%OutlineColorPicker");
         _backgroundCheck = GetNode<CheckBox>("%BackgroundCheck");
-        _backgroundColorPicker = GetNode<ColorPickerButton>("%BackgroundColorPicker");
+        _backgroundColorPicker = GetNode<ColourButton>("%BackgroundColorPicker");
     }
 
     private void WireSignals()

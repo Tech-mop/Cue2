@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bh3at0jbgmlt3" path="res://src/UI/Inspectors/TextInspector.cs" id="1_text"]
 [ext_resource type="PackedScene" uid="uid://c5ni11gl5rj53" path="res://src/UI/Preview/TextPreviewer.tscn" id="2_preview"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="3_colour"]
 
 [node name="Text" type="Control" unique_id=458942356]
 clip_contents = true
@@ -277,10 +278,11 @@ rounded = true
 layout_mode = 2
 text = "Col"
 
-[node name="FontColorPicker" type="ColorPickerButton" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1364708621]
+[node name="FontColorPicker" parent="ContentRoot/VBox/InspectorContent/StyleRow1" unique_id=1364708621 instance=ExtResource("3_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 24)
 layout_mode = 2
+edit_alpha = true
 color = Color(1, 1, 1, 1)
 
 [node name="StyleRow2" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=1027306531]
@@ -312,11 +314,12 @@ size_flags_horizontal = 3
 max_value = 64.0
 rounded = true
 
-[node name="OutlineColorPicker" type="ColorPickerButton" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=589524710]
+[node name="OutlineColorPicker" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=589524710 instance=ExtResource("3_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 24)
 layout_mode = 2
 tooltip_text = "Outline colour"
+edit_alpha = true
 
 [node name="AutowrapCheck" type="CheckBox" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1482782098]
 unique_name_in_owner = true
@@ -329,9 +332,10 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "BG"
 
-[node name="BackgroundColorPicker" type="ColorPickerButton" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1689250632]
+[node name="BackgroundColorPicker" parent="ContentRoot/VBox/InspectorContent/StyleRow2" unique_id=1689250632 instance=ExtResource("3_colour")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 24)
 layout_mode = 2
 tooltip_text = "Background colour"
+edit_alpha = true
 color = Color(0, 0, 0, 0.55)

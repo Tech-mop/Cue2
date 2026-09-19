@@ -13,6 +13,7 @@ using Cue2.Domain.Commands;
 using Cue2.Services;
 using Godot;
 using AppSettings = Cue2.Domain.ShowSettings.Settings;
+using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
 
 namespace Cue2.UI.Settings;
@@ -39,7 +40,7 @@ public partial class SettingsVideoOutput : ScrollContainer
     private CheckBox _blackoutCheckBox;
 
     // Show-scoped appearance
-    private ColorPickerButton _backgroundColorPicker;
+    private ColourButton _backgroundColorPicker;
     private Button _backgroundColorResetButton;
 
     // Show-scoped performance
@@ -62,7 +63,7 @@ public partial class SettingsVideoOutput : ScrollContainer
 
         _disableOutputCheckBox = GetNode<CheckBox>("%DisableOutputCheckBox");
         _blackoutCheckBox = GetNode<CheckBox>("%BlackoutCheckBox");
-        _backgroundColorPicker = GetNode<ColorPickerButton>("%BackgroundColorPicker");
+        _backgroundColorPicker = GetNode<ColourButton>("%BackgroundColorPicker");
         _backgroundColorResetButton = GetNode<Button>("%BackgroundColorResetButton");
         _qualityModeOption = GetNode<OptionButton>("%QualityModeOption");
         _qualityModeResetButton = GetNode<Button>("%QualityModeResetButton");

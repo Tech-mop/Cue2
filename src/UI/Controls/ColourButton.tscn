@@ -1,0 +1,234 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/UI/Controls/ColourButton.cs" id="1_colour"]
+
+[node name="ColourButton" type="Button"]
+custom_minimum_size = Vector2(24, 24)
+focus_mode = 0
+script = ExtResource("1_colour")
+
+[node name="Popup" type="PopupPanel" parent="."]
+title = "Colour"
+unresizable = true
+borderless = true
+transparent_bg = false
+wrap_controls = true
+
+[node name="Margin" type="MarginContainer" parent="Popup"]
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="Popup/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Preview" type="ColorRect" parent="Popup/Margin/VBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+color = Color(1, 1, 1, 1)
+
+[node name="HueRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HueLabel" type="Label" parent="Popup/Margin/VBox/HueRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "H"
+tooltip_text = "Hue"
+
+[node name="HueSlider" type="HSlider" parent="Popup/Margin/VBox/HueRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 360.0
+step = 1.0
+
+[node name="HueEdit" type="LineEdit" parent="Popup/Margin/VBox/HueRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="SatRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SatLabel" type="Label" parent="Popup/Margin/VBox/SatRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "S"
+tooltip_text = "Saturation"
+
+[node name="SatSlider" type="HSlider" parent="Popup/Margin/VBox/SatRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="SatEdit" type="LineEdit" parent="Popup/Margin/VBox/SatRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="ValRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ValLabel" type="Label" parent="Popup/Margin/VBox/ValRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "V"
+tooltip_text = "Value"
+
+[node name="ValSlider" type="HSlider" parent="Popup/Margin/VBox/ValRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="ValEdit" type="LineEdit" parent="Popup/Margin/VBox/ValRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="RedRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RedLabel" type="Label" parent="Popup/Margin/VBox/RedRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "R"
+tooltip_text = "Red"
+
+[node name="RedSlider" type="HSlider" parent="Popup/Margin/VBox/RedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 255.0
+step = 1.0
+value = 255.0
+
+[node name="RedEdit" type="LineEdit" parent="Popup/Margin/VBox/RedRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="GreenRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="GreenLabel" type="Label" parent="Popup/Margin/VBox/GreenRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "G"
+tooltip_text = "Green"
+
+[node name="GreenSlider" type="HSlider" parent="Popup/Margin/VBox/GreenRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 255.0
+step = 1.0
+value = 255.0
+
+[node name="GreenEdit" type="LineEdit" parent="Popup/Margin/VBox/GreenRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="BlueRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BlueLabel" type="Label" parent="Popup/Margin/VBox/BlueRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "B"
+tooltip_text = "Blue"
+
+[node name="BlueSlider" type="HSlider" parent="Popup/Margin/VBox/BlueRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 255.0
+step = 1.0
+value = 255.0
+
+[node name="BlueEdit" type="LineEdit" parent="Popup/Margin/VBox/BlueRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="AlphaRow" type="HBoxContainer" parent="Popup/Margin/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AlphaLabel" type="Label" parent="Popup/Margin/VBox/AlphaRow"]
+custom_minimum_size = Vector2(14, 0)
+layout_mode = 2
+text = "A"
+tooltip_text = "Alpha"
+
+[node name="AlphaSlider" type="HSlider" parent="Popup/Margin/VBox/AlphaRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="AlphaEdit" type="LineEdit" parent="Popup/Margin/VBox/AlphaRow"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_font_sizes/font_size = 10
+alignment = 2
+max_length = 3
+caret_blink = true
+
+[node name="HSeparator" type="HSeparator" parent="Popup/Margin/VBox"]
+layout_mode = 2
+
+[node name="PresetGrid" type="GridContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+columns = 5
+
+[node name="RecentGrid" type="GridContainer" parent="Popup/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+columns = 5
