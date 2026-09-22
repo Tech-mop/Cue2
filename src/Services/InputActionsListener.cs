@@ -17,7 +17,7 @@ namespace Cue2.Services;
 
 /// <summary>
 /// Listens for project InputMap actions, cue hotkey triggers, and wall-clock cue triggers.
-/// Pauses app shortcuts while text fields (or rebind UIs) have focus.
+/// Pauses app shortcuts while text fields, rebind UIs, or OptionButton dropdowns have focus.
 /// </summary>
 public partial class InputActionsListener : Node
 {
@@ -279,6 +279,14 @@ public partial class InputActionsListener : Node
 
     private void OnFocusExitTimerTimeout()
     {
+        // A LineEdit blur can start this timer while an OptionButton list is still open,
+        // or a popup search field can miss focus_exited. Keep waiting until both are clear.
+        if (_globalSignals != null && _globalSignals.IsInputMapPaused())
+        {
+            _focusExitTimer.Start();
+            return;
+        }
+
         SetListening(true);
     }
 

@@ -244,10 +244,18 @@ public partial class GlobalSignals : Node
 	private readonly Dictionary<TextEdit, Control.GuiInputEventHandler> _textEditHooks = new();
 
 	/// <summary>
-	/// OptionButtons that swallow Space so they do not open/close via ui_accept Space
-	/// (Space is reserved for the Go InputMap action).
+	/// OptionButtons that swallow Space (Go owns Space) and pause InputMap while their dropdown is open.
 	/// </summary>
-	private readonly Dictionary<OptionButton, Control.GuiInputEventHandler> _optionButtonHooks = new();
+	private readonly Dictionary<OptionButton, OptionButtonHook> _optionButtonHooks = new();
+
+	/// <summary>Per-OptionButton keyboard hooks so they can be disconnected on free.</summary>
+	private sealed class OptionButtonHook
+	{
+		public Control.GuiInputEventHandler Gui;
+		public PopupMenu Popup;
+		public Action AboutToPopup;
+		public Action PopupHide;
+	}
 
 	/// <summary>
 	/// Scans the tree for LineEdit/TextEdit and wires focus + Esc (and Enter unfocus for LineEdit).
@@ -276,10 +284,7 @@ public partial class GlobalSignals : Node
 		if (node == null || !GodotObject.IsInstanceValid(node))
 			return;
 
-		if (node is LineEdit or TextEdit)
-			ConnectFocusSignals(node);
-		else if (node is OptionButton optionButton)
-			ConnectOptionButtonSpaceBlock(optionButton);
+		WireKeyboardPolicyNode(node);
 
 		foreach (Node child in node.GetChildren())
 			ScanForUiKeyboardPolicy(child);
@@ -293,10 +298,37 @@ public partial class GlobalSignals : Node
 
 		if (SuppressUiKeyboardScan)
 			return;
+		WireKeyboardPolicyNode(node);
+	}
+
+	/// <summary>
+	/// Wires one node for the text-field focus gate or OptionButton dropdown gate.
+	/// </summary>
+	private void WireKeyboardPolicyNode(Node node)
+	{
 		if (node is LineEdit or TextEdit)
+		{
+			// PopupMenu always owns an internal search LineEdit. Focusing it pauses
+			// InputMap, but hiding the dropdown often never emits focus_exited, so
+			// listening stayed off. Dropdown open/close owns that gate instead.
+			if (IsInsidePopupMenu(node))
+				return;
 			ConnectFocusSignals(node);
+		}
 		else if (node is OptionButton optionButton)
 			ConnectOptionButtonSpaceBlock(optionButton);
+	}
+
+	/// <summary>True when <paramref name="node"/> lives under a <see cref="PopupMenu"/>.</summary>
+	private static bool IsInsidePopupMenu(Node node)
+	{
+		for (Node current = node?.GetParent(); current != null; current = current.GetParent())
+		{
+			if (current is PopupMenu)
+				return true;
+		}
+
+		return false;
 	}
 
 	private void OnNodeRemoved(Node node)
@@ -417,12 +449,14 @@ public partial class GlobalSignals : Node
 
 	/// <summary>
 	/// Prevents OptionButton from treating Space as ui_accept (open/close dropdown).
-	/// Mouse click and Enter still work. Space remains available for the Go action.
+	/// Mouse click and Enter still work. Space remains available for the Go action
+	/// once the dropdown has closed.
 	/// </summary>
 	/// <remarks>
 	/// Godot emits <see cref="Control.GuiInput"/> before BaseButton's virtual
 	/// <c>_gui_input</c>; marking the event handled here stops the built-in activation.
-	/// <see cref="Input.IsActionJustPressed"/> still sees Space for InputMap.
+	/// The popup's about-to-popup / popup-hide signals pause and resume InputMap.
+	/// Per-button ItemSelected handlers do not need to do this themselves.
 	/// </remarks>
 	private void ConnectOptionButtonSpaceBlock(OptionButton optionButton)
 	{
@@ -433,22 +467,130 @@ public partial class GlobalSignals : Node
 
 		Control.GuiInputEventHandler gui = @event => OnOptionButtonGuiInput(optionButton, @event);
 		optionButton.GuiInput += gui;
-		_optionButtonHooks[optionButton] = gui;
+
+		var hook = new OptionButtonHook { Gui = gui };
+		PopupMenu popup = optionButton.GetPopup();
+		if (popup != null && GodotObject.IsInstanceValid(popup))
+		{
+			Action aboutTo = OnOptionPopupAboutToShow;
+			Action hide = () => OnOptionPopupHidden(optionButton);
+			popup.AboutToPopup += aboutTo;
+			popup.PopupHide += hide;
+			hook.Popup = popup;
+			hook.AboutToPopup = aboutTo;
+			hook.PopupHide = hide;
+		}
+
+		_optionButtonHooks[optionButton] = hook;
 	}
 
 	/// <summary>
-	/// Removes Space-block handler when an OptionButton leaves the tree.
+	/// Removes Space-block and dropdown listeners when an OptionButton leaves the tree.
 	/// </summary>
 	private void DisconnectOptionButtonSpaceBlock(OptionButton optionButton)
 	{
 		if (optionButton == null)
 			return;
-		if (!_optionButtonHooks.TryGetValue(optionButton, out var gui))
+		if (!_optionButtonHooks.TryGetValue(optionButton, out OptionButtonHook hook))
 			return;
 
 		if (GodotObject.IsInstanceValid(optionButton))
-			optionButton.GuiInput -= gui;
+			optionButton.GuiInput -= hook.Gui;
+
+		if (hook.Popup != null && GodotObject.IsInstanceValid(hook.Popup))
+		{
+			if (hook.AboutToPopup != null)
+				hook.Popup.AboutToPopup -= hook.AboutToPopup;
+			if (hook.PopupHide != null)
+				hook.Popup.PopupHide -= hook.PopupHide;
+		}
+
 		_optionButtonHooks.Remove(optionButton);
+	}
+
+	/// <summary>Pauses InputMap shortcuts while an OptionButton dropdown is open.</summary>
+	private void OnOptionPopupAboutToShow()
+	{
+		FocusEntered();
+	}
+
+	/// <summary>
+	/// Resumes InputMap when the dropdown closes, including cancel and item pick.
+	/// Drops keyboard focus held by the hidden popup so listening is not left off.
+	/// </summary>
+	private void OnOptionPopupHidden(OptionButton optionButton)
+	{
+		ReleaseOptionPopupFocus(optionButton);
+
+		if (IsAnyOptionPopupOpen() || IsUserTextFieldFocused())
+			return;
+
+		FocusExited();
+	}
+
+	/// <summary>
+	/// True while keyboard shortcuts should stay paused (text editing or an open option list).
+	/// </summary>
+	/// <returns><c>true</c> when InputMap actions must not fire.</returns>
+	public bool IsInputMapPaused()
+	{
+		return IsAnyOptionPopupOpen() || IsUserTextFieldFocused();
+	}
+
+	/// <summary>True when any wired OptionButton dropdown is currently visible.</summary>
+	private bool IsAnyOptionPopupOpen()
+	{
+		foreach (OptionButtonHook hook in _optionButtonHooks.Values)
+		{
+			PopupMenu popup = hook.Popup;
+			if (popup != null && GodotObject.IsInstanceValid(popup) && popup.Visible)
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// True when a user-editable text field (not a popup search row) has keyboard focus.
+	/// </summary>
+	private bool IsUserTextFieldFocused()
+	{
+		Control focus = GetViewport()?.GuiGetFocusOwner();
+		if (focus is not (LineEdit or TextEdit))
+			return false;
+		if (!GodotObject.IsInstanceValid(focus) || !focus.IsVisibleInTree())
+			return false;
+		return !IsInsidePopupMenu(focus);
+	}
+
+	/// <summary>
+	/// Releases focus held by a closing OptionButton or its popup search field.
+	/// A hidden popup LineEdit can keep focus without emitting focus_exited.
+	/// </summary>
+	private static void ReleaseOptionPopupFocus(OptionButton optionButton)
+	{
+		if (optionButton == null || !GodotObject.IsInstanceValid(optionButton))
+			return;
+
+		PopupMenu popup = optionButton.GetPopup();
+		if (popup != null && GodotObject.IsInstanceValid(popup))
+		{
+			Control focused = popup.GuiGetFocusOwner();
+			if (focused != null && GodotObject.IsInstanceValid(focused))
+			{
+				if (focused is LineEdit lineEdit && lineEdit.IsEditing())
+					lineEdit.Unedit();
+				focused.ReleaseFocus();
+			}
+
+			popup.GuiReleaseFocus();
+		}
+
+		if (!optionButton.HasFocus())
+			return;
+
+		optionButton.ReleaseFocus();
+		optionButton.CallDeferred(Control.MethodName.ReleaseFocus);
 	}
 
 	/// <summary>
