@@ -527,6 +527,7 @@ public partial class GlobalData : Node
 		// Capture project.godot factory bindings first, then overlay user-customized shortcuts.
 		CaptureDefaultInputBindings();
 		UserDataManager?.ApplyInputMapFromUserData();
+		EnsureDeleteCueBindings();
 
 		// Remaining autoloads (signals, styles, logger, displays) run before SaveManager.
 		if (!string.IsNullOrEmpty(StartupOpenPath))
@@ -690,6 +691,57 @@ public partial class GlobalData : Node
 			}
 		}
 		GD.Print($"GlobalData:CaptureDefaultInputBindings - Captured defaults for {_defaultInputBindings.Count} actions.");
+	}
+
+	/// <summary>
+	/// Mac's Delete key is reported as Backspace. Keep Windows Forward Delete, and add
+	/// Backspace plus Cmd/Ctrl+Backspace when a delete-like binding is already present
+	/// (so persisted Input Maps from before this change still work on Mac).
+	/// </summary>
+	private void EnsureDeleteCueBindings()
+	{
+		const string action = "DeleteCue";
+		if (!InputMap.HasAction(action))
+			return;
+
+		bool hasForwardDelete = false;
+		bool hasBackspace = false;
+		bool hasCmdBackspace = false;
+		foreach (InputEvent ev in InputMap.ActionGetEvents(action))
+		{
+			if (ev is not InputEventKey key)
+				continue;
+			bool noShiftAlt = !key.ShiftPressed && !key.AltPressed;
+			bool cmd = key.CtrlPressed || key.MetaPressed || key.CommandOrControlAutoremap;
+			if (key.Keycode == Key.Delete && noShiftAlt && !cmd)
+				hasForwardDelete = true;
+			if (key.Keycode == Key.Backspace && noShiftAlt && !cmd)
+				hasBackspace = true;
+			if (key.Keycode == Key.Backspace && noShiftAlt && cmd)
+				hasCmdBackspace = true;
+		}
+
+		if (!hasForwardDelete && !hasBackspace && !hasCmdBackspace)
+			return;
+
+		if (!hasBackspace)
+		{
+			InputMap.ActionAddEvent(action, new InputEventKey
+			{
+				Keycode = Key.Backspace,
+				Device = -1
+			});
+		}
+
+		if (!hasCmdBackspace)
+		{
+			InputMap.ActionAddEvent(action, new InputEventKey
+			{
+				Keycode = Key.Backspace,
+				Device = -1,
+				CommandOrControlAutoremap = true
+			});
+		}
 	}
 
 	/// <summary>

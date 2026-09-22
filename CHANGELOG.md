@@ -3,12 +3,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Video with embedded audio that underflows the video content will get stuck unfinished in active cue. When audio is EOS and SDL queue has drained, software now switches from audio clock to wall time rebased to last audio position so remaining frames present and EOF can be reached.
 - Shell inspector no longer shows “No Selection” in number/name when a cue is selected but those fields are empty.
 - Shell inspector keeps a bottom content margin so the horizontal scrollbar no longer covers the Delete button when scrolled to the bottom.
 - Active cue head progress no longer flickers while dragging a component seek bar. The cue bar keeps tracking live playback until mouse-up, then jumps to the committed seek.
-- Video with embedded audio that underflows the video content will get stuck unfinished in active cue. When audio is EOS and SDL queue has drained, software now switches from audio clock to wall time rebased to last audio position so remaining frames present and EOF can be reached.
 - Quit / New / Open **Save & close** on a never-saved session no longer fails silently. It now uses the same File → Save path, which falls through to Save As when there is no show path yet.
 - Windows: resizing the main window to the display no longer lets Godot promote it to exclusive fullscreen while Cue2 still thinks it is windowed. Same 1px / demote guard as video outputs. Header double-click still maximizes; the expand button still toggles non-exclusive fullscreen.
+- Mac: Couldn't delete cues with delete key as it was registering as backspace. Cmd+Delete now delete selected cues.
+
 
 ### Changed
 - Canvas editor: repeated clicks on stacked screens/layers cycle selection instead of always picking the topmost rect. Drag still moves the current item.
