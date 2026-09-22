@@ -17,6 +17,7 @@
 - Canvas editor: repeated clicks on stacked screens/layers cycle selection instead of always picking the topmost rect. Drag still moves the current item.
 - Colour picking uses a compact Cue2 popup (preview, HSV/RGB sliders, 10 presets, recent custom colours) instead of Godot’s full ColorPicker. Scales with UI scale. Recent colours persist in user preferences.
 - Settings file buttons: **Store / Recall Settings**, **Store**, and **Recall** (was Save / Load), so they are not confused with File → Save / Open for the show.  
+- Improved coverage of translations - now includes more tooltips. 
 
 ## [0.1.0] - 2026-09-11
 
