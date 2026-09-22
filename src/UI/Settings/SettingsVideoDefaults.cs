@@ -792,7 +792,7 @@ public partial class SettingsVideoDefaults : ScrollContainer
         _audioVolumeResetButton.Visible = !atDefault;
         if (!atDefault)
             _audioVolumeResetButton.TooltipText =
-                $"Reset to default: {UiUtilities.LinearToDb(AppSettings.SystemDefaultVideoAudioVolume)}dB";
+                UiLocalizer.ResetDefaultTip($"{UiUtilities.LinearToDb(AppSettings.SystemDefaultVideoAudioVolume)}dB");
     }
 
     private void OnPanSliderChanged(double value)

@@ -78,7 +78,7 @@ public partial class SettingsCanvasEditor
             return;
 
         SetResetVisible(_canvasTestPatternResetButton, _canvas.TestPatternEnabled != DefaultTestPattern,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
     }
 
     /// <summary>
@@ -299,19 +299,19 @@ public partial class SettingsCanvasEditor
         Vector2I defaultSize = _displaysManager.GetDefaultScreenSize(screen);
 
         SetResetVisible(_screenOutputResetButton, screen.TargetMonitor != DefaultOutputMonitor,
-            "Reset to default: Virtual Output");
+            UiLocalizer.T("Reset to default: Virtual Output"));
         SetResetVisible(_screenSizeResetButton, screen.OutputSize != defaultSize,
-            $"Reset to default: {defaultSize.X}×{defaultSize.Y}");
+            UiLocalizer.ResetDefaultTip($"{defaultSize.X}×{defaultSize.Y}"));
         SetResetVisible(_screenKeepAspectResetButton, screen.KeepAspect != DefaultKeepAspect,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_screenPosResetButton, screen.CanvasPosition != DefaultCanvasPosition,
-            "Reset to default: 0×0");
+            UiLocalizer.T("Reset to default: 0×0"));
         SetResetVisible(_screenDisplayOffsetResetButton, screen.DisplayOffset != DefaultDisplayOffset,
-            "Reset to default: 0×0");
+            UiLocalizer.T("Reset to default: 0×0"));
         SetResetVisible(_screenTransparentResetButton, screen.OutputTransparent != DefaultTransparent,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_screenTestPatternResetButton, screen.TestPatternStatus() != DefaultTestPattern,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
     }
 
     private void UpdateLayerResetButtons(VideoTargetLayer layer)
@@ -322,17 +322,17 @@ public partial class SettingsCanvasEditor
         Vector2I defaultSize = _displaysManager.GetDefaultLayerSize();
 
         SetResetVisible(_layerSizeResetButton, layer.Size != defaultSize,
-            $"Reset to default: {defaultSize.X}×{defaultSize.Y}");
+            UiLocalizer.ResetDefaultTip($"{defaultSize.X}×{defaultSize.Y}"));
         SetResetVisible(_layerKeepAspectResetButton, layer.KeepAspect != DefaultKeepAspect,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_layerPosResetButton, layer.CanvasPosition != DefaultCanvasPosition,
-            "Reset to default: 0×0");
+            UiLocalizer.T("Reset to default: 0×0"));
         SetResetVisible(_layerTransparentResetButton, layer.Transparent != DefaultTransparent,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_layerTestPatternResetButton, layer.TestPatternEnabled != DefaultTestPattern,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_layerLockResetButton, layer.Locked != DefaultLocked,
-            "Reset to default: Off");
+            UiLocalizer.T("Reset to default: Off"));
     }
 
     private static void SetResetVisible(Button button, bool show, string tooltip)

@@ -2126,10 +2126,10 @@ STRINGS: dict[str, tuple[str, str, str, str, str]] = {
         "शीर्षकहीन",
     ),
     "FIRST_TIME_WELCOME_BODY": (
-        "Willkommen bei Cue2 0.1.0 – StripyHat.\n\nCue2 ist Open-Source-Showsteuerungssoftware für die sequenzierte Wiedergabe von Audio und Video.\n\nDie Dokumentation und die Website unten helfen beim Einstieg.",
-        "Добро пожаловать в Cue2 0.1.0 — StripyHat.\n\nCue2 — открытое ПО для шоу-контроля: последовательное воспроизведение аудио и видео.\n\nДокументация и сайт ниже помогут начать.",
-        "Cue2 0.1.0 — StripyHat へようこそ。\n\nCue2 は、オーディオとビデオを順番に再生するオープンソースのショーコントロールソフトウェアです。\n\n使い方は下のドキュメントとサイトをご覧ください。",
-        "مرحباً بك في Cue2 0.1.0 — StripyHat.\n\nCue2 برنامج مفتوح المصدر للتحكم بالعروض، لتشغيل الصوت والفيديو بالتسلسل.\n\nراجع الوثائق والموقع أدناه للبدء.",
-        "Cue2 0.1.0 — StripyHat में आपका स्वागत है।\n\nCue2 ऑडियो और वीडियो के अनुक्रमिक प्लेबैक के लिए ओपन-सोर्स शो नियंत्रण सॉफ़्टवेयर है।\n\nशुरू करने के लिए नीचे दस्तावेज़ और वेबसाइट देखें।",
+        "Willkommen bei Cue2 {0}.\n\nCue2 ist Open-Source-Showsteuerungssoftware für die sequenzierte Wiedergabe von Audio und Video.\n\nDie Dokumentation und die Website unten helfen beim Einstieg.",
+        "Добро пожаловать в Cue2 {0}.\n\nCue2 — открытое ПО для шоу-контроля: последовательное воспроизведение аудио и видео.\n\nДокументация и сайт ниже помогут начать.",
+        "Cue2 {0} へようこそ。\n\nCue2 は、オーディオとビデオを順番に再生するオープンソースのショーコントロールソフトウェアです。\n\n使い方は下のドキュメントとサイトをご覧ください。",
+        "مرحباً بك في Cue2 {0}.\n\nCue2 برنامج مفتوح المصدر للتحكم بالعروض، لتشغيل الصوت والفيديو بالتسلسل.\n\nراجع الوثائق والموقع أدناه للبدء.",
+        "Cue2 {0} में आपका स्वागत है।\n\nCue2 ऑडियो और वीडियो के अनुक्रमिक प्लेबैक के लिए ओपन-सोर्स शो नियंत्रण सॉफ़्टवेयर है।\n\nशुरू करने के लिए नीचे दस्तावेज़ और वेबसाइट देखें।",
     ),
 }

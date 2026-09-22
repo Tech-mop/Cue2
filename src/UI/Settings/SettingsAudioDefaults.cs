@@ -265,7 +265,7 @@ public partial class SettingsAudioDefaults : ScrollContainer
         bool atDefault = ComponentDefaultsUi.IsAudioOutputAtSystem(
             s.AudioDefaultOutputMode, s.AudioDefaultPatchId, s.AudioDefaultDirectOutput);
         ComponentDefaultsUi.UpdateResetButton(
-            _outputResetButton, atDefault, "Reset to default: Preferred (Default Patch)");
+            _outputResetButton, atDefault, UiLocalizer.T("Reset to default: Preferred (Default Patch)"));
     }
 
     // ── Volume ─────────────────────────────────────────────────────────────
@@ -338,7 +338,7 @@ public partial class SettingsAudioDefaults : ScrollContainer
         ComponentDefaultsUi.UpdateResetButton(
             _volumeResetButton,
             atDefault,
-            $"Reset to default: {UiUtilities.LinearToDb((float)AppSettings.SystemDefaultAudioVolume)}dB");
+            UiLocalizer.ResetDefaultTip($"{UiUtilities.LinearToDb((float)AppSettings.SystemDefaultAudioVolume)}dB"));
     }
 
     // ── Pan ────────────────────────────────────────────────────────────────
@@ -478,7 +478,7 @@ public partial class SettingsAudioDefaults : ScrollContainer
         bool atDefault = _globalData.Settings.AudioDefaultLoop == AppSettings.SystemDefaultAudioLoop;
         ComponentDefaultsUi.UpdateResetButton(
             _loopResetButton, atDefault,
-            UiLocalizer.ResetDefaultTip((AppSettings.SystemDefaultAudioLoop ? "On" : "Off")));
+            UiLocalizer.ResetDefaultTip(AppSettings.SystemDefaultAudioLoop ? UiLocalizer.T("On") : UiLocalizer.T("Off")));
     }
 
     // ── Play count ─────────────────────────────────────────────────────────

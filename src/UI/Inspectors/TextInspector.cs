@@ -792,7 +792,7 @@ public partial class TextInspector : Control
                         dur.ToString(CultureInfo.InvariantCulture),
                         out _,
                         out string tip);
-                    _durationLineEdit.TooltipText = tip + " (0 = until stopped)";
+                    _durationLineEdit.TooltipText = UiLocalizer.Tf("{0} (0 = until stopped)", tip);
                 }
                 _durationLineEdit.PlaceholderText = string.Empty;
             }
@@ -1214,9 +1214,9 @@ public partial class TextInspector : Control
 
         seconds = Math.Max(0.0, seconds);
         field.Text = formatted;
-        field.TooltipText = labeled + (isIn
-            ? " (fade-in at play start)"
-            : " (fade-out on stop)");
+        field.TooltipText = UiLocalizer.Tf(
+            isIn ? "{0} (fade-in at play start)" : "{0} (fade-out on stop)",
+            labeled);
 
         var targets = GetTextTargets();
         bool anyChange = targets.Any(t =>
@@ -1267,7 +1267,7 @@ public partial class TextInspector : Control
                         dur.ToString(CultureInfo.InvariantCulture),
                         out _,
                         out string tip);
-                    _durationLineEdit.TooltipText = tip + " (0 = until stopped)";
+                    _durationLineEdit.TooltipText = UiLocalizer.Tf("{0} (0 = until stopped)", tip);
                 }
                 _durationLineEdit.PlaceholderText = string.Empty;
             }

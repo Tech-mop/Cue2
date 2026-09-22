@@ -517,9 +517,9 @@ public partial class AudioOutputPatchMatrix : Control
         channelLabel.SetHorizontalAlignment(HorizontalAlignment.Right);
         channelLabel.CustomMinimumSize = new Vector2(0, 32);
         channelLabel.SetMouseFilter(MouseFilterEnum.Pass);
-        channelLabel.TooltipText =
-            $"Channel: {channel.Value}, cues get routed to this channel. " +
-            $"From here you route this to a physical output device."; 
+        channelLabel.TooltipText = UiLocalizer.Tf(
+            "Channel: {0}, cues get routed to this channel. From here you route this to a physical output device.",
+            channel.Value); 
         
         string chCoalesceKey = $"settings:patch:{Patch.Id}:ch:{channelId}:name";
         channelLabel.TextChanged += newText =>

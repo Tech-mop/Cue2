@@ -755,7 +755,7 @@ public partial class VideoInspector
 				{
 					_durationValue.Text = UiUtilities.ParseAndFormatTime(
 						_focusedVideoComponent.Duration.ToString(), out var _, out string imgDurTip);
-					_durationValue.TooltipText = imgDurTip + " (0 = until stopped)";
+					_durationValue.TooltipText = UiLocalizer.Tf("{0} (0 = until stopped)", imgDurTip);
 				}
 			}
 			else
@@ -833,9 +833,9 @@ public partial class VideoInspector
 
 		seconds = Math.Max(0.0, seconds);
 		field.Text = formatted;
-		field.TooltipText = labeled + (isIn
-			? " (fade-in at play start)"
-			: " (fade-out on stop)");
+		field.TooltipText = UiLocalizer.Tf(
+			isIn ? "{0} (fade-in at play start)" : "{0} (fade-out on stop)",
+			labeled);
 
 		bool anyChange = targets.Any(t =>
 		{

@@ -506,7 +506,7 @@ public partial class SettingsGeneral : ScrollContainer
         _doubleGoResetButton.Visible = !atDefault;
         if (!atDefault)
             _doubleGoResetButton.TooltipText =
-                $"Reset to default: {AppSettings.DefaultDoubleGoProtectionSeconds:0.#}s";
+                UiLocalizer.ResetDefaultTip($"{AppSettings.DefaultDoubleGoProtectionSeconds:0.#}s");
     }
 
     // ── Media Backup ──────────────────────────────────────────────────────

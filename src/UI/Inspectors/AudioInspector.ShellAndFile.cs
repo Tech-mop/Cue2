@@ -334,7 +334,7 @@ public partial class AudioInspector
         {
             _deleteAudioComponentButton.Visible = true;
             _deleteAudioComponentButton.TooltipText =
-                $"Remove audio from {_audioTargets.Count} cue(s)";
+                UiLocalizer.Tf("Remove audio from {0} cue(s)", _audioTargets.Count);
         }
     }
 

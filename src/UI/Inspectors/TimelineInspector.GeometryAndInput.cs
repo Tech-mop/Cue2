@@ -269,8 +269,8 @@ public partial class TimelineInspector
             bool childLoop = IsChildDrivenInfinite(cue);
             loopBadge.Text = FormatLoopBadgeText(cue);
             loopBadge.TooltipText = childLoop
-                ? "A nested child cue loops indefinitely"
-                : "This cue's media loops indefinitely";
+                ? UiLocalizer.T("A nested child cue loops indefinitely")
+                : UiLocalizer.T("This cue's media loops indefinitely");
             // Child-loop badge is longer — keep a bit more room after the bar.
             loopBadge.Position = new Vector2(barPosition.X + barDisplayWidth + 6f, topY + 4f);
             loopBadge.ResetSize();

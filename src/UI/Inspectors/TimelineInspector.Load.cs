@@ -274,7 +274,7 @@ public partial class TimelineInspector
                 CustomMinimumSize = new Vector2(CollapseBtnSize, CollapseBtnSize),
                 Size = new Vector2(CollapseBtnSize, CollapseBtnSize),
                 Position = new Vector2(x, (RowHeight - CollapseBtnSize) * 0.5f),
-                TooltipText = collapsed ? "Expand children" : "Collapse children",
+                TooltipText = collapsed ? UiLocalizer.T("Expand children") : UiLocalizer.T("Collapse children"),
                 MouseDefaultCursorShape = CursorShape.PointingHand,
                 ZIndex = 2
             };
@@ -479,8 +479,8 @@ public partial class TimelineInspector
                 MouseFilter = MouseFilterEnum.Ignore,
                 ZIndex = 6,
                 TooltipText = childLoop
-                    ? "A nested child cue loops indefinitely"
-                    : "This cue's media loops indefinitely"
+                    ? UiLocalizer.T("A nested child cue loops indefinitely")
+                    : UiLocalizer.T("This cue's media loops indefinitely")
             };
             StyleBarTextLabel(loopBadge, GlobalStyles.HighColor1.Lightened(0.15f));
             _timelineArea.AddChild(loopBadge);

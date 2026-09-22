@@ -132,10 +132,16 @@ public partial class FirstTimeStartupWindow : Window
 	}
 
 	/// <summary>
-	/// English fallback for the welcome body if the catalog entry is missing or failed to load.
+	/// English source for the first-time welcome body. Edit this between versions.
 	/// </summary>
-	private const string WelcomeBodyEnglishFallback =
-		"Welcome to Cue2 0.1.0 - StripyHat.\n\n" +
+	/// <remarks>
+	/// <c>{0}</c> is the live version label from <see cref="Cue2.Version"/> (for example
+	/// <c>0.1.1 - StripyHat</c>). English always shows this string. Other locales are
+	/// filled from it by <c>python3 tools/i18n/update_catalog.py</c> before a release.
+	/// Do not edit the wording in <c>translations/cue2.csv</c>.
+	/// </remarks>
+	public const string WelcomeBodyEnglish =
+		"Welcome to Cue2 {0}.\n\n" +
 		"Cue2 is open-source show control software for sequenced playback of audio and video.\n\n" +
 		"Explore the docs and website below for how to get started.";
 
@@ -181,7 +187,8 @@ public partial class FirstTimeStartupWindow : Window
 	}
 
 	/// <summary>
-	/// Sets the welcome body from <c>FIRST_TIME_WELCOME_BODY</c>, with a hard English fallback.
+	/// Sets the welcome body from <see cref="WelcomeBodyEnglish"/> for English,
+	/// or from <c>FIRST_TIME_WELCOME_BODY</c> for any other locale.
 	/// </summary>
 	private void ApplyWelcomeBody()
 	{
@@ -191,22 +198,51 @@ public partial class FirstTimeStartupWindow : Window
 			return;
 		}
 
-		const string key = "FIRST_TIME_WELCOME_BODY";
-		// Stable catalog key so later LocalizeTree / locale switches keep the correct msgid.
-		_welcomeLabel.SetMeta(MetaText, key);
-		_welcomeLabel.SetMeta(MetaSkip, false);
+		// Skip the catalog walk. English is the C# source, not the CSV en column.
+		_welcomeLabel.SetMeta(MetaSkip, true);
 
-		string translated = T(key);
-		// TranslationServer returns the key when no message exists — treat that as missing.
-		if (string.IsNullOrWhiteSpace(translated) || translated == key)
+		string versionLabel = WelcomeVersionLabel();
+		string body = string.Format(WelcomeBodyEnglish, versionLabel);
+		if (!IsEnglishLocale())
 		{
-			GD.PrintErr("FirstTimeStartupWindow:ApplyWelcomeBody - Catalog missing FIRST_TIME_WELCOME_BODY; using English fallback.");
-			translated = WelcomeBodyEnglishFallback;
+			const string key = "FIRST_TIME_WELCOME_BODY";
+			string translated = T(key);
+			if (!string.IsNullOrWhiteSpace(translated) && translated != key)
+			{
+				body = translated.Contains("{0}")
+					? string.Format(translated, versionLabel)
+					: translated;
+			}
 		}
 
-		_welcomeLabel.Text = translated;
+		_welcomeLabel.Text = body;
 		_welcomeLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_welcomeLabel.Visible = true;
+	}
+
+	/// <summary>
+	/// Version label substituted into <see cref="WelcomeBodyEnglish"/> (<c>{0}</c>).
+	/// </summary>
+	/// <returns>Semantic version, optional status, and code name.</returns>
+	private static string WelcomeVersionLabel()
+	{
+		string version = Cue2.Version.SemanticVersionString;
+		if (!string.IsNullOrEmpty(Cue2.Version.Status))
+			version = $"{version} {Cue2.Version.Status}";
+		if (!string.IsNullOrEmpty(Cue2.Version.CodeName))
+			version = $"{version} - {Cue2.Version.CodeName}";
+		return version;
+	}
+
+	/// <summary>True when the active locale is English (including <c>en_US</c>).</summary>
+	private static bool IsEnglishLocale()
+	{
+		string locale = TranslationServer.GetLocale();
+		if (string.IsNullOrEmpty(locale))
+			return true;
+		return locale.Equals("en", StringComparison.OrdinalIgnoreCase)
+			|| locale.StartsWith("en_", StringComparison.OrdinalIgnoreCase)
+			|| locale.StartsWith("en-", StringComparison.OrdinalIgnoreCase);
 	}
 
 	/// <summary>

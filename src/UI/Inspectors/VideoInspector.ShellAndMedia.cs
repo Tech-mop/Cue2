@@ -355,7 +355,7 @@ public partial class VideoInspector
 		{
 			_deleteVideoComponentButton.Visible = true;
 			_deleteVideoComponentButton.TooltipText =
-				$"Remove video from {_videoTargets.Count} cue(s)";
+				UiLocalizer.Tf("Remove video from {0} cue(s)", _videoTargets.Count);
 		}
 	}
 
@@ -845,7 +845,7 @@ public partial class VideoInspector
 			{
 				_durationValue.Text = UiUtilities.ParseAndFormatTime(
 					_focusedVideoComponent.Duration.ToString(), out _, out string imgDurTip);
-				_durationValue.TooltipText = imgDurTip + " (0 = until stopped)";
+				_durationValue.TooltipText = UiLocalizer.Tf("{0} (0 = until stopped)", imgDurTip);
 			}
 		}
 		else

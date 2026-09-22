@@ -62,7 +62,7 @@ public static class InspectorMediaUrlStyle
                 // Optional: theme default font is fine
             }
 
-            edit.TooltipText = string.IsNullOrEmpty(tooltip) ? "File Missing" : tooltip;
+            edit.TooltipText = string.IsNullOrEmpty(tooltip) ? UiLocalizer.T("File Missing") : tooltip;
         }
         else
         {

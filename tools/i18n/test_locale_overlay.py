@@ -370,8 +370,8 @@ OVERLAY: dict[str, dict[str, str]] = {
     "Files Dropped": m("Ngā kōnae i tukuna", "Archivos soltados"),
     "Fill": m("Whakakī", "Rellenar"),
     "FIRST_TIME_WELCOME_BODY": m(
-        "Nau mai ki Cue2 0.1.0 - StripyHat.\n\nHe pūmanawa whakahaere whakaaturanga puna tuwhera a Cue2 mō te purei raupapa o te oro me te ataata.\n\nTirohia ngā tuhinga me te paetukutuku i raro nei hei tīmatanga.",
-        "Bienvenido a Cue2 0.1.0 - StripyHat.\n\nCue2 es software de control de espectáculos de código abierto para la reproducción secuenciada de audio y vídeo.\n\nConsulta la documentación y el sitio web abajo para empezar.",
+        "Nau mai ki Cue2 {0}.\n\nHe pūmanawa whakahaere whakaaturanga puna tuwhera a Cue2 mō te purei raupapa o te oro me te ataata.\n\nTirohia ngā tuhinga me te paetukutuku i raro nei hei tīmatanga.",
+        "Bienvenido a Cue2 {0}.\n\nCue2 es software de control de espectáculos de código abierto para la reproducción secuenciada de audio y vídeo.\n\nConsulta la documentación y el sitio web abajo para empezar.",
     ),
     "Fit": m("Whakauru", "Ajustar"),
     "Fit canvas to view": m("Whakauru te papa ki te tirohanga", "Ajustar lienzo a la vista"),

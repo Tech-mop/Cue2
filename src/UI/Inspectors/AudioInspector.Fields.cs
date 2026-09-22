@@ -584,9 +584,9 @@ public partial class AudioInspector
 
         seconds = Math.Max(0.0, seconds);
         field.Text = formatted;
-        field.TooltipText = labeled + (isIn
-            ? " (fade-in at play start)"
-            : " (fade-out on stop)");
+        field.TooltipText = UiLocalizer.Tf(
+            isIn ? "{0} (fade-in at play start)" : "{0} (fade-out on stop)",
+            labeled);
 
         bool anyChange = targets.Any(t =>
         {

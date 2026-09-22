@@ -720,8 +720,8 @@ public partial class ControlComponentCard : PanelContainer
                     _opacityFadeLineEdit.Text = pctText;
                     _opacityFadeLineEdit.PlaceholderText = relative ? "±%" : "100%";
                     _opacityFadeLineEdit.TooltipText = relative
-                        ? "Relative change in opacity % (clamped to 0…100). Active playback only."
-                        : "Absolute opacity % (0…100). Active playback only.";
+                        ? UiLocalizer.T("Relative change in opacity % (clamped to 0…100). Active playback only.")
+                        : UiLocalizer.T("Absolute opacity % (0…100). Active playback only.");
                     _opacityFadeLineEdit.Editable = true;
                 }
                 break;
@@ -745,8 +745,8 @@ public partial class ControlComponentCard : PanelContainer
         _audioFadeLineEdit.Text = dbText;
         _audioFadeLineEdit.PlaceholderText = relative ? "±dB" : "0dB";
         _audioFadeLineEdit.TooltipText = relative
-            ? "Relative change in dB (result clamped to −60…+12). Active playback only."
-            : "Absolute target level in dB (−60…+12 digital gain). Active playback only.";
+            ? UiLocalizer.T("Relative change in dB (result clamped to −60…+12). Active playback only.")
+            : UiLocalizer.T("Absolute target level in dB (−60…+12 digital gain). Active playback only.");
         _audioFadeLineEdit.Editable = true;
     }
 
@@ -783,8 +783,8 @@ public partial class ControlComponentCard : PanelContainer
 
                 _panFadeLineEdit.PlaceholderText = relative ? "±C / ±L50" : "C";
                 _panFadeLineEdit.TooltipText = relative
-                    ? "Relative pan delta (result clamped to L…R). Active playback only."
-                    : "Absolute pan: C, L50, R100, or −100…100. Active playback only.";
+                    ? UiLocalizer.T("Relative pan delta (result clamped to L…R). Active playback only.")
+                    : UiLocalizer.T("Absolute pan: C, L50, R100, or −100…100. Active playback only.");
             }
         }
         finally
@@ -881,8 +881,8 @@ public partial class ControlComponentCard : PanelContainer
                         dbText = $"+{targetDb:0.#}dB";
                     volumeEdit.Text = dbText;
                     volumeEdit.TooltipText = relative
-                        ? "Fade target (relative Δ dB). Clear to remove from multi-cell set. Active playback only."
-                        : "Fade target (absolute dB). Clear to remove from multi-cell set. Active playback only.";
+                        ? UiLocalizer.T("Fade target (relative Δ dB). Clear to remove from multi-cell set. Active playback only.")
+                        : UiLocalizer.T("Fade target (absolute dB). Clear to remove from multi-cell set. Active playback only.");
                     volumeEdit.Modulate = new Color(1.15f, 1.05f, 0.75f, 1f);
                 }
                 else
@@ -1035,8 +1035,8 @@ public partial class ControlComponentCard : PanelContainer
 
             _seekTimeLineEdit.PlaceholderText = relative ? "±0:00.000" : "0:00.000";
             _seekTimeLineEdit.TooltipText = relative
-                ? "Relative seek offset from current playhead (±)."
-                : "Absolute media time to seek to.";
+                ? UiLocalizer.T("Relative seek offset from current playhead (±).")
+                : UiLocalizer.T("Absolute media time to seek to.");
             _seekTimeLineEdit.Visible = _component.TargetCueId < 0 || hasSeekable;
         }
         if (_seekTimeCaption != null)
@@ -1065,8 +1065,9 @@ public partial class ControlComponentCard : PanelContainer
                 if (_component.Action == ControlAction.Stop)
                 {
                     float sessionDefault = _globalData?.Settings?.StopFadeDuration ?? 0f;
-                    _fadeResetButton.TooltipText =
-                        $"Reset fade to session Stop Fade ({UiUtilities.FormatTime(sessionDefault)})";
+                    _fadeResetButton.TooltipText = UiLocalizer.Tf(
+                        "Reset fade to session Stop Fade ({0})",
+                        UiUtilities.FormatTime(sessionDefault));
                 }
                 else if (_component.Action == ControlAction.Go)
                 {
