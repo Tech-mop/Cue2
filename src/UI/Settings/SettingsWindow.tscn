@@ -21,6 +21,7 @@
 [ext_resource type="PackedScene" uid="uid://b1bwv107ue24w" path="res://src/UI/Settings/SettingsTextDefaults.tscn" id="18_textdef"]
 [ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsVideoOutput.tscn" id="19_vidout"]
 [ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsUpdates.tscn" id="20_updates"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsAudioInput.tscn" id="21_audioin"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hpi7s"]
 bg_color = Color(0.0980392, 0.0980392, 0.0980392, 0.6)
@@ -218,6 +219,11 @@ visible = false
 layout_mode = 2
 
 [node name="SettingsAudio" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" unique_id=1584277448 instance=ExtResource("7_u2mcb")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsAudioInput" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("21_audioin")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2

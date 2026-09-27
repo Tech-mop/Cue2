@@ -28,6 +28,9 @@ namespace Cue2.UI.Settings;
 /// </remarks>
 public partial class SettingsAudio : ScrollContainer
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "Audio";
+
     private const double DeviceStatusRefreshSec = 0.5;
 
     private GlobalSignals _globalSignals;

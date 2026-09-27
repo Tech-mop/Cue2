@@ -30,6 +30,12 @@ namespace Cue2.UI.Settings;
 /// </remarks>
 public partial class SettingsVideoOutput : ScrollContainer
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "Video/Image";
+
+    /// <summary>Previous tree label, still accepted when restoring a saved Settings page.</summary>
+    public const string LegacyMenuKey = "Video Output";
+
     private GlobalSignals _globalSignals;
     private GlobalData _globalData;
     private HistoryManager _historyManager;

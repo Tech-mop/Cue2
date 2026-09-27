@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Godot.Collections;
+using Cue2.UI.Settings;
 
 namespace Cue2.Domain.ShowSettings;
 
@@ -72,45 +73,45 @@ public static class SettingsExport
     public static readonly Category[] Categories =
     {
         // Settings → General (plus related show scalars not currently on that panel)
-        new("General", "General",
+        new(SettingsGeneral.MenuKey, SettingsGeneral.MenuKey,
             "GoScale", "CueListScale", "WaveformResolution", "StopFadeDuration",
             "DoubleGoProtection",
             "MediaBackupEnabled", "MultiEditEnabled", "SelectNewCues", "ShowTimelineWaveforms",
             "ShowMode"),
 
         // Settings → Audio
-        new("Audio", "Audio",
+        new(SettingsAudio.MenuKey, SettingsAudio.MenuKey,
             "AudioLatencyMode", "AudioDeclickMs", "AudioMasterVolume",
             "AudioOutputMaxDb", "AudioOutputMinDb"),
 
         // Settings → Audio → Audio Output Patch
-        new("Audio Output Patch", "Audio Output Patch",
+        new(SettingsAudioOutputPatch.MenuKey, SettingsAudioOutputPatch.MenuKey,
             "AudioPatch", "AudioDevices"),
 
         // Settings → Video/Image (general video output panel; not Canvas topology)
-        new("Video/Image", "Video/Image",
+        new(SettingsVideoOutput.MenuKey, SettingsVideoOutput.MenuKey,
             "OutputBackgroundColor", "VideoQualityMode", "VideoPreviewQuality", "OutputVSyncMode"),
 
         // Settings → Video/Image → Canvas Editor
-        new("Canvas Editor", "Canvas Editor",
+        new(SettingsCanvasEditor.MenuKey, SettingsCanvasEditor.MenuKey,
             "Displays"),
 
         // Settings → Connections → …
         // Cue Lights not shipped in v1 — re-enable with the tree item.
-        // new("Cue Lights", "Cue Lights",
+        // new(SettingsCueLights.MenuKey, SettingsCueLights.MenuKey,
         //     "CueLights", "CueLightIdleColour", "CueLightGoColour",
         //     "CueLightStandbyColour", "CueLightCountInColour", "CueLightBrightness"),
-        new("OSC Connections", "OSC Connections", "OscConnections"),
-        new("OSC Listener", "OSC Listener", "OscListen"),
-        new("OSC Input Map", "OSC Input Map", "OscInputMap"),
-        new("MIDI", "MIDI", "Midi"),
-        new("MIDI Input Map", "MIDI Input Map", "MidiInputMap"),
+        new(SettingsOscConnections.MenuKey, SettingsOscConnections.MenuKey, "OscConnections"),
+        new(SettingsOscListen.MenuKey, SettingsOscListen.MenuKey, "OscListen"),
+        new(SettingsOscInputMap.MenuKey, SettingsOscInputMap.MenuKey, "OscInputMap"),
+        new(SettingsMidi.MenuKey, SettingsMidi.MenuKey, "Midi"),
+        new(SettingsMidiInputMap.MenuKey, SettingsMidiInputMap.MenuKey, "MidiInputMap"),
 
         // Settings → Cue Defaults (+ component default children)
-        new("Cue Defaults", "Cue Defaults", "CueDefaults"),
-        new("Audio Defaults", "Audio Defaults", "AudioDefaults"),
-        new("Video Defaults", "Video Defaults", "VideoDefaults"),
-        new("Text Defaults", "Text Defaults", "TextDefaults"),
+        new(SettingsCueDefaults.MenuKey, SettingsCueDefaults.MenuKey, "CueDefaults"),
+        new(SettingsAudioDefaults.MenuKey, SettingsAudioDefaults.MenuKey, "AudioDefaults"),
+        new(SettingsVideoDefaults.MenuKey, SettingsVideoDefaults.MenuKey, "VideoDefaults"),
+        new(SettingsTextDefaults.MenuKey, SettingsTextDefaults.MenuKey, "TextDefaults"),
     };
 
     /// <summary>
@@ -120,14 +121,14 @@ public static class SettingsExport
     private static readonly System.Collections.Generic.Dictionary<string, string> LegacyCategoryIdMap =
         new(StringComparer.Ordinal)
         {
-            ["AudioPatch"] = "Audio Output Patch",
-            ["Displays"] = "Canvas Editor",
-            ["VideoOutput"] = "Video/Image",
-            ["OscConnections"] = "OSC Connections",
-            ["OscListen"] = "OSC Listener",
-            ["OscInputMap"] = "OSC Input Map",
-            ["Midi"] = "MIDI",
-            ["MidiInputMap"] = "MIDI Input Map",
+            ["AudioPatch"] = SettingsAudioOutputPatch.MenuKey,
+            ["Displays"] = SettingsCanvasEditor.MenuKey,
+            ["VideoOutput"] = SettingsVideoOutput.MenuKey,
+            ["OscConnections"] = SettingsOscConnections.MenuKey,
+            ["OscListen"] = SettingsOscListen.MenuKey,
+            ["OscInputMap"] = SettingsOscInputMap.MenuKey,
+            ["Midi"] = SettingsMidi.MenuKey,
+            ["MidiInputMap"] = SettingsMidiInputMap.MenuKey,
         };
 
     /// <summary>
@@ -153,10 +154,10 @@ public static class SettingsExport
             // Early exports used a single "CueDefaults" category for shell + component defaults.
             if (string.Equals(id, "CueDefaults", StringComparison.Ordinal))
             {
-                selected.Add("Cue Defaults");
-                selected.Add("Audio Defaults");
-                selected.Add("Video Defaults");
-                selected.Add("Text Defaults");
+                selected.Add(SettingsCueDefaults.MenuKey);
+                selected.Add(SettingsAudioDefaults.MenuKey);
+                selected.Add(SettingsVideoDefaults.MenuKey);
+                selected.Add(SettingsTextDefaults.MenuKey);
                 continue;
             }
 

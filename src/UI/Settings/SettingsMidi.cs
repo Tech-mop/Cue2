@@ -14,6 +14,9 @@ namespace Cue2.UI.Settings;
 /// </summary>
 public partial class SettingsMidi : ScrollContainer
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "MIDI";
+
     private GlobalSignals _globalSignals;
     private GlobalData _globalData;
     private HistoryManager _historyManager;

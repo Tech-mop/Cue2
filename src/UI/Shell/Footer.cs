@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using Cue2.Domain.Connections;
 using Cue2.Services;
+using Cue2.UI.Settings;
 using Cue2.UI.Utilities;
 using static Cue2.UI.Utilities.UiLocalizer;
 
@@ -298,7 +299,7 @@ public partial class Footer : Control
             return;
         if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
         {
-            _globalSignals?.EmitSignal(GlobalSignals.SignalName.OpenSettingsMenu, "Updates");
+            _globalSignals?.EmitSignal(GlobalSignals.SignalName.OpenSettingsMenu, SettingsUpdates.MenuKey);
             GetViewport()?.SetInputAsHandled();
         }
     }

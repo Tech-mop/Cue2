@@ -14,6 +14,9 @@ namespace Cue2.UI.Settings;
 /// </summary>
 public partial class SettingsCue2Prefs : ScrollContainer
 {
+	/// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+	public const string MenuKey = "Cue2 Preferences";
+
 	private GlobalData _globalData;
 	private GlobalSignals _globalSignals;
 	private LocalizationService _localization;

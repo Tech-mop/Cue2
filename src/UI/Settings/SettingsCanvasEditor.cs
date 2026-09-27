@@ -26,6 +26,9 @@ namespace Cue2.UI.Settings;
 /// </summary>
 public partial class SettingsCanvasEditor : Control
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "Canvas Editor";
+
     private enum SelectionKind
     {
         None,

@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Godot;
 using Godot.Collections;
+using Cue2.UI.Settings;
 
 namespace Cue2.Services;
 
@@ -38,7 +39,7 @@ public partial class UserDataManager : Node
 	private Vector2I _lastSettingsWindowPosition = Vector2I.Zero;
 	private bool _settingsWasMaximized = false;
 	/// <summary>Tree item label of the last Settings sub-menu (e.g. "Canvas Editor").</summary>
-	private string _lastSettingsMenu = "General";
+	private string _lastSettingsMenu = SettingsGeneral.MenuKey;
 
 	private int _autosaveInterval = 5; // minutes, 0 = disabled
 	private int _backupDepth = DefaultBackupDepth;
@@ -726,7 +727,7 @@ public partial class UserDataManager : Node
 		_lastSettingsWindowSize = Vector2I.Zero;
 		_lastSettingsWindowPosition = Vector2I.Zero;
 		_settingsWasMaximized = false;
-		_lastSettingsMenu = "General";
+		_lastSettingsMenu = SettingsGeneral.MenuKey;
 
 		_startupBehavior = DefaultStartupBehavior;
 		_autosaveInterval = DefaultAutosaveInterval;
@@ -1203,7 +1204,7 @@ public partial class UserDataManager : Node
 			data["LastSettingsWindowPosition"] = settingsWinPos;
 
 			data["SettingsWasMaximized"] = _settingsWasMaximized;
-			data["LastSettingsMenu"] = _lastSettingsMenu ?? "General";
+			data["LastSettingsMenu"] = _lastSettingsMenu ?? SettingsGeneral.MenuKey;
 
 			data["StartupBehavior"] = (int)_startupBehavior;
 			data["IsFirstTimeStartup"] = _isFirstTimeStartup;

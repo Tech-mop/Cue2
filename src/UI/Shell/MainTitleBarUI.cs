@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Cue2.App;
 using Cue2.UI.Shell;
 using Cue2.Services;
+using Cue2.UI.Settings;
 using Cue2.UI.Windows;
 using Cue2.UI.Utilities;
 using SettingsWindow = Cue2.UI.Settings.SettingsWindow;
@@ -1669,7 +1670,7 @@ public partial class MainTitleBarUI : Control
 
     private void OpenUpdatesSettings()
     {
-        OnOpenSettingsMenu("Updates");
+        OnOpenSettingsMenu(SettingsUpdates.MenuKey);
     }
 
     /// <summary>
@@ -1680,7 +1681,7 @@ public partial class MainTitleBarUI : Control
     {
         ToggleSettingsWindowOpen(true);
         if (_settingsWindow != null && GodotObject.IsInstanceValid(_settingsWindow))
-            _settingsWindow.CallDeferred(SettingsWindow.MethodName.OpenMenu, menuKey ?? "Updates");
+            _settingsWindow.CallDeferred(SettingsWindow.MethodName.OpenMenu, menuKey ?? SettingsUpdates.MenuKey);
     }
 
     private void ToggleSettingsWindow()

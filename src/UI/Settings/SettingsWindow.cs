@@ -47,7 +47,7 @@ public partial class SettingsWindow : Window
 	/// </summary>
 	private static readonly Vector2I DefaultWindowSize = new Vector2I(1100, 700);
 
-	private const string DefaultMenuKey = "General";
+	private const string DefaultMenuKey = SettingsGeneral.MenuKey;
 
 	// Session cache: seeded once from UserDataManager (file load at app start), then authoritative
 	// for all later Settings opens until the process ends.
@@ -953,26 +953,27 @@ public partial class SettingsWindow : Window
 	{
 		menuNode = action switch
 		{
-			"General" => "SettingsGeneral",
-			"Input Map" => "SettingsInputMap",
-			"Audio" => "SettingsAudio",
-			"Audio Output Patch" => "AudioOutputPatch",
-			"Canvas Editor" => "CanvasEditor",
+			SettingsGeneral.MenuKey => "SettingsGeneral",
+			SettingsInputMap.MenuKey => "SettingsInputMap",
+			SettingsAudio.MenuKey => "SettingsAudio",
+			SettingsAudioOutputPatch.MenuKey => "AudioOutputPatch",
+			SettingsAudioInput.MenuKey => "SettingsAudioInput",
+			SettingsCanvasEditor.MenuKey => "CanvasEditor",
 			// Parent Video/Image hosts the general video output panel; legacy label kept for session restore.
-			"Video/Image" => "SettingsVideoOutput",
-			"Video Output" => "SettingsVideoOutput",
-			"Cue Lights" => "CueLights",
-			"OSC Connections" => "SettingsOscConnections",
-			"OSC Listener" => "SettingsOscListen",
-			"OSC Input Map" => "SettingsOscInputMap",
-			"MIDI" => "SettingsMidi",
-			"MIDI Input Map" => "SettingsMidiInputMap",
-			"Cue Defaults" => "SettingsCueDefaults",
-			"Audio Defaults" => "SettingsAudioDefaults",
-			"Video Defaults" => "SettingsVideoDefaults",
-			"Text Defaults" => "SettingsTextDefaults",
-			"Cue2 Preferences" => "SettingsCue2Prefs",
-			"Updates" => "SettingsUpdates",
+			SettingsVideoOutput.MenuKey => "SettingsVideoOutput",
+			SettingsVideoOutput.LegacyMenuKey => "SettingsVideoOutput",
+			SettingsCueLights.MenuKey => "CueLights",
+			SettingsOscConnections.MenuKey => "SettingsOscConnections",
+			SettingsOscListen.MenuKey => "SettingsOscListen",
+			SettingsOscInputMap.MenuKey => "SettingsOscInputMap",
+			SettingsMidi.MenuKey => "SettingsMidi",
+			SettingsMidiInputMap.MenuKey => "SettingsMidiInputMap",
+			SettingsCueDefaults.MenuKey => "SettingsCueDefaults",
+			SettingsAudioDefaults.MenuKey => "SettingsAudioDefaults",
+			SettingsVideoDefaults.MenuKey => "SettingsVideoDefaults",
+			SettingsTextDefaults.MenuKey => "SettingsTextDefaults",
+			SettingsCue2Prefs.MenuKey => "SettingsCue2Prefs",
+			SettingsUpdates.MenuKey => "SettingsUpdates",
 			_ => null
 		};
 		return menuNode != null;
@@ -988,68 +989,71 @@ public partial class SettingsWindow : Window
 		// English labels are stable menu keys (persisted / panel mapping); display is translated.
 		//General (show-scoped)
 		TreeItem tiGeneral = _setTree.CreateItem(root);
-		SetTreeItemText(tiGeneral, 0, "General");
+		SetTreeItemText(tiGeneral, 0, SettingsGeneral.MenuKey);
 
 		// Audio
 		TreeItem tiAudio = _setTree.CreateItem(root);
-		SetTreeItemText(tiAudio, 0, "Audio");
+		SetTreeItemText(tiAudio, 0, SettingsAudio.MenuKey);
 		TreeItem tiAudioOutputPatch = _setTree.CreateItem(tiAudio);
-		SetTreeItemText(tiAudioOutputPatch, 0, "Audio Output Patch");
+		SetTreeItemText(tiAudioOutputPatch, 0, SettingsAudioOutputPatch.MenuKey);
+		TreeItem tiAudioInput = _setTree.CreateItem(tiAudio);
+		SetTreeItemText(tiAudioInput, 0, SettingsAudioInput.MenuKey);
+		SetTreeItemTooltip(tiAudioInput, 0, "Capture devices for this show.");
 
 		// Video / Image (parent shows general video output panel; Canvas Editor is topology)
 		TreeItem tiOutputDevices = _setTree.CreateItem(root);
-		SetTreeItemText(tiOutputDevices, 0, "Video/Image");
+		SetTreeItemText(tiOutputDevices, 0, SettingsVideoOutput.MenuKey);
 		SetTreeItemTooltip(tiOutputDevices, 0,
 			"Disable/blackout, background colour, and machine video performance preferences.");
 		TreeItem tiVideoDevice = _setTree.CreateItem(tiOutputDevices);
-		SetTreeItemText(tiVideoDevice, 0, "Canvas Editor");
+		SetTreeItemText(tiVideoDevice, 0, SettingsCanvasEditor.MenuKey);
 
-		// Connections
+		// Connections — category header only; no settings page of its own.
 		TreeItem tiConnections = _setTree.CreateItem(root);
 		SetTreeItemText(tiConnections, 0, "Connections");
 		// Cue Lights: kept in codebase (panel + TryGetMenuNode mapping) but not shipped in v1 UI.
 		// TreeItem tiCueLights = _setTree.CreateItem(tiConnections);
-		// SetTreeItemText(tiCueLights, 0, "Cue Lights");
+		// SetTreeItemText(tiCueLights, 0, SettingsCueLights.MenuKey);
 		TreeItem tiOscConnections = _setTree.CreateItem(tiConnections);
-		SetTreeItemText(tiOscConnections, 0, "OSC Connections");
+		SetTreeItemText(tiOscConnections, 0, SettingsOscConnections.MenuKey);
 		SetTreeItemTooltip(tiOscConnections, 0, "Named OSC send destinations and send monitor");
 		TreeItem tiOscListener = _setTree.CreateItem(tiConnections);
-		SetTreeItemText(tiOscListener, 0, "OSC Listener");
+		SetTreeItemText(tiOscListener, 0, SettingsOscListen.MenuKey);
 		SetTreeItemTooltip(tiOscListener, 0, "UDP receive port and live receive monitor");
 		TreeItem tiOscInputMap = _setTree.CreateItem(tiOscListener);
-		SetTreeItemText(tiOscInputMap, 0, "OSC Input Map");
+		SetTreeItemText(tiOscInputMap, 0, SettingsOscInputMap.MenuKey);
 		SetTreeItemTooltip(tiOscInputMap, 0, "Assign OSC addresses to app actions (Go, Save, Undo, …)");
 		TreeItem tiMidi = _setTree.CreateItem(tiConnections);
-		SetTreeItemText(tiMidi, 0, "MIDI");
+		SetTreeItemText(tiMidi, 0, SettingsMidi.MenuKey);
 		SetTreeItemTooltip(tiMidi, 0, "MIDI input devices and live monitor");
 		TreeItem tiMidiInputMap = _setTree.CreateItem(tiMidi);
-		SetTreeItemText(tiMidiInputMap, 0, "MIDI Input Map");
+		SetTreeItemText(tiMidiInputMap, 0, SettingsMidiInputMap.MenuKey);
 		SetTreeItemTooltip(tiMidiInputMap, 0, "Assign MIDI controls to app actions (Go, Save, Undo, …)");
 		// Art-Net: not shipped in this version — re-add under Connections when implementing.
 
 		// Cue defaults (shell + component defaults applied to newly created cues/components)
 		TreeItem tiDefaults = _setTree.CreateItem(root);
-		SetTreeItemText(tiDefaults, 0, "Cue Defaults");
+		SetTreeItemText(tiDefaults, 0, SettingsCueDefaults.MenuKey);
 		SetTreeItemTooltip(tiDefaults, 0, "Default shell properties for newly created cues (pre-wait, colour, arming, etc.).");
 		TreeItem tiAudioCueDefaults = _setTree.CreateItem(tiDefaults);
-		SetTreeItemText(tiAudioCueDefaults, 0, "Audio Defaults");
+		SetTreeItemText(tiAudioCueDefaults, 0, SettingsAudioDefaults.MenuKey);
 		SetTreeItemTooltip(tiAudioCueDefaults, 0, "Default volume, pan, loop, play count, and fades for new audio components.");
 		TreeItem tiVideoCueDefaults = _setTree.CreateItem(tiDefaults);
-		SetTreeItemText(tiVideoCueDefaults, 0, "Video Defaults");
+		SetTreeItemText(tiVideoCueDefaults, 0, SettingsVideoDefaults.MenuKey);
 		SetTreeItemTooltip(tiVideoCueDefaults, 0, "Default layout, opacity, loop, embedded audio, image duration, and fades for new video components.");
 		TreeItem tiTextCueDefaults = _setTree.CreateItem(tiDefaults);
-		SetTreeItemText(tiTextCueDefaults, 0, "Text Defaults");
+		SetTreeItemText(tiTextCueDefaults, 0, SettingsTextDefaults.MenuKey);
 		SetTreeItemTooltip(tiTextCueDefaults, 0, "Default typography, alignment, duration, outline/background, and fades for new text components.");
 
 		// App preferences (user:// — not stored in the showfile)
 		TreeItem tiCue2Preferences = _setTree.CreateItem(root);
-		SetTreeItemText(tiCue2Preferences, 0, "Cue2 Preferences");
+		SetTreeItemText(tiCue2Preferences, 0, SettingsCue2Prefs.MenuKey);
 		SetTreeItemTooltip(tiCue2Preferences, 0, "Showfile-independent preferences (stored per user)");
 		TreeItem tiInputMap = _setTree.CreateItem(tiCue2Preferences);
-		SetTreeItemText(tiInputMap, 0, "Input Map");
+		SetTreeItemText(tiInputMap, 0, SettingsInputMap.MenuKey);
 		SetTreeItemTooltip(tiInputMap, 0, "Keyboard shortcuts — saved with Cue2 Preferences, not the show");
 		TreeItem tiUpdates = _setTree.CreateItem(tiCue2Preferences);
-		SetTreeItemText(tiUpdates, 0, "Updates");
+		SetTreeItemText(tiUpdates, 0, SettingsUpdates.MenuKey);
 		SetTreeItemTooltip(tiUpdates, 0, "Check for Cue2 updates — saved with Cue2 Preferences, not the show");
 	}
 

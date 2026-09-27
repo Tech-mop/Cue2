@@ -21,6 +21,9 @@ namespace Cue2.UI.Settings;
 /// </remarks>
 public partial class SettingsCueDefaults : ScrollContainer
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "Cue Defaults";
+
     private GlobalSignals _globalSignals;
     private GlobalData _globalData;
     private HistoryManager _historyManager;

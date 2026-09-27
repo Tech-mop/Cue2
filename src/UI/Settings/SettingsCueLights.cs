@@ -21,6 +21,9 @@ namespace Cue2.UI.Settings;
 /// </summary>
 public partial class SettingsCueLights : ScrollContainer
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "Cue Lights";
+
     private GlobalData _globalData;
     private GlobalSignals _globalSignals;
     private CueLightManager _cueLightManager;

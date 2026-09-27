@@ -17,6 +17,9 @@ namespace Cue2.UI.Settings;
 /// </summary>
 public partial class SettingsOscInputMap : ScrollContainer
 {
+    /// <summary>Stable Settings tree key (English, persisted in user data).</summary>
+    public const string MenuKey = "OSC Input Map";
+
     private GlobalSignals _globalSignals;
     private GlobalData _globalData;
     private HistoryManager _historyManager;

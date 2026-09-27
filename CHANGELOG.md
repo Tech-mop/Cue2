@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-21
+
 ### Fixed
 - Option button menus pause keyboard shortcuts while open and turn them back on when the menu closes (pick or cancel). Previously most dropdowns left shortcut listening off.
 - Video with embedded audio that underflows the video content will get stuck unfinished in active cue. When audio is EOS and SDL queue has drained, software now switches from audio clock to wall time rebased to last audio position so remaining frames present and EOF can be reached.
