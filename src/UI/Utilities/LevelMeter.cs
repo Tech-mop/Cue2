@@ -34,6 +34,18 @@ public partial class LevelMeter : Control
         SizeFlagsVertical = SizeFlags.ShrinkCenter;
     }
 
+    /// <summary>
+    /// Sizes this control as a full-width strip of <paramref name="heightPx"/> pixels.
+    /// </summary>
+    /// <param name="heightPx">Track height in pixels.</param>
+    public void UseStrip(float heightPx)
+    {
+        CustomMinimumSize = new Vector2(0, Mathf.Max(1f, heightPx));
+        SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        SizeFlagsVertical = SizeFlags.ShrinkBegin;
+        MouseFilter = MouseFilterEnum.Ignore;
+    }
+
     /// <inheritdoc />
     public override void _Notification(int what)
     {

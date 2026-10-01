@@ -936,7 +936,8 @@ public partial class HistoryManager : Node
 		"OutputVSyncMode",
 		"AudioLatencyMode",
 		"AudioDeclickMs",
-		"AudioMasterVolume"
+		"AudioMasterVolume",
+		"ShowPlaybackMeters"
 	};
 
 	private static bool IsScalarSettingsSlice(string[] keys)

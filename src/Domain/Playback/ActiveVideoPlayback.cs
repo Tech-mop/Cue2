@@ -30,7 +30,7 @@ namespace Cue2.Domain.Playback;
 /// stream, the master falls back to wall time so remaining frames can present and the cue can
 /// complete. On seek/pause/loop both streams are reset to the same media timestamp.
 /// </summary>
-public partial class ActiveVideoPlayback : Node, IAudioPlayback
+public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 {
     private const int FadeUpdateIntervalMs = 16;
     private const long MicrosecondsPerSecond = 1_000_000;
@@ -114,6 +114,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
     /// When set, replaces component audio level for this playback only (control fades).
     /// </summary>
     private float? _runtimeLevelLinear;
+    private int _meterPeakBits;
+    private float _meterDisplay;
 
     /// <summary>
     /// When set, replaces <see cref="VideoComponent.Pan"/> for this playback only (control fades).
@@ -480,6 +482,10 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
             return ControlComponent.GetVideoAudioLinear(_videoComponent);
         }
     }
+
+    /// <inheritdoc />
+    public float ReadDisplayLevel(float deltaSeconds) =>
+        PlaybackLevel.Read(ref _meterPeakBits, ref _meterDisplay, deltaSeconds);
 
     /// <summary>
     /// Effective pan for mixing (runtime override or component). Non-stereo → 0.
@@ -1696,6 +1702,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback
                 _audioDevices.GetOutputLimits(out float maxAbs, out float minAbs);
                 AudioMixMatrix.ApplyOutputLimits(_audioMixBuffer.AsSpan(0, outSamples), maxAbs, minAbs);
             }
+
+            PlaybackLevel.Note(ref _meterPeakBits, _audioMixBuffer.AsSpan(0, outSamples));
 
             int byteCount = outSamples * sizeof(float);
             fixed (float* p = _audioMixBuffer)

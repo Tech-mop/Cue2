@@ -18,7 +18,7 @@ namespace Cue2.Domain.Playback;
 /// Plays an <see cref="AudioInputComponent"/>: capture the patch, sum it to the mono submaster,
 /// and route that bus to the cue output while the cue is active.
 /// </summary>
-public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback
+public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, IComponentLevel
 {
     private const int SampleRate = 48000;
     private const int FramesPerChunk = 256;
@@ -41,6 +41,8 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback
     private long _fadeOutStartMs = -1;
     private readonly System.Diagnostics.Stopwatch _clock = new();
     private float _envelope;
+    private int _meterPeakBits;
+    private float _meterDisplay;
 
     /// <summary>True while the fade-in ramp is running.</summary>
     public bool IsFadingIn { get; private set; }
@@ -50,6 +52,10 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback
 
     /// <summary>Fade envelope, 0 silent to 1 full. Drives the component fade overlay.</summary>
     public float CurrentVolume => _envelope;
+
+    /// <inheritdoc />
+    public float ReadDisplayLevel(float deltaSeconds) =>
+        PlaybackLevel.Read(ref _meterPeakBits, ref _meterDisplay, deltaSeconds);
 
     /// <summary>Seconds of audio written since play, ignoring pause.</summary>
     public double ElapsedSeconds { get; private set; }
@@ -415,6 +421,8 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback
                 _audioDevices.GetOutputLimits(out float maxAbs, out float minAbs);
                 AudioMixMatrix.ApplyOutputLimits(_mix.AsSpan(0, outSamples), maxAbs, minAbs);
             }
+
+            PlaybackLevel.Note(ref _meterPeakBits, _mix.AsSpan(0, outSamples));
 
             int byteCount = outSamples * sizeof(float);
             if (_pcmBytes.Length < byteCount)

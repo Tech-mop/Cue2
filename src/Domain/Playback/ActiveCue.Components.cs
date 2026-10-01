@@ -263,7 +263,7 @@ public partial class ActiveCue
             }
 
             // UI
-            PanelContainer componentPanel = CreateStyledComponentProgressBar();
+            PanelContainer componentPanel = CreateStyledComponentProgressBar(showMeter: true);
             _componentContainer.AddChild(componentPanel);
             componentPanel.GetNode<Label>("%ComponentLabel").Text = Path.GetFileName(audioComponent.AudioFile);
             var typeIcon = componentPanel.GetNode<TextureRect>("%ComponentIcon");
@@ -304,7 +304,7 @@ public partial class ActiveCue
             
             
             // Progress bar seeking (span includes playcount when not looping)
-            var progressBar = componentPanel.GetNode<ProgressBar>("ComponentProgress");
+            var progressBar = componentPanel.GetNode<ProgressBar>(ComponentProgressPath);
             double pendingContentSeekSec = 0;
             double audioSeekSpan = audioComponent.Loop || audioComponent.TotalDuration < 0
                 ? Math.Max(0, audioComponent.Duration)
@@ -394,7 +394,7 @@ public partial class ActiveCue
                 return;
             }
 
-            PanelContainer componentPanel = CreateStyledComponentProgressBar();
+            PanelContainer componentPanel = CreateStyledComponentProgressBar(showMeter: true);
             _componentContainer.AddChild(componentPanel);
             string label = component.InputPatch?.Name;
             if (string.IsNullOrWhiteSpace(label))
@@ -556,7 +556,7 @@ public partial class ActiveCue
             }
 
             // UI
-            PanelContainer componentPanel = CreateStyledComponentProgressBar();
+            PanelContainer componentPanel = CreateStyledComponentProgressBar(showMeter: playback.UseAudio);
             _componentContainer.AddChild(componentPanel);
             componentPanel.GetNode<Label>("%ComponentLabel").Text = Path.GetFileName(videoComponent.VideoFile);
             var typeIcon = componentPanel.GetNode<TextureRect>("%ComponentIcon");
@@ -597,7 +597,7 @@ public partial class ActiveCue
             stopButton.Pressed += async () => await StopVideoComponent(componentPanel);
             
             // Progress bar seeking (span includes playcount when not looping)
-            var progressBar = componentPanel.GetNode<ProgressBar>("ComponentProgress");
+            var progressBar = componentPanel.GetNode<ProgressBar>(ComponentProgressPath);
             double pendingContentSeekSec = 0;
             double videoSeekSpan = videoComponent.Loop || videoComponent.TotalDuration < 0
                 ? (videoComponent.Duration > 0 ? videoComponent.Duration : Math.Max(0, registeredPlayback.GetDuration()))
@@ -912,7 +912,7 @@ public partial class ActiveCue
         if (!_componentToText.TryGetValue(componentPanel, out var textComponent) || textComponent == null)
             return;
 
-        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>("ComponentProgress");
+        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
         if (progressBar == null) return;
         if (textPlayback.IsStopped) return;
 
@@ -932,7 +932,7 @@ public partial class ActiveCue
         else
             progressPercentage = (float)(time / span * 100.0);
 
-        var timeLabel = componentPanel.GetNodeOrNull<Label>("ComponentProgress/MarginContainer/HBoxContainer/ComponentTime");
+        var timeLabel = componentPanel.GetNodeOrNull<Label>(ComponentTimePath);
         if (timeLabel != null)
         {
             if (span <= 0)
@@ -1142,7 +1142,7 @@ public partial class ActiveCue
             {
                 if (timeLabel != null)
                     timeLabel.Text = "0.0";
-                var progressBar = componentPanel.GetNodeOrNull<ProgressBar>("ComponentProgress");
+                var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
                 if (progressBar != null)
                     progressBar.Value = 0;
                 _controlTimedProgress[componentPanel] = new ControlTimedProgress
@@ -1180,9 +1180,9 @@ public partial class ActiveCue
         if (!_controlTimedProgress.TryGetValue(componentPanel, out var state)) return;
         if (state.DurationSec <= 1e-9) return;
 
-        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>("ComponentProgress");
+        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
         var timeLabel = componentPanel.GetNodeOrNull<Label>(
-            "ComponentProgress/MarginContainer/HBoxContainer/ComponentTime");
+            ComponentTimePath);
         if (progressBar == null) return;
 
         if (!state.Started)
@@ -1229,7 +1229,9 @@ public partial class ActiveCue
         if (!_activeAudioComponents.TryGetValue(componentPanel, out var audioPlayback) || audioPlayback == null)
             return;
 
-        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>("ComponentProgress");
+        UpdateComponentMeter(componentPanel, audioPlayback, true);
+
+        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
         if (progressBar == null) return;
         if (audioPlayback.IsStopped) return;
 
@@ -1247,7 +1249,7 @@ public partial class ActiveCue
         float progressPercentage = progressSpan > 1e-9
             ? (float)(contentElapsed / progressSpan * 100.0)
             : 0f;
-        var timeLabel = componentPanel.GetNode<Label>("ComponentProgress/MarginContainer/HBoxContainer/ComponentTime");
+        var timeLabel = componentPanel.GetNode<Label>(ComponentTimePath);
         // Hold bar while user scrubs or async decoder seek is still in flight.
         if (!audioPlayback.IsSeeking && !audioPlayback.IsDecoderSeeking)
         {
@@ -1267,7 +1269,7 @@ public partial class ActiveCue
         if (!_componentToVideo.TryGetValue(componentPanel, out var videoComponent) || videoComponent == null)
             return;
 
-        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>("ComponentProgress");
+        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
         if (progressBar == null) return;
         if (videoPlayback.IsStopped) return;
 
@@ -1292,13 +1294,35 @@ public partial class ActiveCue
                 ? (float)(contentElapsed / progressSpan * 100.0)
                 : 0f;
         }
-        var timeLabel = componentPanel.GetNode<Label>("ComponentProgress/MarginContainer/HBoxContainer/ComponentTime");
+        var timeLabel = componentPanel.GetNode<Label>(ComponentTimePath);
         // Hold bar while user scrubs or async decoder seek is still in flight.
         if (!videoPlayback.IsSeeking && !videoPlayback.IsDecoderSeeking)
         {
             timeLabel.Text = UiUtilities.FormatTime(contentElapsed);
             progressBar.Value = progressPercentage;
         }
+    }
+
+    /// <summary>
+    /// Shows or hides the 2px output-level strip and writes the latest peak.
+    /// </summary>
+    /// <param name="panel">Component progress row.</param>
+    /// <param name="level">Playback that reports output peaks.</param>
+    /// <param name="hasAudio">False hides the strip (silent video, text, OSC, …).</param>
+    private void UpdateComponentMeter(Node panel, IComponentLevel level, bool hasAudio)
+    {
+        if (panel == null || !IsInstanceValid(panel) || level == null)
+            return;
+        var meter = panel.GetNodeOrNull<LevelMeter>("%ComponentMeter");
+        if (meter == null)
+            return;
+
+        bool enabled = hasAudio && (_settings?.ShowPlaybackMeters ?? true);
+        if (meter.Visible != enabled)
+            meter.Visible = enabled;
+        if (!enabled)
+            return;
+        meter.Level = level.ReadDisplayLevel(ComponentMeterTickSeconds);
     }
 
     /// <summary>

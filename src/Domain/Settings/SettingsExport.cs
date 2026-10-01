@@ -82,7 +82,7 @@ public static class SettingsExport
         // Settings → Audio
         new(SettingsAudio.MenuKey, SettingsAudio.MenuKey,
             "AudioLatencyMode", "AudioDeclickMs", "AudioMasterVolume",
-            "AudioOutputMaxDb", "AudioOutputMinDb"),
+            "AudioOutputMaxDb", "AudioOutputMinDb", "ShowPlaybackMeters"),
 
         // Settings → Audio → Audio Output Patch
         new(SettingsAudioOutputPatch.MenuKey, SettingsAudioOutputPatch.MenuKey,

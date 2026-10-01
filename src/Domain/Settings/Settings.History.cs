@@ -146,6 +146,8 @@ public partial class Settings
             AudioMasterVolume = Math.Clamp(value.AsSingle(), 0f, 1f);
             _audioDevices?.SetSessionMasterVolume(AudioMasterVolume);
         }
+        if (TryGetSettingsValue(settingsData, "ShowPlaybackMeters", out value))
+            ShowPlaybackMeters = ReadBoolVariant(value);
         if (TryGetSettingsValue(settingsData, "AudioOutputMaxDb", out value)
             || TryGetSettingsValue(settingsData, "AudioOutputMinDb", out _))
         {
@@ -446,6 +448,9 @@ public partial class Settings
                 return true;
             case "AudioOutputMinDb":
                 value = AudioOutputMinDb;
+                return true;
+            case "ShowPlaybackMeters":
+                value = ShowPlaybackMeters ? 1 : 0;
                 return true;
             default:
                 value = default;

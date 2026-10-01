@@ -9,6 +9,7 @@
 - Audio inspector, under Select File: a compact Audio Input menu of those patches and a Setup Audio Inputs button that opens Audio Input. That row is hidden when the cue already has file audio. Setup Audio Patches sits beside the output menu for both file audio and audio input. Choosing a patch adds an audio input to the cue. A cue cannot have both an audio file and an audio input.
 - An audio input hides Select File and the file URL. The inspector keeps output, routing, volume, and fades. Duration is set like an image: a hold time, or blank / 0 to stay active until stopped. The routing matrix has one mono Submaster row, 0 dB to every output by default. Pan is not shown. The Audio tab dot appears for an audio input.
 - While the cue is active, the input patch is summed to that submaster and routed to the assigned output. Blank duration stays up until the cue stops.
+- Settings → Audio → Display → Level meters (on by default, saved with the show). When an audio file, video with audio, or audio input is playing, a thin level meter sits inside that component’s progress row.
 
 ### Fixed
 - Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.

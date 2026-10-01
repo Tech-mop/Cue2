@@ -129,13 +129,13 @@ public partial class AudioInspector
         ApplyAudioInputInspectorLayout(false);
         if (!hasAudio) // No Audio component in Cue
         {
+            _focusedAudioComponent = null;
             if (_infoLabel != null)
                 _infoLabel.Visible = true;
             _infoLabel.Text = UiLocalizer.T("No Audio File");
             _infoLabel.TooltipText = "";
             SetSelectFileVisible(true);
             _inspectorContent.Visible = false;
-            _focusedAudioComponent = null;
             _fileUrl.Text = "";
             RestoreFileUrlPlaceholder();
             ApplyFileUrlMissingStyle(false, null);

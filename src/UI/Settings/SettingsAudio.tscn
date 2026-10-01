@@ -118,6 +118,45 @@ theme_override_font_sizes/font_size = 11
 text = "Applies on next start/seek."
 vertical_alignment = 1
 
+[node name="HSeparatorMeters" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MetersHeader" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MetersSectionLabel" type="Label" parent="VBoxContainer/MetersHeader"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Display"
+
+[node name="ShowMetersRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ShowMetersLabel" type="Label" parent="VBoxContainer/ShowMetersRow"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Draws a thin level bar above the progress bar of each playing audio file, video with audio, and audio input."
+text = "Level meters"
+vertical_alignment = 1
+
+[node name="ShowMetersCheckBox" type="CheckBox" parent="VBoxContainer/ShowMetersRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Draws a thin level bar above the progress bar of each playing audio file, video with audio, and audio input."
+focus_mode = 0
+text = "Show on active cues"
+button_pressed = true
+
+[node name="ShowMetersResetButton" type="Button" parent="VBoxContainer/ShowMetersRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
 [node name="HSeparatorMaster" type="HSeparator" parent="VBoxContainer" unique_id=1272429380]
 layout_mode = 2
 

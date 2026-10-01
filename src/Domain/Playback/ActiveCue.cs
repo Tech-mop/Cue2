@@ -487,6 +487,9 @@ public partial class ActiveCue : GodotObject
     private PackedScene _activeCueBarScene = SceneLoader.LoadPackedScene("uid://dt7rlfag7yr2c", out string error); 
     // Component progress scene
     private PackedScene _componentProgressBarScene = SceneLoader.LoadPackedScene("uid://cb7g4xgryo2dg", out string error);
+    private const string ComponentProgressPath = "ComponentProgress";
+    private const string ComponentTimePath = "ComponentProgress/MarginContainer/HBoxContainer/ComponentTime";
+    private const float ComponentMeterTickSeconds = 0.1f;
     
     private bool _isPaused = false;
     private bool _isCleaned = false;
@@ -721,10 +724,16 @@ public partial class ActiveCue : GodotObject
     /// <summary>
     /// Instantiates a component progress row styled with the high (content) cascade.
     /// </summary>
-    private PanelContainer CreateStyledComponentProgressBar()
+    private PanelContainer CreateStyledComponentProgressBar(bool showMeter = false)
     {
         var panel = _componentProgressBarScene.Instantiate<PanelContainer>();
-        ApplyProgressFill(panel.GetNodeOrNull<ProgressBar>("ComponentProgress"), GlobalStyles.HighColor2);
+        var meter = panel.GetNodeOrNull<LevelMeter>("%ComponentMeter");
+        if (meter != null)
+        {
+            meter.UseStrip(2f);
+            meter.Visible = showMeter && (_settings?.ShowPlaybackMeters ?? true);
+        }
+        ApplyProgressFill(panel.GetNodeOrNull<ProgressBar>(ComponentProgressPath), GlobalStyles.HighColor2);
         ApplyProgressFill(
             panel.GetNodeOrNull<ProgressBar>("%ComponentFadeProgress"),
             GlobalStyles.HighColor5,

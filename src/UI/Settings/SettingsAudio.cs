@@ -45,6 +45,8 @@ public partial class SettingsAudio : ScrollContainer
     private LineEdit _masterVolumeInput;
     private Button _masterVolumeResetButton;
     private CheckBox _masterMuteCheckBox;
+    private CheckBox _showMetersCheckBox;
+    private Button _showMetersResetButton;
     private LineEdit _outputMaxInput;
     private Button _outputMaxResetButton;
     private LineEdit _outputMinInput;
@@ -71,6 +73,8 @@ public partial class SettingsAudio : ScrollContainer
         _masterVolumeInput = GetNode<LineEdit>("%MasterVolumeInput");
         _masterVolumeResetButton = GetNode<Button>("%MasterVolumeResetButton");
         _masterMuteCheckBox = GetNode<CheckBox>("%MasterMuteCheckBox");
+        _showMetersCheckBox = GetNodeOrNull<CheckBox>("%ShowMetersCheckBox");
+        _showMetersResetButton = GetNodeOrNull<Button>("%ShowMetersResetButton");
         _outputMaxInput = GetNodeOrNull<LineEdit>("%OutputMaxInput");
         _outputMaxResetButton = GetNodeOrNull<Button>("%OutputMaxResetButton");
         _outputMinInput = GetNodeOrNull<LineEdit>("%OutputMinInput");
@@ -91,6 +95,9 @@ public partial class SettingsAudio : ScrollContainer
         // Master is session unity-gain only (−60…0 dB); component boost is separate.
         LineEditDbDragSlider.EnableUnityVolume(_masterVolumeInput);
         _masterMuteCheckBox.Toggled += OnMasterMuteToggled;
+        SetupResetButton(_showMetersResetButton, OnShowMetersResetPressed);
+        if (_showMetersCheckBox != null)
+            _showMetersCheckBox.Toggled += OnShowMetersToggled;
 
         if (_outputMaxInput != null)
         {
@@ -268,6 +275,9 @@ public partial class SettingsAudio : ScrollContainer
                 _masterMuteCheckBox.SetPressedNoSignal(muted);
             }
 
+            if (_showMetersCheckBox != null)
+                _showMetersCheckBox.SetPressedNoSignal(settings.ShowPlaybackMeters);
+
             if (_outputMaxInput != null && !_outputMaxInput.HasFocus())
                 _outputMaxInput.Text = FormatDb(settings.AudioOutputMaxDb);
             if (_outputMinInput != null && !_outputMinInput.HasFocus())
@@ -276,6 +286,7 @@ public partial class SettingsAudio : ScrollContainer
             UpdateLatencyModeResetButton();
             UpdateDeclickResetButton();
             UpdateMasterVolumeResetButton();
+            UpdateShowMetersResetButton();
             UpdateOutputMaxResetButton();
             UpdateOutputMinResetButton();
         }
@@ -493,6 +504,51 @@ public partial class SettingsAudio : ScrollContainer
         if (_isSyncingUi || _audioDevices == null)
             return;
         _audioDevices.SetSessionMasterMuted(pressed);
+    }
+
+    private void OnShowMetersToggled(bool enabled)
+    {
+        if (_isSyncingUi || _globalData?.Settings == null)
+            return;
+        if (_historyManager?.IsRestoring == true)
+            return;
+        if (_globalData.Settings.ShowPlaybackMeters == enabled)
+        {
+            UpdateShowMetersResetButton();
+            return;
+        }
+
+        _historyManager?.RecordSettingsChange("Change playback meters setting", null, "ShowPlaybackMeters");
+        _globalData.Settings.ShowPlaybackMeters = enabled;
+        UpdateShowMetersResetButton();
+    }
+
+    private void OnShowMetersResetPressed()
+    {
+        if (_isSyncingUi || _globalData?.Settings == null)
+            return;
+        if (_globalData.Settings.ShowPlaybackMeters == AppSettings.DefaultShowPlaybackMeters)
+        {
+            SyncSettings();
+            return;
+        }
+
+        _historyManager?.RecordSettingsChange("Reset playback meters setting", null, "ShowPlaybackMeters");
+        _globalData.Settings.ShowPlaybackMeters = AppSettings.DefaultShowPlaybackMeters;
+        SyncSettings();
+    }
+
+    private void UpdateShowMetersResetButton()
+    {
+        if (_showMetersResetButton == null || _globalData?.Settings == null)
+            return;
+        bool atDefault = _globalData.Settings.ShowPlaybackMeters == AppSettings.DefaultShowPlaybackMeters;
+        _showMetersResetButton.Visible = !atDefault;
+        if (!atDefault)
+        {
+            string defaultText = AppSettings.DefaultShowPlaybackMeters ? "Enabled" : "Disabled";
+            _showMetersResetButton.TooltipText = UiLocalizer.ResetDefaultTip(defaultText);
+        }
     }
 
     // ── Output max (peak clamp) ─────────────────────────────────────────────

@@ -55,6 +55,7 @@ public partial class Settings
         saveTable.Add("AudioMasterVolume", AudioMasterVolume);
         saveTable.Add("AudioOutputMaxDb", AudioOutputMaxDb);
         saveTable.Add("AudioOutputMinDb", AudioOutputMinDb);
+        saveTable.Add("ShowPlaybackMeters", ShowPlaybackMeters);
 
         // Cue shell defaults (show-scoped)
         saveTable.Add("CueDefaults", CaptureCueDefaultsDict());
@@ -302,6 +303,9 @@ public partial class Settings
         AudioOutputMinDb = settingsData.TryGetValue("AudioOutputMinDb", out value)
             ? Math.Clamp(value.AsSingle(), MinAudioOutputMinDb, MaxAudioOutputMinDb)
             : DefaultAudioOutputMinDb;
+        ShowPlaybackMeters = settingsData.TryGetValue("ShowPlaybackMeters", out value)
+            ? value.AsBool()
+            : DefaultShowPlaybackMeters;
         // Keep max ≥ min so the gate and clamp cannot invert.
         if (AudioOutputMaxDb < AudioOutputMinDb)
             AudioOutputMaxDb = Math.Clamp(AudioOutputMinDb, MinAudioOutputMaxDb, MaxAudioOutputMaxDb);

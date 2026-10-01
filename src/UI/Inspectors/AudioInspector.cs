@@ -324,7 +324,7 @@ public partial class AudioInspector : Control
     /// <param name="visible">True when the audio inspector source area is on screen.</param>
     private void SetSelectFileVisible(bool visible)
     {
-        bool hasFileAudio = _focusedCue?.GetAudioComponent() != null || _focusedAudioComponent != null;
+        bool hasFileAudio = _focusedCue?.GetAudioComponent() != null;
         if (_selectFileContainer != null)
             _selectFileContainer.Visible = visible;
         if (_audioInputRow != null)

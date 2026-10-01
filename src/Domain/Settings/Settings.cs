@@ -104,6 +104,9 @@ public partial class Settings : Node
     /// <summary>Default for drawing audio waveforms inside Timeline Inspector cue bars.</summary>
     public const bool DefaultShowTimelineWaveforms = true;
 
+    /// <summary>Default for the thin level strip on active audio / video-audio / audio-input components.</summary>
+    public const bool DefaultShowPlaybackMeters = true;
+
     /// <summary>Default solid colour behind video layers on all output windows.</summary>
     public static readonly Color DefaultOutputBackgroundColor = Colors.Black;
 
@@ -415,6 +418,12 @@ public partial class Settings : Node
     /// Default −90 dB. Set to −120 dB to effectively disable the gate.
     /// </summary>
     public float AudioOutputMinDb = DefaultAudioOutputMinDb;
+
+    /// <summary>
+    /// When true, a thin level meter is drawn above each playing audio file, video with audio,
+    /// and audio input component on the active cue bar.
+    /// </summary>
+    public bool ShowPlaybackMeters = DefaultShowPlaybackMeters;
 
     /// <summary>
     /// Resolved present tuning for the current <see cref="VideoQualityMode"/>.
@@ -1032,6 +1041,7 @@ public partial class Settings : Node
         AudioMasterVolume = DefaultAudioMasterVolume;
         AudioOutputMaxDb = DefaultAudioOutputMaxDb;
         AudioOutputMinDb = DefaultAudioOutputMinDb;
+        ShowPlaybackMeters = DefaultShowPlaybackMeters;
         VerbosePrint = true;
 
         ResetCueDefaultsToSystem();

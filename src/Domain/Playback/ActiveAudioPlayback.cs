@@ -22,7 +22,7 @@ namespace Cue2.Domain.Playback;
 /// Owns transport (play/pause/seek/loop/playcount), volume/fades, and matrix mixing.
 /// Pulls PCM from <see cref="AudioSourceDecoder"/> and tops up SDL streams by queue watermark.
 /// </summary>
-public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback
+public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, IComponentLevel
 {
     private const int FillLoopSleepMs = 4;
 
@@ -61,6 +61,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback
     /// When set, replaces <see cref="AudioComponent.Volume"/> for this playback only (control fades).
     /// </summary>
     private float? _runtimeLevelLinear;
+    private int _meterPeakBits;
+    private float _meterDisplay;
 
     /// <summary>
     /// When set, replaces <see cref="AudioComponent.Pan"/> for this playback only (control fades).
@@ -232,6 +234,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback
             return AudioMixMatrix.ClampComponentGainLinear((float)_audioComponent.Volume);
         }
     }
+
+    /// <inheritdoc />
+    public float ReadDisplayLevel(float deltaSeconds) =>
+        PlaybackLevel.Read(ref _meterPeakBits, ref _meterDisplay, deltaSeconds);
 
     /// <summary>
     /// Effective pan for mixing (runtime control-fade override or cue component). Non-stereo → 0.
@@ -736,6 +742,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback
                 _audioDevices.GetOutputLimits(out float maxAbs, out float minAbs);
                 AudioMixMatrix.ApplyOutputLimits(_mixBuffer.AsSpan(0, outSamples), maxAbs, minAbs);
             }
+
+            PlaybackLevel.Note(ref _meterPeakBits, _mixBuffer.AsSpan(0, outSamples));
 
             int byteCount = outSamples * sizeof(float);
             fixed (float* p = _mixBuffer)
