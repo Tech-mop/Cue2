@@ -51,6 +51,9 @@ UpgradeLog.htm
 /docs/
 /AGENTS.md
 
+# CueNet host copies (built from sibling CueNet/)
+/plugins/
+
 # Signing / notarization / certificates stay private
 /tools/macos-sign-and-notarize.sh
 /tools/macos/

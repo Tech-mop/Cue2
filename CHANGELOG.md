@@ -15,6 +15,10 @@
 ### Fixed
 - Playing to a 64-channel device (Dante Virtual Soundcard) no longer crashes when SDL resamples the stream (for example 44100 Hz into 48000 Hz).
 - Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.
+- Native popups follow UI scale (OptionButton lists, colour picker, shell context menu, clock-days). They were opening at 1× because a PopupPanel is its own window.
+
+### Changed
+- Audio output patch editor: unused devices stay off the grid (Add device). Choosing a device adds every hardware channel with no routes. The routing grid uses frozen headers, drawn cells (click-drag paint), collapsible groups of 8 on large devices, and a List view of bus → hardware routes.
 
 
 ## [0.1.1] - 2026-09-21

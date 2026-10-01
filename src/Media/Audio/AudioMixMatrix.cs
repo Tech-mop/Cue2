@@ -223,14 +223,18 @@ public static class AudioMixMatrix
         float patchVolume)
     {
         float totalGain = gain * patchVolume;
-        int deviceOutCount = Math.Min(outChannels, deviceOutputs.Count);
+        int deviceOutCount = deviceOutputs.Count;
 
         for (int f = 0; f < frames; f++)
         {
-            for (int outCh = 0; outCh < deviceOutCount; outCh++)
+            for (int i = 0; i < deviceOutCount; i++)
             {
+                int hwCh = deviceOutputs[i].ResolveDeviceChannel(i);
+                if (hwCh < 0 || hwCh >= outChannels)
+                    continue;
+
                 float sample = 0f;
-                var routed = deviceOutputs[outCh].RoutedChannels;
+                var routed = deviceOutputs[i].RoutedChannels;
                 if (routed == null) continue;
 
                 foreach (int patchCh in routed)
@@ -262,7 +266,7 @@ public static class AudioMixMatrix
                     }
                 }
 
-                output[f * outChannels + outCh] = sample;
+                output[f * outChannels + hwCh] = sample;
             }
         }
     }
@@ -353,7 +357,14 @@ public static class AudioMixMatrix
             outs != null &&
             outs.Count > 0)
         {
-            return outs.Count;
+            // Stream size must match the hardware device, even when the patch only uses a subset.
+            if (device != null && device.Channels > 0)
+                return device.Channels;
+
+            int maxHw = 0;
+            for (int i = 0; i < outs.Count; i++)
+                maxHw = Math.Max(maxHw, outs[i].ResolveDeviceChannel(i) + 1);
+            return Math.Max(maxHw, outs.Count);
         }
 
         if (routing != null)

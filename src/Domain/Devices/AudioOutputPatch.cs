@@ -14,10 +14,30 @@ using Array = Godot.Collections.Array;
 
 namespace Cue2.Domain.Devices;
 
+/// <summary>
+/// One hardware output on a device that belongs to an <see cref="AudioOutputPatch"/>.
+/// </summary>
 public class OutputChannel
 {
+    /// <summary>Display name (legacy; the matrix UI labels by hardware number).</summary>
     public string Name { get; set; }
+
+    /// <summary>Patch bus ids routed onto this hardware output.</summary>
     public List<int> RoutedChannels { get; set; }
+
+    /// <summary>
+    /// 0-based hardware channel on the device. <c>-1</c> means “use the list index”
+    /// (old showfiles before ranged device assignment).
+    /// </summary>
+    public int DeviceChannel { get; set; } = -1;
+
+    /// <summary>
+    /// Hardware channel to mix into, falling back to <paramref name="listIndex"/> when unset.
+    /// </summary>
+    /// <param name="listIndex">Index of this output in the device’s patch list.</param>
+    /// <returns>0-based device channel.</returns>
+    public int ResolveDeviceChannel(int listIndex) =>
+        DeviceChannel >= 0 ? DeviceChannel : listIndex;
 }
 
 /// <summary>
@@ -125,7 +145,10 @@ public partial class AudioOutputPatch : Godot.GodotObject
                     var output = new OutputChannel
                     {
                         Name = outputDict["Name"].AsString(),
-                        RoutedChannels = new List<int>()
+                        RoutedChannels = new List<int>(),
+                        DeviceChannel = outputDict.ContainsKey("DeviceChannel")
+                            ? outputDict["DeviceChannel"].AsInt32()
+                            : outputsList.Count
                     };
                     var routedArray = outputDict["RoutedChannels"].AsGodotArray();
                     foreach (var routedVar in routedArray)
@@ -202,7 +225,23 @@ public partial class AudioOutputPatch : Godot.GodotObject
         GD.Print("AudioOutputPatch:RemoveChannel - Successfully removed channel " + channelId + " (" + removedName + ") and cleaned routes.");
     }
 
+    /// <summary>
+    /// Adds every hardware output of a device (channels <c>0 .. outputCount-1</c>).
+    /// </summary>
+    /// <param name="deviceName">Device to add.</param>
+    /// <param name="outputCount">Number of hardware channels, starting at 0.</param>
     public void AddDeviceOutputs(string deviceName, int outputCount)
+    {
+        AddDeviceOutputs(deviceName, 0, outputCount);
+    }
+
+    /// <summary>
+    /// Adds a contiguous hardware-channel range of a device to this patch.
+    /// </summary>
+    /// <param name="deviceName">Device to add.</param>
+    /// <param name="firstDeviceChannel">0-based first hardware channel (inclusive).</param>
+    /// <param name="channelCount">Number of hardware channels to include.</param>
+    public void AddDeviceOutputs(string deviceName, int firstDeviceChannel, int channelCount)
     {
         if (OutputDevices.ContainsKey(deviceName))
         {
@@ -210,12 +249,63 @@ public partial class AudioOutputPatch : Godot.GodotObject
             return;
         }
 
-        var outputs = new List<OutputChannel>();
-        for (int i = 0; i < outputCount; i++)
+        if (channelCount <= 0)
         {
-            outputs.Add(new OutputChannel { Name = $"Output {i+1}", RoutedChannels = new List<int>() });
+            GD.PrintErr($"AudioOutputPatch:AddOutputDevice - Channel count must be positive for '{deviceName}'.");
+            return;
+        }
+
+        firstDeviceChannel = Math.Max(0, firstDeviceChannel);
+        var outputs = new List<OutputChannel>(channelCount);
+        for (int i = 0; i < channelCount; i++)
+        {
+            int hw = firstDeviceChannel + i;
+            outputs.Add(new OutputChannel
+            {
+                Name = $"Output {hw + 1}",
+                RoutedChannels = new List<int>(),
+                DeviceChannel = hw
+            });
         }
         OutputDevices.Add(deviceName, outputs);
+    }
+
+    /// <summary>
+    /// Builds a per-bus list of hardware destinations for the routing-list UI.
+    /// </summary>
+    /// <returns>One entry per patch bus, destinations formatted as "Device 3".</returns>
+    public List<(int busId, string busName, List<string> destinations)> GetRoutingList()
+    {
+        var result = new List<(int, string, List<string>)>();
+        var destByBus = new System.Collections.Generic.Dictionary<int, List<string>>();
+        foreach (var busId in Channels.Keys)
+            destByBus[busId] = new List<string>();
+
+        foreach (var device in OutputDevices)
+        {
+            var outputs = device.Value;
+            if (outputs == null) continue;
+            for (int i = 0; i < outputs.Count; i++)
+            {
+                var routed = outputs[i].RoutedChannels;
+                if (routed == null) continue;
+                int hw = outputs[i].ResolveDeviceChannel(i) + 1;
+                string label = $"{device.Key} {hw}";
+                foreach (int busId in routed)
+                {
+                    if (!destByBus.TryGetValue(busId, out var list)) continue;
+                    list.Add(label);
+                }
+            }
+        }
+
+        foreach (var bus in Channels.OrderBy(kv => kv.Key))
+        {
+            destByBus.TryGetValue(bus.Key, out var dest);
+            result.Add((bus.Key, bus.Value, dest ?? new List<string>()));
+        }
+
+        return result;
     }
     public void RemoveOutputDevice(string deviceName)
     {
@@ -348,6 +438,7 @@ public partial class AudioOutputPatch : Godot.GodotObject
                 outputData.Add("Name", output.Name);
                 var routedChannelsArray = new Godot.Collections.Array<int>(output.RoutedChannels);
                 outputData.Add("RoutedChannels", routedChannelsArray);
+                outputData.Add("DeviceChannel", output.DeviceChannel);
                 outputsArray.Add(outputData);
             }
             outputDevicesData.Add(device.Key, outputsArray);

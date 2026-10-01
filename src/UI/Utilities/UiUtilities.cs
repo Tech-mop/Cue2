@@ -1118,6 +1118,280 @@ public partial class UiUtilities : Node
         return DisplayServer.MouseGetPosition();
     }
 
+    /// <summary>Metadata: ContentScaleFactor last applied to a popup by <see cref="ApplyPopupContentScale"/>.</summary>
+    public const string MetaPopupScale = "cue2_popup_scale";
+
+    /// <summary>Metadata: pixel-size fit already applied for the current show.</summary>
+    public const string MetaPopupFittedScale = "cue2_popup_fitted_scale";
+
+    /// <summary>Metadata: <see cref="BindTransientPopupScale"/> already wired on this popup.</summary>
+    public const string MetaPopupScaleBound = "cue2_popup_scale_bound";
+
+    /// <summary>
+    /// Window whose <see cref="Window.ContentScaleFactor"/> a popup should copy.
+    /// <see cref="Window.GetWindow"/> on a PopupPanel is the popup itself — use an anchor
+    /// <see cref="Control"/> or walk parents.
+    /// </summary>
+    /// <param name="popupOrAnchor">Popup, or a Control in the host UI.</param>
+    /// <returns>Host UI window, or null.</returns>
+    public static Window GetUiScaleHost(Node popupOrAnchor)
+    {
+        if (popupOrAnchor == null || !GodotObject.IsInstanceValid(popupOrAnchor))
+            return null;
+
+        if (popupOrAnchor is Control control)
+        {
+            Window fromControl = control.GetWindow();
+            if (fromControl != null && GodotObject.IsInstanceValid(fromControl) && fromControl != popupOrAnchor)
+                return fromControl;
+        }
+
+        if (popupOrAnchor is Window asWindow)
+        {
+            Window parent = FindParentWindow(asWindow);
+            if (parent != null)
+                return parent;
+        }
+
+        return FindParentWindow(popupOrAnchor);
+    }
+
+    /// <summary>
+    /// Copies theme and <see cref="Window.ContentScaleFactor"/> from the host UI onto a popup.
+    /// Call this instead of reading <c>popup.GetWindow().ContentScaleFactor</c> (that is the popup).
+    /// </summary>
+    /// <param name="popup">PopupPanel, PopupMenu, or other Window used as a popup.</param>
+    /// <param name="scaleHost">Control in the parent UI, or null to walk parents.</param>
+    /// <returns>Applied scale, always ≥ 0.01.</returns>
+    public static float ApplyPopupContentScale(Window popup, Node scaleHost = null)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return 1f;
+
+        Window host = GetUiScaleHost(scaleHost ?? popup);
+        float scale = 1f;
+        if (host != null && GodotObject.IsInstanceValid(host))
+        {
+            scale = SafePositiveScale(host.ContentScaleFactor);
+            if (popup.Theme == null && host.Theme != null)
+                popup.Theme = host.Theme;
+        }
+
+        popup.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+        popup.ContentScaleAspect = Window.ContentScaleAspectEnum.Expand;
+        popup.ContentScaleFactor = scale;
+        popup.SetMeta(MetaPopupScale, scale);
+        return scale;
+    }
+
+    /// <summary>
+    /// Outer pixel size for a popup: content minimum (and optional floor) × ContentScaleFactor.
+    /// </summary>
+    /// <remarks>
+    /// Popup sets <c>wrap_controls</c>, so <see cref="Window.ResetSize"/> is already
+    /// <c>contents × scale</c>. Do not ResetSize then multiply again. Lay out at the
+    /// target width first so autowrap labels report the height that will actually show.
+    /// </remarks>
+    /// <param name="popup">Popup already given a content scale.</param>
+    /// <param name="minUnscaledSize">Floor in unscaled content units. Y=0 means hug content height.</param>
+    /// <returns>Pixel size to pass to <see cref="Window.Popup(Rect2I)"/>.</returns>
+    public static Vector2I MeasureScaledPopupSize(Window popup, Vector2? minUnscaledSize = null)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return Vector2I.One;
+
+        float scale = SafePositiveScale(popup.ContentScaleFactor);
+        float minW = minUnscaledSize?.X ?? 0f;
+        float minH = minUnscaledSize?.Y ?? 0f;
+
+        Vector2 firstMin = popup.GetContentsMinimumSize();
+        float layoutW = Math.Max(minW, Math.Max(firstMin.X, 1f));
+        // Wide + tall enough that autowrap uses the final column width, not the 100×100 default.
+        popup.Size = new Vector2I(
+            Math.Max(1, Mathf.CeilToInt(layoutW * scale)),
+            Math.Max(64, Mathf.CeilToInt(Math.Max(firstMin.Y, 1f) * scale)));
+        popup.ChildControlsChanged();
+
+        Vector2 content = popup.GetContentsMinimumSize();
+        content.X = Math.Max(content.X, minW);
+        content.Y = Math.Max(content.Y, minH);
+
+        return ContentSizeToPixels(content, scale, popup.MaxSize);
+    }
+
+    /// <summary>
+    /// Sets <paramref name="popup"/>.<see cref="Window.Size"/> to content-minimum × scale
+    /// (OptionButton / menus packed in content units). Does not multiply an already-scaled size.
+    /// Idempotent for one show via <see cref="MetaPopupFittedScale"/>.
+    /// </summary>
+    /// <param name="popup">Visible or about-to-show popup.</param>
+    public static void FitPopupPixelSizeToContentScale(Window popup)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+
+        float scale = SafePositiveScale(popup.ContentScaleFactor);
+        if (popup.HasMeta(MetaPopupFittedScale)
+            && Mathf.IsEqualApprox(popup.GetMeta(MetaPopupFittedScale).AsSingle(), scale))
+            return;
+
+        Vector2 content = popup.GetContentsMinimumSize();
+        if (content.X <= 0f || content.Y <= 0f)
+            return;
+
+        Vector2I needed = ContentSizeToPixels(content, scale, popup.MaxSize);
+        Vector2I size = popup.Size;
+        // wrap_controls already applied scale when Size is at least the pixel minimum.
+        if (size.X + 1 >= needed.X && size.Y + 1 >= needed.Y)
+        {
+            popup.SetMeta(MetaPopupFittedScale, scale);
+            return;
+        }
+
+        popup.Size = needed;
+        popup.SetMeta(MetaPopupFittedScale, scale);
+        ClampPopupPositionToUsable(popup);
+    }
+
+    private static Vector2I ContentSizeToPixels(Vector2 content, float scale, Vector2I maxSize)
+    {
+        var pixels = new Vector2I(
+            Math.Max(1, Mathf.CeilToInt(Math.Max(content.X, 1f) * scale)),
+            Math.Max(1, Mathf.CeilToInt(Math.Max(content.Y, 1f) * scale)));
+        if (maxSize.X > 0)
+            pixels.X = Math.Min(pixels.X, maxSize.X);
+        if (maxSize.Y > 0)
+            pixels.Y = Math.Min(pixels.Y, maxSize.Y);
+        return pixels;
+    }
+
+    /// <summary>
+    /// Clears the one-show pixel-fit flag so the next open can scale from packed content size.
+    /// </summary>
+    /// <param name="popup">Popup that just hid.</param>
+    public static void ClearPopupScaleFit(Window popup)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+        if (popup.HasMeta(MetaPopupFittedScale))
+            popup.RemoveMeta(MetaPopupFittedScale);
+    }
+
+    /// <summary>
+    /// Copies host UI scale onto a PopupPanel/PopupMenu each time it opens, and grows its
+    /// packed pixel size. Idempotent. GlobalSignals binds this on every PopupPanel so new
+    /// dropdowns do not copy ColourButton scale code.
+    /// </summary>
+    /// <remarks>
+    /// Call <see cref="PopupScaled"/> / <see cref="PopupScaledAtMouse"/> when Cue2 owns
+    /// placement (colour picker, context menu). This bind is the fallback for
+    /// Godot-shown menus (OptionButton). Standalone Windows (Settings, About, FileDrop)
+    /// keep <see cref="RescaleUi"/> plus <c>UiScaleChanged</c>.
+    /// </remarks>
+    /// <param name="popup">PopupPanel or PopupMenu entering the tree.</param>
+    /// <param name="scaleHost">Optional Control in the host UI; null walks parents.</param>
+    public static void BindTransientPopupScale(Popup popup, Node scaleHost = null)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+        if (popup.HasMeta(MetaPopupScaleBound) && popup.GetMeta(MetaPopupScaleBound).AsBool())
+            return;
+
+        popup.SetMeta(MetaPopupScaleBound, true);
+        popup.AboutToPopup += () =>
+        {
+            if (popup == null || !GodotObject.IsInstanceValid(popup))
+                return;
+            ApplyPopupContentScale(popup, scaleHost);
+            // Packed size is often ready here; OptionButton may still be 0-height until shown.
+            FitPopupPixelSizeToContentScale(popup);
+            Callable.From(() => FitPopupPixelSizeToContentScale(popup)).CallDeferred();
+        };
+        popup.PopupHide += () => ClearPopupScaleFit(popup);
+    }
+
+    /// <summary>
+    /// Shows <paramref name="popup"/> under <paramref name="anchor"/>, scaled to the host UI.
+    /// Use this for Cue2-created PopupPanel / PopupMenu instead of copying scale locally.
+    /// </summary>
+    /// <param name="popup">Popup to show.</param>
+    /// <param name="anchor">Control to place below; null leaves position at (0,0).</param>
+    /// <param name="minUnscaledSize">Optional content-unit minimum size.</param>
+    public static void PopupScaled(Window popup, Control anchor, Vector2? minUnscaledSize = null)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+
+        float scale = ApplyPopupContentScale(popup, anchor);
+        Vector2I pixel = MeasureScaledPopupSize(popup, minUnscaledSize);
+        popup.SetMeta(MetaPopupFittedScale, scale);
+
+        Vector2I pos = Vector2I.Zero;
+        if (anchor != null && GodotObject.IsInstanceValid(anchor))
+        {
+            var screenXform = anchor.GetScreenTransform();
+            Vector2 topLeft = screenXform.Origin;
+            Vector2 bottomLeft = screenXform * new Vector2(0f, anchor.Size.Y);
+            pos = ScreenPointToPopupPosition(popup, new Vector2(topLeft.X, bottomLeft.Y + 2f));
+            pos = ClampPopupToUsable(popup, pos, pixel, topLeft);
+        }
+
+        popup.Popup(new Rect2I(pos, pixel));
+    }
+
+    /// <summary>
+    /// Shows <paramref name="popup"/> at the mouse, scaled to the host UI (context menus).
+    /// </summary>
+    /// <param name="popup">Popup to show.</param>
+    /// <param name="viewportHost">Control in the same viewport (Linux embed coords).</param>
+    public static void PopupScaledAtMouse(Window popup, Control viewportHost)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+
+        float scale = ApplyPopupContentScale(popup, viewportHost);
+        Vector2I pixel = MeasureScaledPopupSize(popup);
+        popup.SetMeta(MetaPopupFittedScale, scale);
+        Vector2I pos = GetPopupMousePosition(popup, viewportHost);
+        pos = ClampPopupPositionKeepOnScreen(popup, pos, pixel);
+        popup.Popup(new Rect2I(pos, pixel));
+    }
+
+    private static void ClampPopupPositionToUsable(Window popup)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+        popup.Position = ClampPopupPositionKeepOnScreen(popup, popup.Position, popup.Size);
+    }
+
+    private static Vector2I ClampPopupPositionKeepOnScreen(Window popup, Vector2I pos, Vector2I pixel)
+    {
+        Rect2I usable = GetPopupUsableRect(popup);
+        int maxX = usable.Position.X + usable.Size.X - pixel.X;
+        int maxY = usable.Position.Y + usable.Size.Y - pixel.Y;
+        pos.X = Mathf.Clamp(pos.X, usable.Position.X, Math.Max(usable.Position.X, maxX));
+        pos.Y = Mathf.Clamp(pos.Y, usable.Position.Y, Math.Max(usable.Position.Y, maxY));
+        return pos;
+    }
+
+    private static Vector2I ClampPopupToUsable(Window popup, Vector2I pos, Vector2I pixel, Vector2 anchorTopLeft)
+    {
+        Rect2I usable = GetPopupUsableRect(popup);
+        if (pos.X + pixel.X > usable.Position.X + usable.Size.X)
+            pos.X = usable.Position.X + usable.Size.X - pixel.X;
+        if (pos.X < usable.Position.X)
+            pos.X = usable.Position.X;
+        if (pos.Y + pixel.Y > usable.Position.Y + usable.Size.Y)
+        {
+            Vector2I above = ScreenPointToPopupPosition(popup, anchorTopLeft);
+            pos.Y = above.Y - pixel.Y;
+            if (pos.Y < usable.Position.Y)
+                pos.Y = usable.Position.Y;
+        }
+
+        return pos;
+    }
+
     /// <summary>
     /// Walks ancestors to find the native/parent <see cref="Window"/> that embeds <paramref name="node"/>.
     /// </summary>

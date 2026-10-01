@@ -842,6 +842,22 @@ public partial class AudioDevices : Node
 
     
     /// <summary>
+    /// Hardware output channel count for a named playback device, without opening a stream.
+    /// </summary>
+    /// <param name="name">Playback device name from <see cref="GetAvailableAudioDeviceNames"/>.</param>
+    /// <returns>Channel count, or 0 when the device is unknown.</returns>
+    public int GetPlaybackChannelCount(string name)
+    {
+	    if (string.IsNullOrEmpty(name))
+		    return 0;
+	    uint physicalId = GetAudioDevicePhysicalIdFromName(name);
+	    if (physicalId == 0)
+		    return 0;
+	    SDL.GetAudioDeviceFormat(physicalId, out SDL.AudioSpec spec, out _);
+	    return spec.Channels;
+    }
+
+    /// <summary>
     /// Converts audio device specs into a readable list of strings.
     /// </summary>
     /// <param name="name">The name of the audio device.</param>

@@ -426,28 +426,31 @@ public partial class TextInspector : Control
             || _fontPopup == null || !IsInstanceValid(_fontPopup))
             return;
 
+        float scale = UiUtilities.ApplyPopupContentScale(_fontPopup, _fontOption);
+
         // Match button width (clamped) so the list doesn't stretch to long family names.
         float buttonW = _fontOption.Size.X;
-        int width = Mathf.Clamp(Mathf.RoundToInt(buttonW), FontPopupMinWidth, FontPopupMaxWidth);
+        int widthContent = Mathf.Clamp(Mathf.RoundToInt(buttonW), FontPopupMinWidth, FontPopupMaxWidth);
+        int width = Math.Max(1, Mathf.CeilToInt(widthContent * scale));
+        int maxH = Math.Max(1, Mathf.CeilToInt(FontPopupMaxHeight * scale));
 
-        _fontPopup.MaxSize = new Vector2I(width, FontPopupMaxHeight);
+        _fontPopup.MaxSize = new Vector2I(width, maxH);
         _fontPopup.MinSize = new Vector2I(width, 0);
         // Height is content-driven up to MaxSize; force width so wrap/clip is consistent.
         int contentH = Mathf.Max(1, Mathf.RoundToInt(_fontPopup.GetContentsMinimumSize().Y));
-        _fontPopup.Size = new Vector2I(width, Mathf.Min(FontPopupMaxHeight, contentH));
+        int height = Mathf.Min(maxH, Math.Max(1, Mathf.CeilToInt(contentH * scale)));
+        _fontPopup.Size = new Vector2I(width, height);
+        _fontPopup.SetMeta(UiUtilities.MetaPopupFittedScale, scale);
 
-        int popupH = Mathf.Min(FontPopupMaxHeight, Mathf.Max(1, (int)_fontPopup.Size.Y));
-        if (popupH <= 1)
-            popupH = FontPopupMaxHeight;
-
-        PlaceFontPopup(width, popupH);
+        PlaceFontPopup(width, height);
 
         // OptionButton may reposition after this signal; re-apply once the popup is shown.
-        CallDeferred(MethodName.ApplyFontPopupPlacement, width, popupH);
+        CallDeferred(MethodName.ApplyFontPopupPlacement, width, height);
     }
 
     /// <summary>
     /// Re-asserts font popup size/position after OptionButton's own show logic.
+    /// Width/height are already scaled pixels.
     /// </summary>
     private void ApplyFontPopupPlacement(int width, int height)
     {
@@ -456,8 +459,11 @@ public partial class TextInspector : Control
             || !_fontPopup.Visible)
             return;
 
-        _fontPopup.MaxSize = new Vector2I(width, FontPopupMaxHeight);
-        _fontPopup.Size = new Vector2I(width, Mathf.Clamp(height, 1, FontPopupMaxHeight));
+        float scale = Mathf.Max(_fontPopup.ContentScaleFactor, 0.01f);
+        int maxH = Math.Max(1, Mathf.CeilToInt(FontPopupMaxHeight * scale));
+        _fontPopup.MaxSize = new Vector2I(width, maxH);
+        _fontPopup.Size = new Vector2I(width, Mathf.Clamp(height, 1, maxH));
+        _fontPopup.SetMeta(UiUtilities.MetaPopupFittedScale, scale);
         PlaceFontPopup(width, (int)_fontPopup.Size.Y);
     }
 

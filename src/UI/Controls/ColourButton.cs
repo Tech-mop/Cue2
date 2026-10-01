@@ -13,8 +13,8 @@ namespace Cue2.UI.Controls;
 /// </summary>
 /// <remarks>
 /// Drop-in for Godot's <see cref="ColorPickerButton"/>: <see cref="Color"/>, <see cref="EditAlpha"/>,
-/// <see cref="ColorChanged"/>, and <see cref="PopupClosed"/>. The popup copies the host window's
-/// content scale so it matches Cue2 UI scale on high-DPI displays.
+/// <see cref="ColorChanged"/>, and <see cref="PopupClosed"/>. Placement uses
+/// <see cref="UiUtilities.PopupScaled"/> so the picker matches Cue2 UI scale.
 /// </remarks>
 public partial class ColourButton : Button
 {
@@ -215,39 +215,7 @@ public partial class ColourButton : Button
     {
         SyncPopupFromColor();
         RefreshRecentSwatches();
-
-        var host = GetWindow();
-        float scale = host != null ? Mathf.Max(host.ContentScaleFactor, 0.01f) : 1f;
-        _popup.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
-        _popup.ContentScaleAspect = Window.ContentScaleAspectEnum.Expand;
-        _popup.ContentScaleFactor = scale;
-
-        _popup.ResetSize();
-        Vector2 content = _popup.GetContentsMinimumSize();
-        int width = Math.Max(Mathf.CeilToInt(content.X * scale), 1);
-        int height = Math.Max(Mathf.CeilToInt(content.Y * scale), 1);
-
-        var screenXform = GetScreenTransform();
-        Vector2 topLeft = screenXform.Origin;
-        Vector2 bottomLeft = screenXform * new Vector2(0f, Size.Y);
-        Vector2I pos = UiUtilities.ScreenPointToPopupPosition(
-            _popup,
-            new Vector2(topLeft.X, bottomLeft.Y + 2f));
-
-        Rect2I usable = UiUtilities.GetPopupUsableRect(_popup);
-        if (pos.X + width > usable.Position.X + usable.Size.X)
-            pos.X = usable.Position.X + usable.Size.X - width;
-        if (pos.X < usable.Position.X)
-            pos.X = usable.Position.X;
-        if (pos.Y + height > usable.Position.Y + usable.Size.Y)
-        {
-            Vector2I above = UiUtilities.ScreenPointToPopupPosition(_popup, topLeft);
-            pos.Y = above.Y - height;
-            if (pos.Y < usable.Position.Y)
-                pos.Y = usable.Position.Y;
-        }
-
-        _popup.Popup(new Rect2I(pos, new Vector2I(width, height)));
+        UiUtilities.PopupScaled(_popup, this);
         _popup.GrabFocus();
     }
 

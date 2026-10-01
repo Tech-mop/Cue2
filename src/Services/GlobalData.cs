@@ -94,6 +94,12 @@ public partial class GlobalData : Node
 	public CueLightManager CueLightManager;
 
 	/// <summary>
+	/// Dynamically loads <c>CueNet.Host</c> (and later hardware plugins) from <c>plugins/cuenet/</c>.
+	/// Cue2 still runs if the DLL is missing.
+	/// </summary>
+	public HardwarePluginLoader HardwarePluginLoader;
+
+	/// <summary>
 	/// Autoload that owns video output windows, screens, and target layers.
 	/// </summary>
 	public DisplaysManager DisplaysManager;
@@ -447,6 +453,10 @@ public partial class GlobalData : Node
 		
 		CueLightManager = new CueLightManager();
 		AddChild(CueLightManager);
+
+		HardwarePluginLoader = new HardwarePluginLoader();
+		HardwarePluginLoader.Name = nameof(HardwarePluginLoader);
+		AddChild(HardwarePluginLoader);
 		
 		FileDropper = new FileDropper();
 		AddChild(FileDropper);

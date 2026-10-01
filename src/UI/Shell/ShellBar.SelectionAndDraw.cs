@@ -135,10 +135,7 @@ public partial class ShellBar
 			AddContextMenuItem(UiLocalizer.T("Create Cue"), "CreateCue", ShellContextMenuId.CreateCue);
 		}
 
-		// Popup at cursor. Native windows use screen coords; embedded (Linux) use viewport coords.
-		_contextMenu.ResetSize();
-		_contextMenu.Position = UiUtilities.GetPopupMousePosition(_contextMenu, this);
-		_contextMenu.Popup();
+		UiUtilities.PopupScaledAtMouse(_contextMenu, this);
 	}
 
 	/// <summary>
