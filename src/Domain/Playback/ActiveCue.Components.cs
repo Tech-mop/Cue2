@@ -31,6 +31,10 @@ public partial class ActiveCue
             {
                 tasks.Add(SetupAudioComponent(audioComponent));
             }
+            else if (component is AudioInputComponent audioInputComponent)
+            {
+                tasks.Add(SetupAudioInputComponent(audioInputComponent));
+            }
             else if (component is VideoComponent videoComponent)
             {
                 tasks.Add(SetupVideoComponent(videoComponent));
@@ -360,6 +364,101 @@ public partial class ActiveCue
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
                 $"Error activating audio component for cue {_cue.Name}: {ex.Message}", 2);
         }
+    }
+
+    private async Task SetupAudioInputComponent(AudioInputComponent component)
+    {
+        ActiveAudioInputPlayback playback = null;
+        try
+        {
+            if (!IsSetupStillValid())
+                return;
+            if (component.InputPatch == null && component.InputPatchId < 0)
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"Cannot play audio input in {_cue.Name}: no input patch assigned.", 2);
+                return;
+            }
+            if (component.Patch == null && string.IsNullOrEmpty(component.DirectOutput))
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"Cannot play audio input in {_cue.Name}: no output assigned.", 2);
+                return;
+            }
+
+            playback = new ActiveAudioInputPlayback(component, _audioDevices);
+            if (!IsSetupStillValid())
+            {
+                playback.Clean();
+                playback = null;
+                return;
+            }
+
+            PanelContainer componentPanel = CreateStyledComponentProgressBar();
+            _componentContainer.AddChild(componentPanel);
+            string label = component.InputPatch?.Name;
+            if (string.IsNullOrWhiteSpace(label))
+                label = "Audio input";
+            componentPanel.GetNode<Label>("%ComponentLabel").Text = label;
+            componentPanel.GetNode<TextureRect>("%ComponentIcon").Texture =
+                _activeCueBar.GetThemeIcon("Audio2", "AtlasIcons");
+            var pauseButton = componentPanel.GetNode<Button>("%ComponentPause");
+            var stopButton = componentPanel.GetNode<Button>("%ComponentStop");
+            pauseButton.Icon = _activeCueBar.GetThemeIcon(_isPaused ? "Play" : "Pause", "AtlasIcons");
+            stopButton.Icon = _activeCueBar.GetThemeIcon("Stop", "AtlasIcons");
+            componentPanel.GetNode<Label>("%ComponentTime").Text = component.Duration <= 0
+                ? "Until stopped"
+                : UiUtilities.FormatTime(component.Duration);
+
+            _activeAudioInputs.Add(componentPanel, playback);
+            playback = null;
+            var panel = componentPanel;
+            pauseButton.Pressed += () =>
+            {
+                if (!_activeAudioInputs.TryGetValue(panel, out var pb) || pb == null)
+                    return;
+                if (pb.IsPaused)
+                    pb.Resume();
+                else
+                    pb.Pause();
+                if (IsInstanceValid(pauseButton) && IsInstanceValid(_activeCueBar))
+                    pauseButton.Icon = _activeCueBar.GetThemeIcon(pb.IsPaused ? "Play" : "Pause", "AtlasIcons");
+            };
+            stopButton.Pressed += async () => await StopComponent(panel);
+            ulong panelId = componentPanel.GetInstanceId();
+            _activeAudioInputs[componentPanel].Completed += () =>
+                Callable.From(() => CompleteAudioInputByPanelId(panelId)).CallDeferred();
+            _activeComponentCount++;
+        }
+        catch (Exception ex)
+        {
+            try { playback?.Clean(); } catch { /* ignore */ }
+            GD.PrintErr($"ActiveCue:SetupAudioInputComponent - {ex.Message}");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"Error activating audio input for cue {_cue.Name}: {ex.Message}", 2);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private void CompleteAudioInputByPanelId(ulong panelId)
+    {
+        if (!IsInstanceValid(this) || _isCleaned)
+            return;
+        PanelContainer panel = null;
+        foreach (var key in _activeAudioInputs.Keys)
+        {
+            if (IsInstanceValid(key) && key.GetInstanceId() == panelId)
+            {
+                panel = key;
+                break;
+            }
+        }
+        if (panel == null)
+            return;
+        _activeAudioInputs.Remove(panel);
+        panel.QueueFree();
+        CheckForCueCompletion();
     }
 
     /// <summary>
@@ -1106,6 +1205,11 @@ public partial class ActiveCue
 
     private async Task StopComponent(PanelContainer componentPanel)
     {
+        if (_activeAudioInputs.TryGetValue(componentPanel, out var inputPlayback))
+        {
+            await inputPlayback.Stop(_settings.StopFadeDuration);
+            return;
+        }
         if (!_activeAudioComponents.TryGetValue(componentPanel, out var playback))
             return;
         await playback.Stop(_settings.StopFadeDuration);

@@ -71,6 +71,12 @@ public partial class Settings
             GetNodeOrNull<MediaHealthService>("/root/MediaHealthService")?.RecheckAllQuiet();
         }
 
+        if (TryGetSettingsValue(settingsData, AudioInputPatch.HistoryKey, out var inputPatches)
+            && inputPatches.VariantType == Variant.Type.Dictionary)
+        {
+            ReplaceAudioInputPatches(inputPatches.AsGodotDictionary());
+        }
+
         if (reconcileAudioDevices)
             ReconcileOpenAudioDevices(historyDeviceNames);
 
@@ -304,6 +310,10 @@ public partial class Settings
                 foreach (var patch in _audioOutputPatches)
                     patchTable.Add(patch.Key, patch.Value.GetData());
                 slice[key] = patchTable;
+            }
+            else if (key == AudioInputPatch.HistoryKey)
+            {
+                slice[key] = CaptureAudioInputPatchTable();
             }
             else if (key == "AudioDevices")
             {

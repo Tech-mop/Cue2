@@ -79,6 +79,7 @@ public partial class ActiveCue : GodotObject
     private bool _preWaitFinished;
     
     private readonly Dictionary<PanelContainer, ActiveAudioPlayback> _activeAudioComponents = new();
+    private readonly Dictionary<PanelContainer, ActiveAudioInputPlayback> _activeAudioInputs = new();
     private readonly Dictionary<PanelContainer, AudioComponent> _componentToAudio = new();
     private readonly Dictionary<PanelContainer, ActiveVideoPlayback> _activeVideoComponents = new();
     private readonly Dictionary<PanelContainer, VideoComponent> _componentToVideo = new();

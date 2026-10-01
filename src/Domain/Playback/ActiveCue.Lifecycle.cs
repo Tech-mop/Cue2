@@ -376,6 +376,7 @@ public partial class ActiveCue
 
         bool hasActive =
             _activeAudioComponents.Count > 0 ||
+            _activeAudioInputs.Count > 0 ||
             _activeVideoComponents.Count > 0 ||
             _activeTextComponents.Count > 0 ||
             _activeOscComponents.Count > 0 ||
@@ -416,6 +417,10 @@ public partial class ActiveCue
             if (comp is AudioComponent audioComp)
             {
                 mediaAndInstant.Add(TriggerAudioComponent(audioComp));
+            }
+            else if (comp is AudioInputComponent audioInputComp)
+            {
+                mediaAndInstant.Add(TriggerAudioInputComponent(audioInputComp));
             }
             else if (comp is VideoComponent videoComp)
             {
@@ -497,6 +502,61 @@ public partial class ActiveCue
             else
             {
                 await TriggerControlComponent(controlComp);
+            }
+        }
+    }
+
+    private async Task TriggerAudioInputComponent(AudioInputComponent component)
+    {
+        PanelContainer panel = null;
+        try
+        {
+            foreach (var kv in _activeAudioInputs)
+            {
+                if (kv.Value?.Patch == component.Patch && kv.Value?.DirectOutput == component.DirectOutput
+                    && kv.Value?.Routing == component.Routing)
+                {
+                    panel = kv.Key;
+                    break;
+                }
+            }
+            if (panel == null)
+            {
+                foreach (var key in _activeAudioInputs.Keys)
+                {
+                    panel = key;
+                    break;
+                }
+            }
+            if (panel == null || !_activeAudioInputs.TryGetValue(panel, out var playback))
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"No playback for audio input in cue {_cue.Name}", 2);
+                return;
+            }
+
+            bool started = await _audioDevices.StartAudioPlayback(playback);
+            if (!started)
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"Failed to start audio input in {_cue.Name}: no output streams.", 2);
+                playback.Clean();
+                return;
+            }
+
+            double fadeIn = _controlFadeInDuration ?? component.FadeInDuration;
+            await playback.PlayAsync(fadeIn);
+            if (_isPaused)
+                playback.Pause();
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"ActiveCue:TriggerAudioInputComponent - {ex.Message}");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"Trigger failed for audio input in {_cue.Name}: {ex.Message}", 2);
+            if (panel != null && _activeAudioInputs.TryGetValue(panel, out var failed))
+            {
+                try { failed.Clean(); } catch { /* ignore */ }
             }
         }
     }

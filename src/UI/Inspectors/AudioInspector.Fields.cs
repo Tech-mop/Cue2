@@ -19,6 +19,7 @@ using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
 using Cue2.Media.Audio;
+using Cue2.UI.Settings;
 using Cue2.UI.Utilities;
 
 namespace Cue2.UI.Inspectors;
@@ -289,7 +290,7 @@ public partial class AudioInspector
         if (_focusedAudioComponent == null)
         {
             _infoLabel.Text = UiLocalizer.T("No Audio File");
-            _selectFileContainer.Visible = true;
+            SetSelectFileVisible(true);
             _inspectorContent.Visible = false;
             _fileUrl.Text = "";
             RestoreFileUrlPlaceholder();
@@ -362,6 +363,12 @@ public partial class AudioInspector
     /// <param name="textField">The LineEdit field.</param>
     private void VolumeInputSubmitted(string text, LineEdit textField)
     {
+        if (_focusedAudioInput != null)
+        {
+            CommitAudioInputVolume(text, textField);
+            return;
+        }
+
         var targets = GetAudioTargets();
         if (targets.Count == 0 || textField == null) return;
         if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
@@ -398,7 +405,9 @@ public partial class AudioInspector
     /// True when pan UI should be shown (stereo source only).
     /// </summary>
     private bool IsStereoSource =>
-        _focusedAudioComponent?.Metadata != null && _focusedAudioComponent.Metadata.Channels == 2;
+        _focusedAudioInput == null
+        && _focusedAudioComponent?.Metadata != null
+        && _focusedAudioComponent.Metadata.Channels == 2;
 
     /// <summary>
     /// Shows or hides pan controls and syncs slider/text from the component.
@@ -409,7 +418,15 @@ public partial class AudioInspector
         if (_panLabel != null) _panLabel.Visible = show;
         if (_panSlider != null) _panSlider.Visible = show;
         if (_panInput != null) _panInput.Visible = show;
-        if (!show || _focusedAudioComponent == null) return;
+        if (!show)
+            return;
+        if (_focusedAudioInput != null)
+        {
+            SyncPanUiValue(_focusedAudioInput.Pan);
+            return;
+        }
+        if (_focusedAudioComponent == null)
+            return;
         SyncPanUiFromComponent();
     }
 
@@ -419,10 +436,19 @@ public partial class AudioInspector
     private void SyncPanUiFromComponent()
     {
         if (_focusedAudioComponent == null) return;
+        SyncPanUiValue(_focusedAudioComponent.Pan);
+    }
+
+    /// <summary>
+    /// Writes pan slider and text without firing handlers.
+    /// </summary>
+    /// <param name="pan">Pan from −1 to +1.</param>
+    private void SyncPanUiValue(float pan)
+    {
         _isUpdatingPanUi = true;
         try
         {
-            float pan = Mathf.Clamp(_focusedAudioComponent.Pan, -1f, 1f);
+            pan = Mathf.Clamp(pan, -1f, 1f);
             if (_panSlider != null)
                 _panSlider.SetValueNoSignal(Mathf.Round(pan * 100f));
             if (_panInput != null && !_panInput.HasFocus())
@@ -436,6 +462,12 @@ public partial class AudioInspector
 
     private void OnPanSliderChanged(double value)
     {
+        if (_focusedAudioInput != null)
+        {
+            CommitAudioInputPanFromSlider(value);
+            return;
+        }
+
         if (_isUpdatingPanUi || _isSyncingUi) return;
         var targets = GetAudioTargets();
         if (targets.Count == 0) return;
@@ -474,6 +506,12 @@ public partial class AudioInspector
     /// </summary>
     private void PanInputSubmitted(string text)
     {
+        if (_focusedAudioInput != null)
+        {
+            CommitAudioInputPanFromText(text);
+            return;
+        }
+
         var targets = GetAudioTargets();
         if (targets.Count == 0 || _panInput == null) return;
         if (_globalData?.HistoryManager?.IsRestoring == true) return;
@@ -565,6 +603,12 @@ public partial class AudioInspector
     /// <param name="isIn">True for fade-in; false for fade-out.</param>
     private void OnFadeSubmitted(string text, bool isIn)
     {
+        if (_focusedAudioInput != null)
+        {
+            CommitAudioInputFade(text, isIn);
+            return;
+        }
+
         var targets = GetAudioTargets();
         if (targets.Count == 0) return;
         if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
@@ -613,6 +657,12 @@ public partial class AudioInspector
     
     private void PopulateOutputOptions()
     {
+        if (_focusedAudioInput != null)
+        {
+            PopulateAudioInputOutputOptions();
+            return;
+        }
+
         if (_outputOptionButton == null || _focusedAudioComponent == null) return;
 
         // Keep PatchId aligned with the live Patch reference (drop/create assigns both; relink/history may not).
@@ -683,6 +733,12 @@ public partial class AudioInspector
     
     private void OutputOptionSelected(long index)
     {
+        if (_focusedAudioInput != null)
+        {
+            OnAudioInputOutputSelected(index);
+            return;
+        }
+
         var targets = GetAudioTargets();
         if (targets.Count == 0 || _focusedAudioComponent == null) return;
         if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
@@ -790,6 +846,203 @@ public partial class AudioInspector
         // Refresh shell ✕ for output not assigned / missing
         foreach (var (cue, _) in targets)
             GetNodeOrNull<MediaHealthService>("/root/MediaHealthService")?.CheckCue(cue.Id);
+    }
+
+    /// <summary>
+    /// Fills the Audio Input menu from show input patches and selects the focused component's patch.
+    /// </summary>
+    private void PopulateAudioInputOptions()
+    {
+        if (_audioInputOption == null || !GodotObject.IsInstanceValid(_audioInputOption))
+            return;
+
+        bool hasFileAudio = _focusedCue?.GetAudioComponent() != null;
+        var input = _focusedCue?.GetAudioInputComponent();
+        _audioInputOption.Disabled = _focusedCue == null || hasFileAudio;
+
+        int assignedId = input?.InputPatch?.Id ?? input?.InputPatchId ?? -1;
+        bool uniform = true;
+
+        var patches = _globalData?.Settings?.GetAudioInputPatches();
+        bool anyPatch = false;
+        if (patches != null)
+        {
+            foreach (var patch in patches.Values)
+            {
+                if (patch != null && GodotObject.IsInstanceValid(patch))
+                {
+                    anyPatch = true;
+                    break;
+                }
+            }
+        }
+
+        if (_audioInputHint != null)
+        {
+            _audioInputHint.Visible = hasFileAudio || !anyPatch;
+            if (hasFileAudio)
+                UiLocalizer.SetText(_audioInputHint, "Remove the audio file before assigning an input patch.");
+            else if (!anyPatch)
+                UiLocalizer.SetText(_audioInputHint, "Create an input patch in Settings before assigning one here.");
+        }
+
+        _audioInputOption.SetBlockSignals(true);
+        try
+        {
+            _audioInputOption.Clear();
+            UiLocalizer.AddTranslatedItem(_audioInputOption, "None");
+            _audioInputOption.SetItemMetadata(0, -1);
+            int selectedIndex = 0;
+
+            if (!uniform)
+            {
+                UiLocalizer.AddTranslatedItem(_audioInputOption, "Multiple");
+                _audioInputOption.SetItemMetadata(1, -2);
+                selectedIndex = 1;
+            }
+
+            if (patches != null)
+            {
+                foreach (var patch in patches.Values.OrderBy(p => p?.Id ?? int.MaxValue))
+                {
+                    if (patch == null || !GodotObject.IsInstanceValid(patch))
+                        continue;
+                    _audioInputOption.AddItem(patch.Name ?? string.Empty);
+                    int idx = _audioInputOption.ItemCount - 1;
+                    _audioInputOption.SetItemMetadata(idx, patch.Id);
+                    if (uniform && patch.Id == assignedId)
+                        selectedIndex = idx;
+                }
+            }
+
+            if (uniform && assignedId >= 0 && selectedIndex == 0)
+            {
+                string name = input?.InputPatch?.Name;
+                if (string.IsNullOrEmpty(name))
+                    name = $"id {assignedId}";
+                _audioInputOption.AddItem(UiLocalizer.Tf("Missing patch: {0}", name));
+                int idx = _audioInputOption.ItemCount - 1;
+                _audioInputOption.SetItemMetadata(idx, assignedId);
+                selectedIndex = idx;
+            }
+
+            if (_audioInputOption.ItemCount > 0)
+                _audioInputOption.Select(selectedIndex);
+        }
+        finally
+        {
+            _audioInputOption.SetBlockSignals(false);
+        }
+    }
+
+    /// <summary>
+    /// Stores the chosen input patch on every targeted audio component.
+    /// </summary>
+    /// <param name="index">Selected option index.</param>
+    private void OnAudioInputSelected(long index)
+    {
+        if (_audioInputOption == null || _isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+
+        if (_focusedCue == null)
+            return;
+
+        int item = (int)index;
+        if (item < 0 || item >= _audioInputOption.ItemCount)
+            return;
+
+        int newId = _audioInputOption.GetItemMetadata(item).AsInt32();
+        if (newId == -2)
+            return;
+
+        if (_focusedCue.GetAudioComponent() != null)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "This cue already has an audio file. Remove it before assigning an input patch.",
+                (int)LogType.Warning);
+            PopulateAudioInputOptions();
+            return;
+        }
+
+        AudioInputPatch newPatch = null;
+        if (newId >= 0)
+            _globalData.Settings.GetAudioInputPatches().TryGetValue(newId, out newPatch);
+
+        var existing = _focusedCue.GetAudioInputComponent();
+        int currentId = existing?.InputPatch?.Id ?? existing?.InputPatchId ?? -1;
+        if (currentId == newId && (newId < 0 || newPatch != null))
+            return;
+
+        if (newId >= 0 && newPatch == null)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"Audio input patch {newId} was not found.", (int)LogType.Warning);
+            PopulateAudioInputOptions();
+            return;
+        }
+
+        InspectorMultiEditSupport.RecordBeforeEdit(
+            _globalData,
+            multiHistory: false,
+            _focusedCue,
+            newId < 0 ? "Remove audio input" : existing == null ? "Add audio input" : "Assign audio input");
+
+        if (newId < 0)
+        {
+            if (existing != null)
+                _focusedCue.RemoveICueComponent(existing);
+        }
+        else if (existing == null)
+        {
+            _focusedCue.AddAudioInputComponent(newPatch);
+        }
+        else
+        {
+            existing.InputPatch = newPatch;
+            existing.InputPatchId = newPatch.Id;
+        }
+
+        _focusedCue.CalculateTotalDuration();
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.UpdateShellBar), _focusedCue.Id);
+        ShellSelected(_focusedCue.Id);
+    }
+
+    /// <summary>
+    /// Opens Settings on the Audio Input page.
+    /// </summary>
+    private void OnAudioInputSettingsPressed()
+    {
+        _globalSignals?.EmitSignal(
+            GlobalSignals.SignalName.OpenSettingsMenu,
+            SettingsAudioInput.MenuKey);
+    }
+
+    /// <summary>
+    /// Opens Settings on the Audio Output Patch page.
+    /// </summary>
+    private void OnAudioPatchSettingsPressed()
+    {
+        _globalSignals?.EmitSignal(
+            GlobalSignals.SignalName.OpenSettingsMenu,
+            SettingsAudioOutputPatch.MenuKey);
+    }
+
+    /// <summary>
+    /// Refreshes the input menu after an undo or redo that may have changed patches or the cue.
+    /// </summary>
+    /// <param name="scope">Restored history scope.</param>
+    private void OnAudioInputHistoryRestored(int scope)
+    {
+        if (!GodotObject.IsInstanceValid(this))
+            return;
+        if (_audioInputRow == null || !_audioInputRow.Visible)
+            return;
+        if (scope != (int)HistoryManager.HistoryScope.Cue
+            && scope != (int)HistoryManager.HistoryScope.Settings
+            && scope != (int)HistoryManager.HistoryScope.Cuelist
+            && scope != (int)HistoryManager.HistoryScope.MultiCue)
+            return;
+        PopulateAudioInputOptions();
     }
 
     

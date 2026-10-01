@@ -110,19 +110,30 @@ public partial class AudioInspector
         if (_focusedCue == null)
         {
             _focusedAudioComponent = null;
+            _focusedAudioInput = null;
+            ApplyAudioInputInspectorLayout(false);
             ApplyFileUrlMissingStyle(false, null);
             ShowNoSelection();
             return;
         }
         
         var hasAudio = UiUtilities.HasComponent<AudioComponent>(_focusedCue);
+        var audioInput = _focusedCue.GetAudioInputComponent();
+        if (audioInput != null && !hasAudio)
+        {
+            LoadAudioInputInspector(audioInput);
+            return;
+        }
+
+        _focusedAudioInput = null;
+        ApplyAudioInputInspectorLayout(false);
         if (!hasAudio) // No Audio component in Cue
         {
             if (_infoLabel != null)
                 _infoLabel.Visible = true;
             _infoLabel.Text = UiLocalizer.T("No Audio File");
             _infoLabel.TooltipText = "";
-            _selectFileContainer.Visible = true;
+            SetSelectFileVisible(true);
             _inspectorContent.Visible = false;
             _focusedAudioComponent = null;
             _fileUrl.Text = "";
@@ -134,8 +145,10 @@ public partial class AudioInspector
             return;
         }
         
-        // Audio Component Found
+        // Audio Component Found — file audio and audio input are mutually exclusive.
         _focusedAudioComponent = _focusedCue.Components.OfType<AudioComponent>().First();
+        if (_audioInputRow != null)
+            _audioInputRow.Visible = false;
         if (_deleteAudioComponentButton != null)
             _deleteAudioComponentButton.Visible = true;
         var file = _focusedAudioComponent.AudioFile;
@@ -217,10 +230,12 @@ public partial class AudioInspector
     {
         if (_deleteAudioComponentButton != null)
             _deleteAudioComponentButton.Visible = false;
+        _focusedAudioInput = null;
+        ApplyAudioInputInspectorLayout(false);
         if (_inspectorContent != null)
             _inspectorContent.Visible = false;
         if (_selectFileContainer != null)
-            _selectFileContainer.Visible = false;
+            SetSelectFileVisible(false);
         if (_infoLabel != null)
         {
             _infoLabel.Visible = true;
@@ -251,7 +266,7 @@ public partial class AudioInspector
                 _infoLabel.Visible = true;
             _infoLabel.Text = UiLocalizer.Tf("No audio on {0} selected cue(s)", selected);
             _infoLabel.TooltipText = UiLocalizer.T("None of the selected cues have an audio component. Choose a file to add audio to all.");
-            _selectFileContainer.Visible = true;
+            SetSelectFileVisible(true);
             _inspectorContent.Visible = false;
             _fileUrl.Text = "";
             RestoreFileUrlPlaceholder();
@@ -343,6 +358,12 @@ public partial class AudioInspector
     /// </summary>
     private void OnDeleteAudioComponentPressed()
     {
+        if (_focusedAudioInput != null)
+        {
+            RemoveAudioInputComponent(_focusedCue);
+            return;
+        }
+
         var targets = GetAudioTargets();
         if (targets.Count == 0)
             return;
@@ -386,7 +407,9 @@ public partial class AudioInspector
     private void UpdateAudioUiFields(string file)
     {
         var targets = GetAudioTargets();
-        _selectFileContainer.Visible = true;
+        if (_focusedAudioInput == null)
+            ApplyAudioInputInspectorLayout(false);
+        SetSelectFileVisible(true);
         _inspectorContent.Visible = targets.Count > 0;
         if (_deleteAudioComponentButton != null)
             _deleteAudioComponentButton.Visible = targets.Count > 0;

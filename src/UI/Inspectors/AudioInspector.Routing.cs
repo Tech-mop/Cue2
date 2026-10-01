@@ -52,7 +52,7 @@ public partial class AudioInspector
         int shellGen = _shellSelectGeneration;
         int buildGen = ++_routingMatrixBuildGeneration;
 
-        if (_focusedAudioComponent == null)
+        if (_focusedAudioInput == null && _focusedAudioComponent == null)
         {
             ClearRoutingMatrixUi();
             if (_routingContainer != null)
@@ -60,7 +60,7 @@ public partial class AudioInspector
             return;
         }
 
-        if (_focusedAudioComponent.Metadata == null)
+        if (_focusedAudioInput == null && _focusedAudioComponent.Metadata == null)
         {
             // Do not clear an existing matrix here — drop-create / focus races often call
             // BuildRoutingMatrix before metadata is attached. Clearing would flash empty UI;
@@ -77,7 +77,7 @@ public partial class AudioInspector
         EnsureAudioRoutingPatchShape(inputChannels, inputLabels, outputChannels, outputLabels);
 
         string structureKey =
-            $"{_focusedAudioComponent.PatchId}|{_focusedAudioComponent.DirectOutput ?? ""}|{inputChannels}x{outputChannels}|{string.Join(',', inputLabels)}|{string.Join(',', outputLabels)}";
+            $"{ActiveOutputKey}|{inputChannels}x{outputChannels}|{string.Join(',', inputLabels)}|{string.Join(',', outputLabels)}";
 
         // Same dimensions / labels / output: refresh cell values only (P2-08).
         if (structureKey == _routingMatrixStructureKey
@@ -103,7 +103,7 @@ public partial class AudioInspector
         if (!IsInsideTree()
             || shellGen != _shellSelectGeneration
             || buildGen != _routingMatrixBuildGeneration
-            || _focusedAudioComponent == null)
+            || (_focusedAudioComponent == null && _focusedAudioInput == null))
             return;
 
         // Re-resolve after yield (patch may have changed).
@@ -111,7 +111,7 @@ public partial class AudioInspector
             return;
         EnsureAudioRoutingPatchShape(inputChannels, inputLabels, outputChannels, outputLabels);
         structureKey =
-            $"{_focusedAudioComponent.PatchId}|{_focusedAudioComponent.DirectOutput ?? ""}|{inputChannels}x{outputChannels}|{string.Join(',', inputLabels)}|{string.Join(',', outputLabels)}";
+            $"{ActiveOutputKey}|{inputChannels}x{outputChannels}|{string.Join(',', inputLabels)}|{string.Join(',', outputLabels)}";
 
         _routingMatrixGrid.Columns = outputChannels + 1;
         _routingMatrixGrid.AddChild(new Label { Text = "" });
@@ -119,7 +119,7 @@ public partial class AudioInspector
             _routingMatrixGrid.AddChild(new Label { Text = outLabel });
 
         string panStatus = inputChannels == 2
-            ? UiUtilities.FormatPan(_focusedAudioComponent.Pan)
+            ? UiUtilities.FormatPan(ActivePan)
             : null;
         for (int row = 0; row < inputChannels; row++)
         {
@@ -133,7 +133,7 @@ public partial class AudioInspector
             for (int col = 0; col < outputChannels; col++)
             {
                 var volumeEdit = new LineEdit();
-                ApplyRoutingVolumeText(volumeEdit, _focusedAudioComponent.Routing.GetVolume(row, col));
+                ApplyRoutingVolumeText(volumeEdit, ActiveRouting?.GetVolume(row, col) ?? 0f);
                 int row1 = row;
                 int col1 = col;
                 volumeEdit.TextSubmitted += newText => OnMatrixVolumeSubmitted(newText, volumeEdit, row1, col1);
@@ -172,7 +172,7 @@ public partial class AudioInspector
     private void RefreshRoutingMatrixValues(int inputChannels, int outputChannels, List<string> inputLabels)
     {
         string panStatus = inputChannels == 2
-            ? UiUtilities.FormatPan(_focusedAudioComponent.Pan)
+            ? UiUtilities.FormatPan(ActivePan)
             : null;
         for (int row = 0; row < inputChannels && row < _routingInputLabels.Count; row++)
         {
@@ -191,7 +191,7 @@ public partial class AudioInspector
                 var edit = _routingVolumeEdits[idx];
                 if (edit == null || !IsInstanceValid(edit) || edit.HasFocus())
                     continue;
-                ApplyRoutingVolumeText(edit, _focusedAudioComponent.Routing.GetVolume(row, col));
+                ApplyRoutingVolumeText(edit, ActiveRouting?.GetVolume(row, col) ?? 0f);
             }
         }
     }
@@ -206,6 +206,9 @@ public partial class AudioInspector
         inputLabels = null;
         outputChannels = 0;
         outputLabels = new List<string>();
+
+        if (_focusedAudioInput != null)
+            return TryResolveAudioInputRoutingIo(out inputChannels, out inputLabels, out outputChannels, out outputLabels);
 
         if (_focusedAudioComponent?.Metadata == null)
             return false;
@@ -281,7 +284,7 @@ public partial class AudioInspector
         int outputChannels,
         List<string> outputLabels)
     {
-        var routing = _focusedAudioComponent.Routing;
+        var routing = ActiveRouting;
         bool needsUpdate = routing == null ||
                            routing.OutputChannels != outputChannels ||
                            !routing.OutputLabels.SequenceEqual(outputLabels) ||
@@ -289,11 +292,14 @@ public partial class AudioInspector
                            !routing.InputLabels.SequenceEqual(inputLabels);
 
         if (!needsUpdate)
+        {
+            ApplyAudioInputUnityOutputs(routing);
             return;
+        }
 
         var oldRouting = routing;
         routing = new CuePatch(inputChannels, inputLabels, outputChannels, outputLabels);
-        _focusedAudioComponent.Routing = routing;
+        SetActiveRouting(routing);
         if (oldRouting != null)
         {
             int copyInputs = Math.Min(oldRouting.InputChannels, inputChannels);
@@ -304,6 +310,26 @@ public partial class AudioInspector
                     routing.SetVolume(i, j, oldRouting.GetVolume(i, j));
             }
         }
+
+        ApplyAudioInputUnityOutputs(routing);
+    }
+
+    /// <summary>
+    /// Audio input is one mono submaster. A fresh matrix (or the old 1:1 default) is 0 dB to every output.
+    /// Leaves the matrix alone once any output other than the first has a level.
+    /// </summary>
+    private void ApplyAudioInputUnityOutputs(CuePatch routing)
+    {
+        if (_focusedAudioInput == null || routing == null || routing.InputChannels < 1)
+            return;
+        for (int j = 1; j < routing.OutputChannels; j++)
+        {
+            if (routing.GetVolume(0, j) > 1e-6f)
+                return;
+        }
+
+        for (int j = 0; j < routing.OutputChannels; j++)
+            routing.SetVolume(0, j, 1f);
     }
 
     /// <summary>
@@ -315,7 +341,7 @@ public partial class AudioInspector
     /// <param name="outputCh">Output channel index.</param>
     private void OnMatrixVolumeSubmitted(string text, LineEdit textField, int inputCh, int outputCh)
     {
-        if (_focusedCue == null || _focusedAudioComponent?.Routing == null || textField == null)
+        if (_focusedCue == null || ActiveRouting == null || textField == null)
             return;
         if (_globalData?.HistoryManager?.IsRestoring == true)
             return;
@@ -337,7 +363,7 @@ public partial class AudioInspector
 
             // Matrix is unity-max only (−60…0 dB).
             float linear = UiUtilities.DbToUnityLinear(dbValue);
-            float current = _focusedAudioComponent.Routing.GetVolume(inputCh, outputCh);
+            float current = ActiveRouting.GetVolume(inputCh, outputCh);
             if (Math.Abs(current - linear) < 1e-6f)
             {
                 if (linear > 0.0f)
@@ -349,7 +375,7 @@ public partial class AudioInspector
 
             // Discrete cell commit — each matrix cell change is its own undo step.
             RecordAudioHistory("Edit audio routing volume");
-            _focusedAudioComponent.Routing.SetVolume(inputCh, outputCh, linear);
+            ActiveRouting.SetVolume(inputCh, outputCh, linear);
             if (linear > 0.0f)
             {
                 var dbReturn = UiUtilities.LinearToDb(linear);
@@ -470,6 +496,18 @@ public partial class AudioInspector
     /// </summary>
     private void RecordAudioHistory(string singleDescription, string coalesceKey = null)
     {
+        if (_focusedAudioInput != null && _focusedCue != null)
+        {
+            InspectorMultiEditSupport.RecordBeforeEdit(
+                _globalData,
+                multiHistory: false,
+                _focusedCue,
+                singleDescription,
+                multiDescription: null,
+                coalesceKey);
+            return;
+        }
+
         var targets = GetAudioTargets();
         if (targets.Count == 0)
             return;

@@ -59,6 +59,8 @@ public partial class AudioDevices : Node
 	
     public override void _Ready()
     {
+	    // Input meters enable processing only while a recording stream is open.
+	    SetProcess(false);
 	    if (SingleInstanceGuard.IsSecondary)
 		    return;
 
@@ -1111,6 +1113,7 @@ public partial class AudioDevices : Node
 
 	public override void _ExitTree()
 	{
+		StopInputMonitors();
 		_activeAudioPlaybacks.Clear();
 		
 		foreach (var device in _openDevices.Values.ToList())

@@ -57,6 +57,8 @@ public partial class ActiveCue
         {
             foreach (var playback in _activeAudioComponents.Values)
                 playback.Resume();
+            foreach (var playback in _activeAudioInputs.Values)
+                playback.Resume();
 
             foreach (var playback in _activeVideoComponents.Values)
                 playback.Resume();
@@ -86,6 +88,8 @@ public partial class ActiveCue
         }
 
         foreach (var playback in _activeAudioComponents.Values)
+            playback.Pause();
+        foreach (var playback in _activeAudioInputs.Values)
             playback.Pause();
 
         foreach (var playback in _activeVideoComponents.Values)
@@ -207,6 +211,10 @@ public partial class ActiveCue
             {
                 tasks.Add(audioComp.Stop(fadeDuration));
             }
+            foreach (var inputPb in _activeAudioInputs.Values.ToList())
+            {
+                tasks.Add(inputPb.Stop(fadeDuration));
+            }
             foreach (var videoComp in _activeVideoComponents.Values.ToList())
             {
                 tasks.Add(videoComp.Stop(fadeDuration));
@@ -291,6 +299,7 @@ public partial class ActiveCue
 
         bool hasOwnMedia =
             _activeAudioComponents.Count > 0 ||
+            _activeAudioInputs.Count > 0 ||
             _activeVideoComponents.Count > 0 ||
             _activeTextComponents.Count > 0;
 
@@ -390,7 +399,8 @@ public partial class ActiveCue
     {
         if (_isCleaned) return;
 
-        if (_activeAudioComponents.Count == 0 
+        if (_activeAudioComponents.Count == 0
+            && _activeAudioInputs.Count == 0
             && _activeVideoComponents.Count == 0
             && _activeTextComponents.Count == 0
             && _activeOscComponents.Count == 0
@@ -516,6 +526,13 @@ public partial class ActiveCue
                 GD.PrintErr($"ActiveCue:Cleanup - Audio clean failed: {ex.Message}");
             }
         }
+        foreach (var playback in _activeAudioInputs.Values.ToList())
+        {
+            try { playback.Clean(); } catch (Exception ex)
+            {
+                GD.PrintErr($"ActiveCue:Cleanup - Audio input clean failed: {ex.Message}");
+            }
+        }
         foreach (var playback in _activeVideoComponents.Values.ToList())
         {
             try { _ = playback.Stop(0); } catch (Exception ex)
@@ -531,6 +548,7 @@ public partial class ActiveCue
             }
         }
         _activeAudioComponents.Clear();
+        _activeAudioInputs.Clear();
         _componentToAudio.Clear();
         _activeVideoComponents.Clear();
         _componentToVideo.Clear();

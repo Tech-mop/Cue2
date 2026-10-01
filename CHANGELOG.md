@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+- Settings → Audio → Audio Input. Create named input patches, collapse them, and add channels. Each channel is labelled device: and ch: and is assigned one recording input.
+- Channel trim uses the usual dB field. Its meter is the device level before trim. Beside the patch name, a submaster trim applies to every channel, and a second meter shows the loudest channel after both trims. Meters run while the Audio Input page is open.
+- Input patches are saved with the show, included in undo, and included in Settings Store / Recall.
+- Audio inspector, under Select File: a compact Audio Input menu of those patches and a Setup Audio Inputs button that opens Audio Input. That row is hidden when the cue already has file audio. Setup Audio Patches sits beside the output menu for both file audio and audio input. Choosing a patch adds an audio input to the cue. A cue cannot have both an audio file and an audio input.
+- An audio input hides Select File and the file URL. The inspector keeps output, routing, volume, and fades. Duration is set like an image: a hold time, or blank / 0 to stay active until stopped. The routing matrix has one mono Submaster row, 0 dB to every output by default. Pan is not shown. The Audio tab dot appears for an audio input.
+- While the cue is active, the input patch is summed to that submaster and routed to the assigned output. Blank duration stays up until the cue stops.
+
+### Fixed
+- Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.
+
+
 ## [0.1.1] - 2026-09-21
 
 ### Fixed

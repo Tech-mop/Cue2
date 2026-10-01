@@ -266,6 +266,7 @@ public partial class InspectorTabsController : TabContainer
 			switch (component.Type)
 			{
 				case "Audio":
+				case "AudioInput":
 					flags.Add("Audio");
 					break;
 				case "Video":

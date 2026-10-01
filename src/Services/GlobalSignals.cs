@@ -553,9 +553,11 @@ public partial class GlobalSignals : Node
 	/// <summary>
 	/// True when a user-editable text field (not a popup search row) has keyboard focus.
 	/// </summary>
-	private bool IsUserTextFieldFocused()
+	private static bool IsUserTextFieldFocused()
 	{
-		Control focus = GetViewport()?.GuiGetFocusOwner();
+		// Settings and Log are their own OS windows. The autoload viewport's focus
+		// owner stays empty while the user is typing in one of those windows.
+		Control focus = Window.GetFocusedWindow()?.GuiGetFocusOwner();
 		if (focus is not (LineEdit or TextEdit))
 			return false;
 		if (!GodotObject.IsInstanceValid(focus) || !focus.IsVisibleInTree())

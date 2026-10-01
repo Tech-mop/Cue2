@@ -17,7 +17,8 @@ namespace Cue2.Services;
 
 /// <summary>
 /// Listens for project InputMap actions, cue hotkey triggers, and wall-clock cue triggers.
-/// Pauses app shortcuts while text fields, rebind UIs, or OptionButton dropdowns have focus.
+/// Pauses plain-key shortcuts while text fields or OptionButton dropdowns have focus.
+/// Modifier shortcuts (Cmd/Ctrl) keep working, including from the Settings window.
 /// </summary>
 public partial class InputActionsListener : Node
 {
@@ -154,7 +155,9 @@ public partial class InputActionsListener : Node
 
     public override void _Process(double delta)
     {
-        // Undo/Redo must poll globally: LineEdit consumes Ctrl+Z so _UnhandledKeyInput never sees it.
+        // Poll the Input singleton instead of _UnhandledKeyInput. LineEdits consume
+        // Ctrl+Z, and separate OS windows (Settings, Log) never deliver keys to this
+        // node. IsActionJustPressed still sees those presses.
         if (!Input.IsAnythingPressed())
             return;
 
@@ -168,7 +171,16 @@ public partial class InputActionsListener : Node
         {
             GD.Print("InputActionsListener:Actions - Input Action: Redo");
             _globalSignals.EmitSignal(nameof(GlobalSignals.Redo));
+            return;
         }
+
+        // Text fields and open dropdowns pause plain keys (Space = Go, Delete, …).
+        // Modifier shortcuts such as Cmd+S still run: they are not typed characters,
+        // and Settings is a separate window where a field is often focused.
+        if (_listenForInput)
+            TryHandleInputMapActions(exactOnly: false);
+        else if (IsCommandModifierHeld())
+            TryHandleInputMapActions(exactOnly: true);
     }
 
     /// <summary>
@@ -220,15 +232,32 @@ public partial class InputActionsListener : Node
     }
 
     /// <summary>
-    /// Fires InputMap shortcuts on the key-press frame without a per-frame action scan.
+    /// Fires InputMap shortcuts that were pressed this frame.
     /// </summary>
-    private void TryHandleInputMapActions()
+    /// <param name="exactOnly">
+    /// When true, skip actions registered with inexact matching (Go, Stop All).
+    /// Used while a text field or dropdown has focus so only modifier shortcuts run.
+    /// </param>
+    private void TryHandleInputMapActions(bool exactOnly)
     {
         foreach (var kvp in _actionMap)
         {
+            if (exactOnly && !kvp.Value.exact)
+                continue;
             if (Input.IsActionJustPressed(kvp.Key, kvp.Value.exact))
                 kvp.Value.handler();
         }
+    }
+
+    /// <summary>
+    /// True while Ctrl or Cmd is held. Those chords are commands, not text entry.
+    /// </summary>
+    private static bool IsCommandModifierHeld()
+    {
+        return Input.IsKeyPressed(Key.Ctrl)
+            || Input.IsKeyPressed(Key.Meta)
+            || Input.IsPhysicalKeyPressed(Key.Ctrl)
+            || Input.IsPhysicalKeyPressed(Key.Meta);
     }
 
     /// <summary>
@@ -239,9 +268,7 @@ public partial class InputActionsListener : Node
     {
         if (@event is not InputEventKey keyEvent || !keyEvent.Pressed || keyEvent.Echo) return;
 
-        if (_listenForInput)
-            TryHandleInputMapActions();
-
+        // App shortcuts are polled in _Process so they work from other OS windows.
         if (!_listenForInput) return;
         if (IsModifierOnlyKey(keyEvent.Keycode)) return;
 

@@ -43,6 +43,7 @@ public partial class AudioInspector : Control
     
     private Cue _focusedCue;
     private AudioComponent _focusedAudioComponent;
+    private AudioInputComponent _focusedAudioInput;
     private MediaEngine _mediaEngine;
 
     /// <summary>True when multi-edit setting is on and more than one cue is selected.</summary>
@@ -91,6 +92,11 @@ public partial class AudioInspector : Control
     private HSlider _panSlider;
     private LineEdit _panInput;
     private OptionButton _outputOptionButton;
+    private VBoxContainer _audioInputRow;
+    private OptionButton _audioInputOption;
+    private Button _audioInputSettingsButton;
+    private Button _audioPatchSettingsButton;
+    private Label _audioInputHint;
     private bool _isUpdatingPanUi;
     
     // Routing matrix
@@ -169,6 +175,12 @@ public partial class AudioInspector : Control
         _startTimeInput = GetNode<LineEdit>("%StartTimeInput");
         _endTimeInput = GetNode<LineEdit>("%EndTimeInput");
         _durationValue = GetNode<LineEdit>("%DurationValue");
+        _durationValue.TextSubmitted += OnInputDurationSubmitted;
+        _durationValue.FocusExited += () =>
+        {
+            if (_focusedAudioInput != null)
+                OnInputDurationSubmitted(_durationValue.Text);
+        };
         _fileDurationValue = GetNode<LineEdit>("%FileDurationValue");
         _loopInput = GetNode<CheckBox>("%LoopInput");
         _playCountInput = GetNode<LineEdit>("%PlayCountInput");
@@ -179,6 +191,28 @@ public partial class AudioInspector : Control
         _panSlider = GetNodeOrNull<HSlider>("%PanSlider");
         _panInput = GetNodeOrNull<LineEdit>("%PanInput");
         _outputOptionButton = GetNode<OptionButton>("%OutputOptionButton");
+        _audioInputRow = GetNodeOrNull<VBoxContainer>("%AudioInputRow");
+        _audioInputOption = GetNodeOrNull<OptionButton>("%AudioInputOption");
+        _audioInputSettingsButton = GetNodeOrNull<Button>("%AudioInputSettingsButton");
+        _audioInputHint = GetNodeOrNull<Label>("%AudioInputHint");
+        if (_audioInputOption != null)
+        {
+            _audioInputOption.ItemSelected += OnAudioInputSelected;
+            _audioInputOption.GetPopup().AboutToPopup += PopulateAudioInputOptions;
+        }
+        if (_audioInputSettingsButton != null)
+        {
+            UiLocalizer.SetTooltip(_audioInputSettingsButton, "Open Audio Input settings");
+            _audioInputSettingsButton.Pressed += OnAudioInputSettingsPressed;
+        }
+        _audioPatchSettingsButton = GetNodeOrNull<Button>("%AudioPatchSettingsButton");
+        if (_audioPatchSettingsButton != null)
+        {
+            UiLocalizer.SetTooltip(_audioPatchSettingsButton, "Open Audio Output Patch settings");
+            _audioPatchSettingsButton.Pressed += OnAudioPatchSettingsPressed;
+        }
+        if (_globalData?.HistoryManager != null)
+            _globalData.HistoryManager.HistoryRestored += OnAudioInputHistoryRestored;
         
         // Waveform UI setup — peak bars + zoom/scroll
         _waveformPanel = GetNode<PanelContainer>("%WaveformPanel");
@@ -264,7 +298,7 @@ public partial class AudioInspector : Control
         
         // Ensure content is hidden at start up
         _inspectorContent.Visible = false;
-        _selectFileContainer.Visible = false;
+        SetSelectFileVisible(false);
         _routingAccordian.Visible = false;
         _routingContainer.Visible = false;
         _waveformAccordian.Visible = false;
@@ -282,6 +316,21 @@ public partial class AudioInspector : Control
             ShellSelected(_globalData.FocusedCue);
         else
             ShowNoSelection();
+    }
+
+    /// <summary>
+    /// Shows or hides the file row. The audio-input row is shown only when this cue has no file audio.
+    /// </summary>
+    /// <param name="visible">True when the audio inspector source area is on screen.</param>
+    private void SetSelectFileVisible(bool visible)
+    {
+        bool hasFileAudio = _focusedCue?.GetAudioComponent() != null || _focusedAudioComponent != null;
+        if (_selectFileContainer != null)
+            _selectFileContainer.Visible = visible;
+        if (_audioInputRow != null)
+            _audioInputRow.Visible = visible && !hasFileAudio;
+        if (_audioInputRow != null && _audioInputRow.Visible)
+            PopulateAudioInputOptions();
     }
 
     /// <summary>
@@ -374,6 +423,19 @@ public partial class AudioInspector : Control
     {
         if (_globalSignals != null)
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+        if (_audioInputOption != null)
+        {
+            _audioInputOption.ItemSelected -= OnAudioInputSelected;
+            var popup = _audioInputOption.GetPopup();
+            if (popup != null)
+                popup.AboutToPopup -= PopulateAudioInputOptions;
+        }
+        if (_audioInputSettingsButton != null)
+            _audioInputSettingsButton.Pressed -= OnAudioInputSettingsPressed;
+        if (_audioPatchSettingsButton != null)
+            _audioPatchSettingsButton.Pressed -= OnAudioPatchSettingsPressed;
+        if (_globalData?.HistoryManager != null)
+            _globalData.HistoryManager.HistoryRestored -= OnAudioInputHistoryRestored;
 
         // Invalidate in-flight ShellSelected / waveform work so callbacks no-op after free.
         _shellSelectGeneration++;
@@ -414,6 +476,8 @@ public partial class AudioInspector : Control
         UiLocalizer.LocalizeTree(this);
         if (_focusedCue == null)
             ShowNoSelection();
+        else if (_audioInputRow != null && _audioInputRow.Visible)
+            PopulateAudioInputOptions();
     }
 
 }

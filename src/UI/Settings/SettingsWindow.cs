@@ -998,7 +998,7 @@ public partial class SettingsWindow : Window
 		SetTreeItemText(tiAudioOutputPatch, 0, SettingsAudioOutputPatch.MenuKey);
 		TreeItem tiAudioInput = _setTree.CreateItem(tiAudio);
 		SetTreeItemText(tiAudioInput, 0, SettingsAudioInput.MenuKey);
-		SetTreeItemTooltip(tiAudioInput, 0, "Capture devices for this show.");
+		SetTreeItemTooltip(tiAudioInput, 0, "Input patches: device channels, trim, and a live level meter.");
 
 		// Video / Image (parent shows general video output panel; Canvas Editor is topology)
 		TreeItem tiOutputDevices = _setTree.CreateItem(root);

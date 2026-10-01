@@ -151,6 +151,31 @@ public partial class Settings
     }
 
     /// <summary>
+    /// Applies show audio output, volume, pan, and fade defaults to a new audio input component.
+    /// Does not set loop, play count, or the input patch.
+    /// </summary>
+    /// <param name="comp">Audio input component to configure.</param>
+    public void ApplyAudioDefaultsToInput(AudioInputComponent comp)
+    {
+        if (comp == null)
+            return;
+        comp.Volume = Cue2.Media.Audio.AudioMixMatrix.ClampComponentGainLinear((float)AudioDefaultVolume);
+        comp.Pan = AudioDefaultPan;
+        comp.FadeInDuration = Math.Max(0.0, AudioDefaultFadeIn);
+        comp.FadeOutDuration = Math.Max(0.0, AudioDefaultFadeOut);
+        ApplyResolvedAudioOutput(
+            AudioDefaultOutputMode,
+            AudioDefaultPatchId,
+            AudioDefaultDirectOutput,
+            out var patch,
+            out int patchId,
+            out string direct);
+        comp.Patch = patch;
+        comp.PatchId = patchId;
+        comp.DirectOutput = direct;
+    }
+
+    /// <summary>
     /// Serializes audio component defaults for showfile / history.
     /// </summary>
     public Dictionary CaptureAudioDefaultsDict()

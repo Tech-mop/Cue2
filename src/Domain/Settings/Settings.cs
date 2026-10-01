@@ -53,6 +53,7 @@ public partial class Settings : Node
     /// autoload owns its table and tests/multiple instances cannot share patches).
     /// </summary>
     private Dictionary<int, AudioOutputPatch> _audioOutputPatches = new Dictionary<int, AudioOutputPatch>();
+    private Dictionary<int, AudioInputPatch> _audioInputPatches = new Dictionary<int, AudioInputPatch>();
     private DisplaysManager _displaysManager;
 
     /// <summary>System default Go button scale (1.0 = base).</summary>
@@ -628,6 +629,7 @@ public partial class Settings : Node
             }
         }
         _audioOutputPatches.Clear();
+        FreeAllAudioInputPatches();
     }
     
     public Dictionary<int, AudioOutputPatch> GetAudioOutputPatches() => _audioOutputPatches;
@@ -652,6 +654,122 @@ public partial class Settings : Node
         var newPatch = new AudioOutputPatch();
         _audioOutputPatches.Add(newPatch.Id, newPatch);
         return newPatch;
+    }
+
+    /// <summary>
+    /// Show-scoped audio input patches, keyed by <see cref="AudioInputPatch.Id"/>.
+    /// </summary>
+    /// <returns>The live table. Callers must not free entries; use <see cref="DeleteAudioInputPatch"/>.</returns>
+    public Dictionary<int, AudioInputPatch> GetAudioInputPatches() => _audioInputPatches;
+
+    /// <summary>
+    /// Creates a named input patch with one unassigned channel.
+    /// </summary>
+    /// <returns>The new patch.</returns>
+    public AudioInputPatch CreateAudioInputPatch()
+    {
+        var patch = new AudioInputPatch(NextAudioInputPatchName());
+        patch.AddChannel();
+        _audioInputPatches.Add(patch.Id, patch);
+        GD.Print($"Settings:CreateAudioInputPatch - Created '{patch.Name}' (id={patch.Id})");
+        return patch;
+    }
+
+    /// <summary>
+    /// Removes and frees an input patch.
+    /// </summary>
+    /// <param name="patchId">Patch id.</param>
+    public void DeleteAudioInputPatch(int patchId)
+    {
+        if (!_audioInputPatches.TryGetValue(patchId, out var patch))
+            return;
+        _audioInputPatches.Remove(patchId);
+        if (patch != null && GodotObject.IsInstanceValid(patch))
+            patch.Free();
+    }
+
+    /// <summary>
+    /// Replaces the input-patch table from a showfile or undo snapshot.
+    /// </summary>
+    /// <param name="patchTable">Map of patch id to patch dictionary. Null clears the table.</param>
+    public void ReplaceAudioInputPatches(Godot.Collections.Dictionary patchTable)
+    {
+        FreeAllAudioInputPatches();
+        if (patchTable == null)
+            return;
+
+        foreach (var key in patchTable.Keys)
+        {
+            if (patchTable[key].VariantType != Variant.Type.Dictionary)
+                continue;
+            var patch = AudioInputPatch.FromData(patchTable[key].AsGodotDictionary());
+            if (patch == null)
+            {
+                GD.PrintErr("Settings:ReplaceAudioInputPatches - Failed to read an input patch.");
+                continue;
+            }
+
+            if (_audioInputPatches.ContainsKey(patch.Id))
+            {
+                GD.PrintErr($"Settings:ReplaceAudioInputPatches - Duplicate id {patch.Id}; skipping.");
+                patch.Free();
+                continue;
+            }
+
+            _audioInputPatches.Add(patch.Id, patch);
+        }
+
+        GD.Print($"Settings:ReplaceAudioInputPatches - {_audioInputPatches.Count} input patch(es)");
+    }
+
+    /// <summary>
+    /// Serializes the input-patch table for the showfile and undo.
+    /// </summary>
+    /// <returns>Dictionary keyed by patch id.</returns>
+    public Godot.Collections.Dictionary CaptureAudioInputPatchTable()
+    {
+        var table = new Godot.Collections.Dictionary();
+        foreach (var patch in _audioInputPatches)
+        {
+            if (patch.Value == null || !GodotObject.IsInstanceValid(patch.Value))
+                continue;
+            table.Add(patch.Key, patch.Value.GetData());
+        }
+
+        return table;
+    }
+
+    private string NextAudioInputPatchName()
+    {
+        if (!AudioInputPatchNameTaken("Input Patch"))
+            return "Input Patch";
+
+        int n = 2;
+        while (AudioInputPatchNameTaken($"Input Patch {n}"))
+            n++;
+        return $"Input Patch {n}";
+    }
+
+    private bool AudioInputPatchNameTaken(string name)
+    {
+        foreach (var patch in _audioInputPatches.Values)
+        {
+            if (patch != null && GodotObject.IsInstanceValid(patch) && patch.Name == name)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void FreeAllAudioInputPatches()
+    {
+        foreach (var patch in _audioInputPatches.Values.ToList())
+        {
+            if (patch != null && GodotObject.IsInstanceValid(patch))
+                patch.Free();
+        }
+
+        _audioInputPatches.Clear();
     }
 
     /// <summary>
@@ -940,6 +1058,7 @@ public partial class Settings : Node
     public void ClearForOpen()
     {
         FreeAllAudioPatches();
+        FreeAllAudioInputPatches();
         ResetScalarSettingsToDefaults();
 
         _displaysManager?.ClearForOpen();
@@ -965,6 +1084,7 @@ public partial class Settings : Node
     public void ResetSettings()
     {
         FreeAllAudioPatches();
+        FreeAllAudioInputPatches();
 
         // Seed a Default Patch (system playback device when available) so new cues can play out.
         CreateDefaultAudioPatch();

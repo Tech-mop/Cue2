@@ -321,6 +321,13 @@ public partial class AudioInspector
     /// </summary>
     private void OpenFileDialog()
     {
+        if (_focusedCue?.GetAudioInputComponent() != null)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "This cue has an audio input. Remove it before adding an audio file.", (int)LogType.Warning);
+            return;
+        }
+
         _fileDialog = new FileDialog();
         _fileDialog.FileSelected += FileSelected;
         _fileDialog.FileMode = FileDialog.FileModeEnum.OpenFile;
@@ -342,6 +349,13 @@ public partial class AudioInspector
     private void FileSelected(string path)
     {
         ClearFileDialog();
+        if (_focusedCue?.GetAudioInputComponent() != null)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "This cue has an audio input. Remove it before adding an audio file.", (int)LogType.Warning);
+            return;
+        }
+
         if (_focusedCue == null && !InspectorMultiEditSupport.ShouldUseMultiEdit(_globalData))
         {
             GD.Print("AudioInspector:FileSelected - No cue selected");
@@ -385,6 +399,12 @@ public partial class AudioInspector
         var multiCues = multi ? InspectorMultiEditSupport.GetSelectedCues() : null;
         if (!multi && _focusedCue == null) return;
         if (multi && (multiCues == null || multiCues.Count == 0)) return;
+        if ((_focusedCue ?? multiCues?[0])?.GetAudioInputComponent() != null)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "This cue has an audio input. Remove it before adding an audio file.", (int)LogType.Warning);
+            return;
+        }
 
         string resolvedPath = _globalData?.ResolveMediaPath(filePath) ?? filePath;
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(resolvedPath))
@@ -508,7 +528,7 @@ public partial class AudioInspector
 
         _fileUrl.Text = pathToStore;
         _inspectorContent.Visible = true;
-        _selectFileContainer.Visible = true;
+        SetSelectFileVisible(true);
         _infoLabel.Text = "";
 
         // Invalidate display cache while loading

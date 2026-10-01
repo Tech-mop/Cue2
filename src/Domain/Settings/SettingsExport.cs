@@ -88,6 +88,10 @@ public static class SettingsExport
         new(SettingsAudioOutputPatch.MenuKey, SettingsAudioOutputPatch.MenuKey,
             "AudioPatch", "AudioDevices"),
 
+        // Settings → Audio → Audio Input
+        new(SettingsAudioInput.MenuKey, SettingsAudioInput.MenuKey,
+            AudioInputPatch.HistoryKey),
+
         // Settings → Video/Image (general video output panel; not Canvas topology)
         new(SettingsVideoOutput.MenuKey, SettingsVideoOutput.MenuKey,
             "OutputBackgroundColor", "VideoQualityMode", "VideoPreviewQuality", "OutputVSyncMode"),

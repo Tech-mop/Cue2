@@ -32,6 +32,35 @@ public partial class ActiveCue
                 continue;
             UpdateComponentUiState(panel, audioComponent);
         }
+        foreach (var kv in _activeAudioInputs.ToList())
+        {
+            if (!IsInstanceValid(kv.Key) || kv.Value == null)
+                continue;
+
+            // Same fade veil as file audio: visible during fade-in and fade-out, including stop.
+            UpdateComponentFadeProgress(
+                kv.Key, kv.Value.IsFadingIn, kv.Value.IsFadingOut, kv.Value.CurrentVolume);
+
+            if (kv.Value.IsPaused)
+                continue;
+
+            var bar = kv.Key.GetNodeOrNull<ProgressBar>("ComponentProgress");
+            var time = kv.Key.GetNodeOrNull<Label>("ComponentProgress/MarginContainer/HBoxContainer/ComponentTime");
+            if (bar == null)
+                continue;
+            double hold = 0;
+            foreach (var comp in _cue.Components)
+            {
+                if (comp is AudioInputComponent input && input.Routing == kv.Value.Routing)
+                {
+                    hold = input.Duration;
+                    break;
+                }
+            }
+            if (time != null)
+                time.Text = UiUtilities.FormatTime(kv.Value.ElapsedSeconds);
+            bar.Value = hold > 1e-4 ? Mathf.Clamp((float)(kv.Value.ElapsedSeconds / hold * 100.0), 0f, 100f) : 0f;
+        }
         // Video components are updated via TimeUpdated event for real-time updates
 
         foreach (var kv in _activeControlComponents.ToList())
@@ -59,6 +88,7 @@ public partial class ActiveCue
     private bool HasOwnMediaPlayback()
     {
         return _activeAudioComponents.Count > 0
+               || _activeAudioInputs.Count > 0
                || _activeVideoComponents.Count > 0
                || _activeTextComponents.Count > 0;
     }

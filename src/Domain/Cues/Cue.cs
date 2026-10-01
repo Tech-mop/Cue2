@@ -608,6 +608,7 @@ public class Cue : ICue
                 ICueComponent comp = type switch
                 {
                     "Audio" => new AudioComponent(),
+                    "AudioInput" => new AudioInputComponent(),
                     "Video" => new VideoComponent(),
                     "Text" => new TextComponent(),
                     "CueLight" => new CueLightComponent(),
@@ -648,6 +649,12 @@ public class Cue : ICue
     /// <returns>The new or existing audio component.</returns>
     public AudioComponent AddAudioComponent(string audioFile, AudioOutputPatch patch = null)
     {
+        if (GetAudioInputComponent() != null)
+        {
+            GD.PrintErr($"Cue:AddAudioComponent - Cue {Id} already has an audio input. File audio was not added.");
+            return null;
+        }
+
         if (Components.FirstOrDefault(c => c.Type == "Audio") is AudioComponent existing)
         {
             GD.Print($"Cue:AddAudioComponent - Audio component already exists in cue {Id}. Returning existing.");
@@ -670,6 +677,48 @@ public class Cue : ICue
     public AudioComponent GetAudioComponent()
     {
         return Components.FirstOrDefault(c => c.Type == "Audio", defaultValue:null) as AudioComponent;
+    }
+
+    /// <summary>
+    /// Returns the audio input component on this cue, if any.
+    /// </summary>
+    /// <returns>The input component, or null.</returns>
+    public AudioInputComponent GetAudioInputComponent()
+    {
+        return Components.FirstOrDefault(c => c.Type == "AudioInput") as AudioInputComponent;
+    }
+
+    /// <summary>
+    /// Adds an audio input component for <paramref name="patch"/>.
+    /// </summary>
+    /// <param name="patch">Input patch to assign. Must be valid.</param>
+    /// <returns>The component, or null when this cue already has file audio or <paramref name="patch"/> is missing.</returns>
+    public AudioInputComponent AddAudioInputComponent(AudioInputPatch patch)
+    {
+        if (patch == null || !GodotObject.IsInstanceValid(patch))
+            return null;
+        if (GetAudioComponent() != null)
+        {
+            GD.PrintErr($"Cue:AddAudioInputComponent - Cue {Id} already has file audio. Input was not added.");
+            return null;
+        }
+
+        if (GetAudioInputComponent() is AudioInputComponent existing)
+        {
+            existing.InputPatch = patch;
+            existing.InputPatchId = patch.Id;
+            return existing;
+        }
+
+        var comp = new AudioInputComponent
+        {
+            InputPatch = patch,
+            InputPatchId = patch.Id
+        };
+        ResolveSettings()?.ApplyAudioDefaultsToInput(comp);
+        comp.RecalculateDuration();
+        Components.Add(comp);
+        return comp;
     }
     
     public VideoComponent GetVideoComponent()
@@ -817,6 +866,18 @@ public class Cue : ICue
                 ((AudioComponent)component).RecalculateDuration();
                 var componentDuration = ((AudioComponent)component).TotalDuration;
                 if (contentsDuration < componentDuration) contentsDuration = componentDuration;
+            }
+            else if (component.Type == "AudioInput")
+            {
+                var input = (AudioInputComponent)component;
+                input.RecalculateDuration();
+                if (input.TotalDuration < 0)
+                {
+                    contentsDuration = -1;
+                    break;
+                }
+                if (contentsDuration < input.TotalDuration)
+                    contentsDuration = input.TotalDuration;
             }
             else if (component.Type == "Video")
             {
@@ -1641,6 +1702,7 @@ public class Cue : ICue
                 ICueComponent comp = type switch
                 {
                     "Audio" => new AudioComponent(),
+                    "AudioInput" => new AudioInputComponent(),
                     "Video" => new VideoComponent(),
                     "Text" => new TextComponent(),
                     "CueLight" => new CueLightComponent(),

@@ -1194,6 +1194,19 @@ public partial class CueList
 				timer.LinkAudio++;
 		}
 
+		var audioInput = cue.GetAudioInputComponent();
+		if (audioInput != null)
+		{
+			var outputPatches = _globalData.Settings.GetAudioOutputPatches();
+			outputPatches.TryGetValue(audioInput.PatchId, out var outputPatch);
+			audioInput.Patch = outputPatch;
+			var inputPatches = _globalData.Settings.GetAudioInputPatches();
+			inputPatches.TryGetValue(audioInput.InputPatchId, out var inputPatch);
+			audioInput.InputPatch = inputPatch;
+			if (timer != null)
+				timer.LinkAudio++;
+		}
+
 		var video = cue.GetVideoComponent();
 		if (video != null)
 		{

@@ -30,6 +30,7 @@ public partial class Settings
         var devices = _audioDevices.GetOpenAudioDevicesNames();
 
         saveTable.Add("AudioPatch", patchTable);
+        saveTable.Add(AudioInputPatch.HistoryKey, CaptureAudioInputPatchTable());
         saveTable.Add("AudioDevices", devices);
         saveTable.Add("Displays", _displaysManager.GetData());
         saveTable.Add("CueLights", _globalData.CueLightManager.GetData());
@@ -173,6 +174,14 @@ public partial class Settings
                 {
                     GD.PrintErr($"Settings:LoadSettings - AudioPatch is not a Dictionary (got {patchs.VariantType}).");
                 }
+            }
+
+            if (settingsData.TryGetValue(AudioInputPatch.HistoryKey, out var inputPatches))
+            {
+                if (inputPatches.VariantType == Variant.Type.Dictionary)
+                    ReplaceAudioInputPatches(inputPatches.AsGodotDictionary());
+                else
+                    GD.PrintErr($"Settings:LoadSettings - {AudioInputPatch.HistoryKey} is not a Dictionary (got {inputPatches.VariantType}).");
             }
 
             // Missing or empty patch table still gets a usable Default Patch.
