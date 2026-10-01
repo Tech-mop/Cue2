@@ -978,7 +978,7 @@ public partial class AudioDevices : Node
 		    {
 			    Freq = playback.SourceSampleRate,
 			    Format = playback.SourceFormat,
-			    Channels = (byte)outChannels
+			    Channels = outChannels
 		    };
 
 		    SDL.GetAudioDeviceFormat(device.LogicalId, out var deviceSpec, out var _);

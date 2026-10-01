@@ -30,7 +30,8 @@ public partial class AudioOutputPatch : Godot.GodotObject
 {
     private static int _nextId = 0;
 
-    private const int MaxChannels = 16;
+    /// <summary>Maximum patch buses. Matches high-channel interfaces (DVS, PlayAUDIO12) once the device is open.</summary>
+    public const int MaxChannels = 64;
     
     public int Id { get; set; }
     public string Name { get; set; }
@@ -168,15 +169,14 @@ public partial class AudioOutputPatch : Godot.GodotObject
     /// <param name="name">The name of the new channel.</param>
     /// <param name="error">Output error string if channel limit is reached.</param>
     /// <remarks>
-    /// Enforces a maximum of 16 channels for performance. Logs a warning if limit is reached.
+    /// Enforces <see cref="MaxChannels"/> patch buses. Logs a warning if the limit is reached.
     /// </remarks>
     public void NewChannel(string name, out string error)
     {
         if (Channels.Count >= MaxChannels)
         {
-            GD.Print("AudioOutputPatch:NewChannel - Maximum channel limit (24) reached; cannot add more.");
-            // Assuming globalSignals accessible; inject if needed
-            error = $"Patch '{Name}' channel limit (16) reached; '{name}' not added.";
+            GD.Print($"AudioOutputPatch:NewChannel - Patch '{Name}' is at the {MaxChannels} channel limit.");
+            error = $"Patch '{Name}' channel limit ({MaxChannels}) reached; '{name}' not added.";
             return;
         }
         Channels.Add(_channelId++, name);

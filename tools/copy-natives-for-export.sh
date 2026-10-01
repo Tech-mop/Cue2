@@ -77,6 +77,8 @@ CORE_MACOS=(
 )
 MIDI_MACOS="librtmidi.dylib"
 MIDI_LINUX="librtmidi.so"
+SDL_MACOS="libSDL3.dylib"
+SDL_LINUX="libSDL3.so"
 
 CORE_LINUX=(
   "libavutil.so.61"
@@ -147,6 +149,11 @@ copy_core_set() {
     else
       echo "  WARN: MIDI native missing: $SRC_BIN/$MIDI_MACOS" >&2
     fi
+    if [[ -f "$SRC_BIN/$SDL_MACOS" ]]; then
+      copy_file "$SRC_BIN/$SDL_MACOS" "$dest_dir" || true
+    else
+      echo "  WARN: patched SDL native missing: $SRC_BIN/$SDL_MACOS" >&2
+    fi
     fix_ffmpeg_loader_paths "$dest_dir"
   else
     for f in "${CORE_LINUX[@]}"; do
@@ -156,6 +163,11 @@ copy_core_set() {
       copy_file "$SRC_BIN/$MIDI_LINUX" "$dest_dir" || true
     else
       echo "  WARN: MIDI native missing: $SRC_BIN/$MIDI_LINUX" >&2
+    fi
+    if [[ -f "$SRC_BIN/$SDL_LINUX" ]]; then
+      copy_file "$SRC_BIN/$SDL_LINUX" "$dest_dir" || true
+    else
+      echo "  WARN: patched SDL native missing: $SRC_BIN/$SDL_LINUX" >&2
     fi
   fi
 }

@@ -90,7 +90,8 @@ $coreNames = switch ($Platform) {
             "avformat-63.dll",
             "swresample-7.dll",
             "swscale-10.dll",
-            "rtmidi.dll"
+            "rtmidi.dll",
+            "SDL3.dll"
         )
     }
     "macos" {
@@ -100,7 +101,8 @@ $coreNames = switch ($Platform) {
             "libavformat.63.dylib",
             "libswresample.7.dylib",
             "libswscale.10.dylib",
-            "librtmidi.dylib"
+            "librtmidi.dylib",
+            "libSDL3.dylib"
         )
     }
     default {
@@ -110,7 +112,8 @@ $coreNames = switch ($Platform) {
             "libavformat.so.63",
             "libswresample.so.7",
             "libswscale.so.10",
-            "librtmidi.so"
+            "librtmidi.so",
+            "libSDL3.so"
         )
     }
 }

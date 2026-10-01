@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Godot;
 
@@ -130,6 +131,100 @@ public static class NativeLibPaths
         platformLabel = $"Linux x64 (fallback for {arch})";
         GD.PrintErr($"NativeLibPaths:GetRtMidiNativeFileName - Unsupported Linux arch {arch}; defaulting to linux64 name.");
         return "librtmidi.so";
+    }
+
+    /// <summary>
+    /// File name of the Cue2-patched SDL3 shared library for the current process.
+    /// </summary>
+    /// <param name="platformLabel">Readable platform label for logs.</param>
+    /// <returns>Native library file name (e.g. <c>SDL3.dll</c>, <c>libSDL3.so</c>).</returns>
+    public static string GetSdlNativeFileName(out string platformLabel)
+    {
+        GetPlatformDir(out platformLabel);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return "SDL3.dll";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            return "libSDL3.dylib";
+        return "libSDL3.so";
+    }
+
+    /// <summary>
+    /// Loads Cue2's patched SDL3 from <c>bin/{platform}/</c> before any <c>DllImport</c>.
+    /// SDL3-CS imports are then resolved to this module on every platform.
+    /// </summary>
+    /// <param name="path">Full path loaded, or empty.</param>
+    /// <param name="error">Failure reason, or empty on success.</param>
+    /// <returns>True when the patched library is loaded.</returns>
+    public static bool TryLoadSdlNative(out string path, out string error)
+    {
+        path = string.Empty;
+        error = string.Empty;
+        string fileName = GetSdlNativeFileName(out string platformLabel);
+        string platformDir = GetPlatformDir(out _);
+        string found = FindLibraryFile(fileName, platformDir, out _, out var tried);
+        if (string.IsNullOrEmpty(found))
+        {
+            error = $"{fileName} not found for {platformLabel}. Tried: {FormatTriedDirectories(tried)}";
+            return false;
+        }
+
+        if (!NativeLibrary.TryLoad(found, out IntPtr handle) || handle == IntPtr.Zero)
+        {
+            error = $"NativeLibrary.TryLoad failed for {found}";
+            return false;
+        }
+
+        // Windows reuses a loaded DLL by file name. macOS and Linux do not, so
+        // SDL3-CS DllImport("SDL3") must be pointed at this module explicitly.
+        try
+        {
+            _patchedSdlHandle = handle;
+            if (!_sdlResolverInstalled)
+            {
+                Assembly sdlAssembly = Assembly.Load("SDL3-CS");
+                NativeLibrary.SetDllImportResolver(sdlAssembly, ResolvePatchedSdl);
+                _sdlResolverInstalled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _patchedSdlHandle = IntPtr.Zero;
+            NativeLibrary.Free(handle);
+            error = $"Patched SDL3 loaded but the SDL3-CS import resolver failed: {ex.Message}";
+            return false;
+        }
+
+        path = found;
+        return true;
+    }
+
+    private static IntPtr _patchedSdlHandle;
+    private static bool _sdlResolverInstalled;
+
+    /// <summary>
+    /// Returns the patched SDL module for SDL3-CS imports. Any other library name falls through.
+    /// </summary>
+    private static IntPtr ResolvePatchedSdl(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+    {
+        _ = assembly;
+        _ = searchPath;
+        if (_patchedSdlHandle == IntPtr.Zero || !IsSdlLibraryName(libraryName))
+            return IntPtr.Zero;
+        return _patchedSdlHandle;
+    }
+
+    private static bool IsSdlLibraryName(string libraryName)
+    {
+        if (string.IsNullOrEmpty(libraryName))
+            return false;
+
+        string file = Path.GetFileName(libraryName.Replace('\\', '/'));
+        return file.Equals("SDL3", StringComparison.OrdinalIgnoreCase)
+            || file.Equals("SDL3.dll", StringComparison.OrdinalIgnoreCase)
+            || file.Equals("libSDL3", StringComparison.OrdinalIgnoreCase)
+            || file.Equals("libSDL3.dylib", StringComparison.OrdinalIgnoreCase)
+            || file.Equals("libSDL3.so", StringComparison.OrdinalIgnoreCase)
+            || file.Equals("libSDL3.so.0", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

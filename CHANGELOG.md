@@ -10,8 +10,10 @@
 - An audio input hides Select File and the file URL. The inspector keeps output, routing, volume, and fades. Duration is set like an image: a hold time, or blank / 0 to stay active until stopped. The routing matrix has one mono Submaster row, 0 dB to every output by default. Pan is not shown. The Audio tab dot appears for an audio input.
 - While the cue is active, the input patch is summed to that submaster and routed to the assigned output. Blank duration stays up until the cue stops.
 - Settings → Audio → Display → Level meters (on by default, saved with the show). When an audio file, video with audio, or audio input is playing, a thin level meter sits inside that component’s progress row.
+- Audio output patches allow 64 buses. Builds ship a patched SDL 3.4.2 so devices with more than 8 channels can open on Windows, macOS, and Linux. PulseAudio itself stops at 32 channels; ALSA and PipeWire allow 64.
 
 ### Fixed
+- Playing to a 64-channel device (Dante Virtual Soundcard) no longer crashes when SDL resamples the stream (for example 44100 Hz into 48000 Hz).
 - Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.
 
 

@@ -417,6 +417,12 @@ public partial class GlobalData : Node
 		CueLibraryManager.Name = nameof(CueLibraryManager);
 		AddChild(CueLibraryManager);
 
+		// Load Cue2's 64-channel SDL3 from bin/{platform} before any DllImport.
+		if (NativeLibPaths.TryLoadSdlNative(out string sdlPath, out string sdlLoadError))
+			GD.Print($"GlobalData:_Ready - Loaded patched SDL3 from {sdlPath}");
+		else
+			GD.Print($"GlobalData:_Ready - Using packaged SDL3 ({sdlLoadError})");
+
 		// Initialize SDL with audio, events, and video
 		if (SDL.Init(SDL.InitFlags.Audio | SDL.InitFlags.Events | SDL.InitFlags.Video) == false)
 		{

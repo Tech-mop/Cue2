@@ -32,6 +32,7 @@ Godot export does not ship FFmpeg or RtMidi as loadable OS libraries. Rebuild in
 
 ```bash
 python tools/build-rtmidi-natives.py
+python tools/build-sdl-natives.py      # patched SDL 3.4.2, 64-channel audio (win64, winarm64, linux64, linuxarm64, macos)
 ./tools/build-ffmpeg-macos.sh          # macOS only; portable LGPL FFmpeg into bin/macos
 ```
 
