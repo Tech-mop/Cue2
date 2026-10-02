@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025-2026 Samuel Moxham
 // SPDX-License-Identifier: MIT
 
+using Cue2.Domain.Cues;
 using Cue2.Services;
 using Cue2.UI.Utilities;
 using Godot;
@@ -31,6 +32,7 @@ public partial class SettingsGeneral : ScrollContainer
     private Button _cueListScaleResetButton;
 
     private SpinBox _stopFadeSpinBox;
+    private OptionButton _stopFadeCurveOption;
     private Button _stopFadeResetButton;
 
     private SpinBox _doubleGoSpinBox;
@@ -97,10 +99,14 @@ public partial class SettingsGeneral : ScrollContainer
             _cueListScaleOptionButton.ItemSelected += OnCueListScaleItemSelected;
 
         _stopFadeSpinBox = GetNode<SpinBox>("%StopFadeSpinBox");
+        _stopFadeCurveOption = GetNodeOrNull<OptionButton>("%StopFadeCurveOption");
         _stopFadeResetButton = GetNode<Button>("%StopFadeResetButton");
         _stopFadeResetButton.Icon = GetThemeIcon("Refresh", "AtlasIcons");
         _stopFadeResetButton.Pressed += OnStopFadeResetPressed;
         _stopFadeSpinBox.ValueChanged += OnStopFadeChanged;
+        PopulateStopFadeCurveOptions();
+        if (_stopFadeCurveOption != null)
+            _stopFadeCurveOption.ItemSelected += OnStopFadeCurveSelected;
         _stopFadeSpinBox.Editable = true;
         _stopFadeSpinBox.FocusMode = FocusModeEnum.All;
         var stopFadeEdit = _stopFadeSpinBox.GetLineEdit();
@@ -196,6 +202,8 @@ public partial class SettingsGeneral : ScrollContainer
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        PopulateStopFadeCurveOptions();
+        SyncStopFadeCurveOption();
     }
 
     /// <summary>
@@ -242,6 +250,7 @@ public partial class SettingsGeneral : ScrollContainer
             }
 
             _stopFadeSpinBox?.SetValueNoSignal(_globalData.Settings.StopFadeDuration);
+            SyncStopFadeCurveOption();
             _doubleGoSpinBox?.SetValueNoSignal(_globalData.Settings.DoubleGoProtectionSeconds);
             _mediaBackupCheckBox?.SetPressedNoSignal(_globalData.Settings.MediaBackupEnabled);
             _multiEditCheckBox?.SetPressedNoSignal(_globalData.Settings.MultiEditEnabled);
@@ -424,6 +433,27 @@ public partial class SettingsGeneral : ScrollContainer
 
     // ── Stop Fade Out ─────────────────────────────────────────────────────
 
+    private void PopulateStopFadeCurveOptions()
+    {
+        _isSyncingUi = true;
+        try
+        {
+            FadeCurveUi.Populate(_stopFadeCurveOption, fadeOut: true);
+            UiLocalizer.SetTooltip(_stopFadeCurveOption, "Stop fade-out curve");
+        }
+        finally
+        {
+            _isSyncingUi = false;
+        }
+    }
+
+    private void SyncStopFadeCurveOption()
+    {
+        if (_globalData?.Settings == null)
+            return;
+        FadeCurveUi.Sync(_stopFadeCurveOption, visible: true, _globalData.Settings.StopFadeCurve);
+    }
+
     private void OnStopFadeChanged(double value)
     {
         if (_isSyncingUi || _globalData?.Settings == null) return;
@@ -442,17 +472,35 @@ public partial class SettingsGeneral : ScrollContainer
         UpdateStopFadeResetButton();
     }
 
+    private void OnStopFadeCurveSelected(long index)
+    {
+        if (_isSyncingUi || _globalData?.Settings == null) return;
+        if (_historyManager?.IsRestoring == true) return;
+        if (_stopFadeCurveOption == null) return;
+
+        var curve = FadeCurveUi.CurveAt(_stopFadeCurveOption, index);
+        if (_globalData.Settings.StopFadeCurve == curve)
+            return;
+
+        _historyManager?.RecordSettingsChange("Change stop fade curve", null, "StopFadeCurve");
+        _globalData.Settings.StopFadeCurve = curve;
+        UpdateStopFadeResetButton();
+    }
+
     private void OnStopFadeResetPressed()
     {
         if (_isSyncingUi || _globalData?.Settings == null) return;
-        if (Mathf.IsEqualApprox(_globalData.Settings.StopFadeDuration, AppSettings.DefaultStopFadeDuration))
+        bool durationDefault = Mathf.IsEqualApprox(_globalData.Settings.StopFadeDuration, AppSettings.DefaultStopFadeDuration);
+        bool curveDefault = _globalData.Settings.StopFadeCurve == AppSettings.DefaultStopFadeCurve;
+        if (durationDefault && curveDefault)
         {
             SyncSettings();
             return;
         }
 
-        _historyManager?.RecordSettingsChange("Reset stop fade", null, "StopFadeDuration");
+        _historyManager?.RecordSettingsChange("Reset stop fade", null, "StopFadeDuration", "StopFadeCurve");
         _globalData.Settings.StopFadeDuration = AppSettings.DefaultStopFadeDuration;
+        _globalData.Settings.StopFadeCurve = AppSettings.DefaultStopFadeCurve;
         SyncSettings();
     }
 
@@ -460,10 +508,12 @@ public partial class SettingsGeneral : ScrollContainer
     {
         if (_stopFadeResetButton == null || _globalData?.Settings == null) return;
 
-        bool atDefault = Mathf.IsEqualApprox(_globalData.Settings.StopFadeDuration, AppSettings.DefaultStopFadeDuration);
+        bool atDefault =
+            Mathf.IsEqualApprox(_globalData.Settings.StopFadeDuration, AppSettings.DefaultStopFadeDuration)
+            && _globalData.Settings.StopFadeCurve == AppSettings.DefaultStopFadeCurve;
         _stopFadeResetButton.Visible = !atDefault;
         if (!atDefault)
-            _stopFadeResetButton.TooltipText = UiLocalizer.ResetDefaultTip($"{AppSettings.DefaultStopFadeDuration:0.#}s");
+            _stopFadeResetButton.TooltipText = UiLocalizer.ResetDefaultTip($"{AppSettings.DefaultStopFadeDuration:0.#}s, Linear");
     }
 
     // ── Double Go Protection ──────────────────────────────────────────────

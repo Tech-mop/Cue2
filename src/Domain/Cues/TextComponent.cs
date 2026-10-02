@@ -120,10 +120,16 @@ public class TextComponent : ICueComponent
     /// </summary>
     public double FadeInDuration { get; set; }
 
+    /// <summary>Amplitude shape used for <see cref="FadeInDuration"/>.</summary>
+    public FadeCurveType FadeInCurve { get; set; } = FadeCurveType.Linear;
+
     /// <summary>
     /// Fade-out duration in seconds on stop (0 = immediate / use session stop fade).
     /// </summary>
     public double FadeOutDuration { get; set; }
+
+    /// <summary>Amplitude shape used for <see cref="FadeOutDuration"/>.</summary>
+    public FadeCurveType FadeOutCurve { get; set; } = FadeCurveType.Linear;
 
     /// <summary>
     /// Recomputes <see cref="TotalDuration"/> from <see cref="Duration"/>.
@@ -161,7 +167,9 @@ public class TextComponent : ICueComponent
             { "BackgroundEnabled", BackgroundEnabled },
             { "BackgroundColor", BackgroundColor.ToHtml(true) },
             { "FadeInDuration", FadeInDuration },
+            { "FadeInCurve", (int)FadeInCurve },
             { "FadeOutDuration", FadeOutDuration },
+            { "FadeOutCurve", (int)FadeOutCurve },
         };
     }
 
@@ -204,7 +212,13 @@ public class TextComponent : ICueComponent
         BackgroundEnabled = data.ContainsKey("BackgroundEnabled") && data["BackgroundEnabled"].AsBool();
         BackgroundColor = ParseColor(data, "BackgroundColor", new Color(0f, 0f, 0f, 0.55f));
         FadeInDuration = data.ContainsKey("FadeInDuration") ? Math.Max(0, data["FadeInDuration"].AsDouble()) : 0.0;
+        FadeInCurve = data.ContainsKey("FadeInCurve")
+            ? FadeCurve.FromInt(data["FadeInCurve"].AsInt32())
+            : FadeCurveType.Linear;
         FadeOutDuration = data.ContainsKey("FadeOutDuration") ? Math.Max(0, data["FadeOutDuration"].AsDouble()) : 0.0;
+        FadeOutCurve = data.ContainsKey("FadeOutCurve")
+            ? FadeCurve.FromInt(data["FadeOutCurve"].AsInt32())
+            : FadeCurveType.Linear;
 
         RecalculateDuration();
     }

@@ -979,10 +979,12 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// starts a fade-out; a second call while fading hard-stops immediately.
     /// </summary>
     /// <param name="fadeTime">Stop-fade seconds from settings; 0 forces immediate stop on first press if the cue has no own fade.</param>
-    public async Task Stop(double fadeTime = 0.0)
+    /// <param name="fadeCurve">Curve for a session/control stop fade. Ignored when using component FadeOutDuration.</param>
+    public async Task Stop(double fadeTime = 0.0, FadeCurveType? fadeCurve = null)
     {
         bool needFade = false;
         double fadeDuration = 0;
+        FadeCurveType shape = FadeCurveType.Linear;
         bool wasFadingOut;
         lock (_lock)
         {
@@ -997,6 +999,9 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 fadeDuration = fadeTime > 0
                     ? fadeTime
                     : (_audioComponent?.FadeOutDuration ?? 0);
+                shape = fadeTime > 0
+                    ? (fadeCurve ?? FadeCurveType.Linear)
+                    : (_audioComponent?.FadeOutCurve ?? FadeCurveType.Linear);
                 // Preempt fade-in so FadeOutAsync is allowed to start
                 _isFadingIn = false;
             }
@@ -1010,7 +1015,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
         if (needFade)
         {
-            await FadeOutAsync(fadeDuration);
+            await FadeOutAsync(fadeDuration, shape);
             return;
         }
 
@@ -1061,7 +1066,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             while (timer.Elapsed.TotalSeconds < duration && !_fadeCts.Token.IsCancellationRequested)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
-                SetVolume(Mathf.Lerp(startVol, endVol, t));
+                float shaped = FadeCurve.Evaluate(t, _audioComponent?.FadeInCurve ?? FadeCurveType.Linear);
+                SetVolume(Mathf.Lerp(startVol, endVol, shaped));
                 await Task.Delay(16, _fadeCts.Token);
             }
             if (!_fadeCts.Token.IsCancellationRequested)
@@ -1083,7 +1089,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         }
     }
 
-    public async Task FadeOutAsync(double duration)
+    public async Task FadeOutAsync(double duration, FadeCurveType? curve = null)
     {
         if (duration <= 0)
         {
@@ -1101,6 +1107,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _fadeCts = new CancellationTokenSource();
         }
 
+        var shape = curve ?? _audioComponent?.FadeOutCurve ?? FadeCurveType.Linear;
         float startVol = _volume;
         var token = _fadeCts.Token;
         Stopwatch timer = Stopwatch.StartNew();
@@ -1110,7 +1117,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             while (timer.Elapsed.TotalSeconds < duration && !token.IsCancellationRequested)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
-                SetVolume(Mathf.Lerp(startVol, 0f, t));
+                float shaped = FadeCurve.Evaluate(t, shape);
+                SetVolume(Mathf.Lerp(startVol, 0f, shaped));
                 await Task.Delay(16, token);
             }
             if (!token.IsCancellationRequested)

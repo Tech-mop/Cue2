@@ -40,6 +40,7 @@ public partial class Settings
         saveTable.Add("CueListScale", CueListScale);
         saveTable.Add("WaveformResolution", WaveformResolution);
         saveTable.Add("StopFadeDuration", StopFadeDuration);
+        saveTable.Add("StopFadeCurve", (int)StopFadeCurve);
         saveTable.Add("DoubleGoProtection", DoubleGoProtectionSeconds);
         saveTable.Add("MediaBackupEnabled", MediaBackupEnabled);
         saveTable.Add("MultiEditEnabled", MultiEditEnabled);
@@ -258,6 +259,9 @@ public partial class Settings
         _globalSignals.EmitSignal(nameof(GlobalSignals.CueListScaleChanged), CueListScale);
         WaveformResolution = settingsData.TryGetValue("WaveformResolution", out value) ? (int)value : WaveformResolution;
         StopFadeDuration = settingsData.TryGetValue("StopFadeDuration", out value) ? (float)value : StopFadeDuration;
+        StopFadeCurve = settingsData.TryGetValue("StopFadeCurve", out value)
+            ? FadeCurve.FromInt(value.AsInt32())
+            : FadeCurveType.Linear;
         DoubleGoProtectionSeconds = settingsData.TryGetValue("DoubleGoProtection", out value)
             ? Mathf.Clamp((float)value, 0f, MaxDoubleGoProtectionSeconds)
             : DefaultDoubleGoProtectionSeconds;

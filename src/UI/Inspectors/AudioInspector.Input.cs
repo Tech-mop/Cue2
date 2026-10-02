@@ -170,6 +170,7 @@ public partial class AudioInspector
                 _fadeInInput.Text = UiUtilities.FormatTime(input.FadeInDuration);
             if (_fadeOutInput != null)
                 _fadeOutInput.Text = UiUtilities.FormatTime(input.FadeOutDuration);
+            SyncFadeCurveOptions();
             UpdatePanUiVisibilityAndValues();
         }
         finally

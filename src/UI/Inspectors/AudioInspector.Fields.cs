@@ -314,6 +314,8 @@ public partial class AudioInspector
         _cachedPeaksSource = null;
         _isDraggingStart = false;
         _isDraggingEnd = false;
+        _isDraggingFadeIn = false;
+        _isDraggingFadeOut = false;
 
         if (!string.IsNullOrEmpty(_focusedAudioComponent.AudioFile)
             && (_focusedAudioComponent.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0))
@@ -653,6 +655,118 @@ public partial class AudioInspector
         }
 
         if (field.HasFocus()) field.ReleaseFocus();
+    }
+
+    /// <summary>
+    /// Fills fade-in and fade-out curve OptionButtons (call again on locale change).
+    /// </summary>
+    private void PopulateFadeCurveOptions()
+    {
+        _isSyncingUi = true;
+        try
+        {
+            FadeCurveUi.Populate(_fadeInCurveOption, fadeOut: false);
+            FadeCurveUi.Populate(_fadeOutCurveOption, fadeOut: true);
+        }
+        finally
+        {
+            _isSyncingUi = false;
+        }
+    }
+
+    /// <summary>
+    /// Applies the selected fade-in curve to file or input audio.
+    /// </summary>
+    /// <param name="index">Selected item index.</param>
+    private void OnFadeInCurveSelected(long index)
+    {
+        CommitFadeCurve(index, isIn: true);
+    }
+
+    /// <summary>
+    /// Applies the selected fade-out curve to file or input audio.
+    /// </summary>
+    /// <param name="index">Selected item index.</param>
+    private void OnFadeOutCurveSelected(long index)
+    {
+        CommitFadeCurve(index, isIn: false);
+    }
+
+    private void CommitFadeCurve(long index, bool isIn)
+    {
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+        var option = isIn ? _fadeInCurveOption : _fadeOutCurveOption;
+        if (option == null) return;
+
+        var curve = FadeCurveUi.CurveAt(option, index);
+
+        if (_focusedAudioInput != null)
+        {
+            var current = isIn ? _focusedAudioInput.FadeInCurve : _focusedAudioInput.FadeOutCurve;
+            if (current == curve)
+                return;
+
+            RecordAudioHistory(isIn ? "Edit audio input fade-in curve" : "Edit audio input fade-out curve");
+            if (isIn)
+                _focusedAudioInput.FadeInCurve = curve;
+            else
+                _focusedAudioInput.FadeOutCurve = curve;
+            return;
+        }
+
+        var targets = GetAudioTargets();
+        if (targets.Count == 0) return;
+
+        bool anyChange = targets.Any(t =>
+            (isIn ? t.Component.FadeInCurve : t.Component.FadeOutCurve) != curve);
+        if (!anyChange)
+            return;
+
+        RecordAudioHistory(isIn ? "Edit audio fade-in curve" : "Edit audio fade-out curve");
+        foreach (var (_, comp) in targets)
+        {
+            if (isIn)
+                comp.FadeInCurve = curve;
+            else
+                comp.FadeOutCurve = curve;
+        }
+
+        RedrawWaveformView();
+    }
+
+    /// <summary>
+    /// Syncs fade curve OptionButtons from file or input targets (blank when mixed).
+    /// </summary>
+    private void SyncFadeCurveOptions()
+    {
+        if (_focusedAudioInput != null)
+        {
+            FadeCurveUi.Sync(_fadeInCurveOption, visible: true, _focusedAudioInput.FadeInCurve);
+            FadeCurveUi.Sync(_fadeOutCurveOption, visible: true, _focusedAudioInput.FadeOutCurve);
+            return;
+        }
+
+        bool fileAudio = _focusedAudioComponent != null;
+        if (!fileAudio)
+        {
+            FadeCurveUi.Sync(_fadeInCurveOption, visible: false, null);
+            FadeCurveUi.Sync(_fadeOutCurveOption, visible: false, null);
+            return;
+        }
+
+        var targets = GetAudioTargets();
+        FadeCurveType? fadeIn = null;
+        FadeCurveType? fadeOut = null;
+        if (targets.Count > 0)
+        {
+            if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.FadeInCurve), out var inCurve))
+                fadeIn = inCurve;
+            if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.FadeOutCurve), out var outCurve))
+                fadeOut = outCurve;
+        }
+
+        FadeCurveUi.Sync(_fadeInCurveOption, visible: true, fadeIn);
+        FadeCurveUi.Sync(_fadeOutCurveOption, visible: true, fadeOut);
     }
     
     private void PopulateOutputOptions()

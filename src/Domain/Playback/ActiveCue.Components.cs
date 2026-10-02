@@ -863,7 +863,7 @@ public partial class ActiveCue
         if (!_activeTextComponents.TryGetValue(componentPanel, out var playback) || playback == null)
             return;
 
-        await playback.Stop(_settings.StopFadeDuration);
+        await playback.Stop(_settings.StopFadeDuration, _settings.StopFadeCurve);
     }
 
     private void WireTextCompleted(ActiveTextPlayback playback, PanelContainer componentPanel)
@@ -1207,12 +1207,12 @@ public partial class ActiveCue
     {
         if (_activeAudioInputs.TryGetValue(componentPanel, out var inputPlayback))
         {
-            await inputPlayback.Stop(_settings.StopFadeDuration);
+            await inputPlayback.Stop(_settings.StopFadeDuration, _settings.StopFadeCurve);
             return;
         }
         if (!_activeAudioComponents.TryGetValue(componentPanel, out var playback))
             return;
-        await playback.Stop(_settings.StopFadeDuration);
+        await playback.Stop(_settings.StopFadeDuration, _settings.StopFadeCurve);
     }
 
     private async Task StopVideoComponent(PanelContainer componentPanel)
@@ -1220,7 +1220,7 @@ public partial class ActiveCue
         if (!_activeVideoComponents.TryGetValue(componentPanel, out var playback))
             return;
         StopSubtitleSlaveTextComponents();
-        await playback.Stop(_settings.StopFadeDuration);
+        await playback.Stop(_settings.StopFadeDuration, _settings.StopFadeCurve);
     }
     
     private void UpdateComponentUiState(PanelContainer componentPanel, AudioComponent audioComponent)

@@ -87,7 +87,9 @@ public partial class AudioInspector : Control
     private LineEdit _playCountInput;
     private LineEdit _volumeInput;
     private LineEdit _fadeInInput;
+    private OptionButton _fadeInCurveOption;
     private LineEdit _fadeOutInput;
+    private OptionButton _fadeOutCurveOption;
     private Label _panLabel;
     private HSlider _panSlider;
     private LineEdit _panInput;
@@ -117,12 +119,13 @@ public partial class AudioInspector : Control
     private byte[] _cachedPeaksSource;
     private Button _startDragHandle;
     private Button _endDragHandle;
-    private HSlider _zoomSlider;
-    private HScrollBar _waveformScroll;
+    private Button _fadeInHandle;
+    private Button _fadeOutHandle;
+    private WaveformZoomBar _waveformZoom;
     private bool _isDraggingStart;
     private bool _isDraggingEnd;
-    private float _viewStartNorm;
-    private float _viewSpanNorm = 1f;
+    private bool _isDraggingFadeIn;
+    private bool _isDraggingFadeOut;
     
     private FileDialog _fileDialog;
     
@@ -186,7 +189,9 @@ public partial class AudioInspector : Control
         _playCountInput = GetNode<LineEdit>("%PlayCountInput");
         _volumeInput = GetNode<LineEdit>("%VolumeInput");
         _fadeInInput = GetNodeOrNull<LineEdit>("%FadeInInput");
+        _fadeInCurveOption = GetNodeOrNull<OptionButton>("%FadeInCurveOption");
         _fadeOutInput = GetNodeOrNull<LineEdit>("%FadeOutInput");
+        _fadeOutCurveOption = GetNodeOrNull<OptionButton>("%FadeOutCurveOption");
         _panLabel = GetNodeOrNull<Label>("%PanLabel");
         _panSlider = GetNodeOrNull<HSlider>("%PanSlider");
         _panInput = GetNodeOrNull<LineEdit>("%PanInput");
@@ -220,36 +225,25 @@ public partial class AudioInspector : Control
         _waveformPanel.AddChild(_waveformDisplay);
         _waveformPanel.MoveChild(_waveformDisplay, 0); // behind handles
         _waveformPanel.Resized += () => { if (_waveformAccordian.Visible) _ = DrawWaveform(); };
-        _waveformPanel.GuiInput += OnWaveformPanelGuiInput;
 
         _startDragHandle = GetNode<Button>("%StartDragHandle");
         _endDragHandle = GetNode<Button>("%EndDragHandle");
-        StyleWaveformHandles();
+        WaveformDisplay.PrepareHandleHost(_startDragHandle);
+        WaveformDisplay.StyleHandle(_startDragHandle, isStart: true);
+        WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
         _startDragHandle.GuiInput += OnStartHandleInput;
         _endDragHandle.GuiInput += OnEndHandleInput;
+        _fadeInHandle = WaveformDisplay.CreateFadeHandle(isFadeIn: true);
+        _fadeOutHandle = WaveformDisplay.CreateFadeHandle(isFadeIn: false);
+        _startDragHandle.GetParent()?.AddChild(_fadeInHandle);
+        _startDragHandle.GetParent()?.AddChild(_fadeOutHandle);
+        _fadeInHandle.GuiInput += OnFadeInHandleInput;
+        _fadeOutHandle.GuiInput += OnFadeOutHandleInput;
 
-        _zoomSlider = GetNodeOrNull<HSlider>("%ZoomSlider");
-        if (_zoomSlider != null)
-        {
-            _zoomSlider.MinValue = 1;
-            _zoomSlider.MaxValue = 20;
-            _zoomSlider.Step = 0.1;
-            _zoomSlider.Value = 1;
-            _zoomSlider.TooltipText = UiLocalizer.T("Zoom waveform (1× = full file)");
-            _zoomSlider.ValueChanged += OnZoomChanged;
-        }
-
-        // Scroll bar under zoom (created in code so both inspectors get it)
-        _waveformScroll = new HScrollBar
-        {
-            Name = "WaveformScroll",
-            CustomMinimumSize = new Vector2(0, 14),
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            Visible = false,
-            TooltipText = UiLocalizer.T("Scroll zoomed waveform")
-        };
-        _waveformAccordian.AddChild(_waveformScroll);
-        _waveformScroll.ValueChanged += OnWaveformScrollChanged; 
+        _waveformZoom = new WaveformZoomBar();
+        _waveformAccordian.AddChild(_waveformZoom);
+        _waveformZoom.Attach(_waveformDisplay, _waveformPanel);
+        _waveformZoom.ViewChanged += OnWaveformViewChanged; 
         
         
         
@@ -282,11 +276,16 @@ public partial class AudioInspector : Control
             _fadeInInput.TextSubmitted += text => OnFadeSubmitted(text, isIn: true);
             _fadeInInput.FocusExited += () => OnFadeSubmitted(_fadeInInput.Text, isIn: true);
         }
+        PopulateFadeCurveOptions();
+        if (_fadeInCurveOption != null)
+            _fadeInCurveOption.ItemSelected += OnFadeInCurveSelected;
         if (_fadeOutInput != null)
         {
             _fadeOutInput.TextSubmitted += text => OnFadeSubmitted(text, isIn: false);
             _fadeOutInput.FocusExited += () => OnFadeSubmitted(_fadeOutInput.Text, isIn: false);
         }
+        if (_fadeOutCurveOption != null)
+            _fadeOutCurveOption.ItemSelected += OnFadeOutCurveSelected;
         _outputOptionButton.ItemSelected += OutputOptionSelected;
 
         // Undo/redo and other model restores push this signal; rebind component + refresh UI.
@@ -312,10 +311,18 @@ public partial class AudioInspector : Control
         if (_globalSignals != null)
             _globalSignals.LocaleChanged += OnLocaleChanged;
 
+        SetProcess(true);
+
         if (_globalData != null && _globalData.FocusedCue >= 0)
             ShellSelected(_globalData.FocusedCue);
         else
             ShowNoSelection();
+    }
+
+    /// <inheritdoc />
+    public override void _Process(double delta)
+    {
+        UpdateWaveformPlayhead();
     }
 
     /// <summary>
@@ -450,6 +457,9 @@ public partial class AudioInspector : Control
             _globalSignals.CueMediaHealthChanged -= OnCueMediaHealthChanged;
         }
 
+        if (_waveformZoom != null)
+            _waveformZoom.ViewChanged -= OnWaveformViewChanged;
+
         _focusedCue = null;
         _focusedAudioComponent = null;
         _audioTargets.Clear();
@@ -474,6 +484,12 @@ public partial class AudioInspector : Control
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        _waveformZoom?.Localize();
+        WaveformDisplay.StyleHandle(_startDragHandle, isStart: true);
+        WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
+        WaveformDisplay.StyleFadeHandle(_fadeInHandle, isFadeIn: true);
+        WaveformDisplay.StyleFadeHandle(_fadeOutHandle, isFadeIn: false);
+        PopulateFadeCurveOptions();
         if (_focusedCue == null)
             ShowNoSelection();
         else if (_audioInputRow != null && _audioInputRow.Visible)

@@ -52,19 +52,7 @@ public partial class TimelineInspector
             float startN = Mathf.Clamp(StartNorm, 0f, 1f);
             float endN = Mathf.Clamp(EndNorm, startN + 1e-5f, 1f);
             int plays = Math.Max(1, PlayCount);
-
-            int binCount = Peaks.BinCount;
-            float peakScale = 0.001f;
-            int binStart = (int)(startN * binCount);
-            int binEnd = (int)Math.Ceiling(endN * binCount);
-            binStart = Math.Clamp(binStart, 0, binCount - 1);
-            binEnd = Math.Clamp(binEnd, binStart + 1, binCount);
-            for (int i = binStart; i < binEnd; i++)
-            {
-                peakScale = Math.Max(peakScale, Math.Abs(Peaks.GetMin(i)));
-                peakScale = Math.Max(peakScale, Math.Abs(Peaks.GetMax(i)));
-            }
-            peakScale = Math.Max(peakScale, 0.05f);
+            float peakScale = Peaks.ComputePeakScale(startN, endN);
 
             float segmentWidth = width / plays;
             var color = WaveColor;
@@ -72,33 +60,8 @@ public partial class TimelineInspector
             for (int play = 0; play < plays; play++)
             {
                 float playX0 = play * segmentWidth;
-                float playW = segmentWidth;
-
-                int playCols = Math.Max(1, (int)Math.Ceiling(playW));
-                for (int c = 0; c < playCols; c++)
-                {
-                    float t = (c + 0.5f) / playCols;
-                    float fileNorm = startN + t * (endN - startN);
-                    int bin = (int)(fileNorm * binCount);
-                    bin = Math.Clamp(bin, 0, binCount - 1);
-
-                    float minVal = Mathf.Clamp(Peaks.GetMin(bin) / peakScale, -1f, 1f);
-                    float maxVal = Mathf.Clamp(Peaks.GetMax(bin) / peakScale, -1f, 1f);
-
-                    float yMax = midY - maxVal * (height * 0.45f);
-                    float yMin = midY - minVal * (height * 0.45f);
-                    if (yMin < yMax)
-                        (yMin, yMax) = (yMax, yMin);
-                    if (yMin - yMax < 1f)
-                    {
-                        yMax = midY - 0.5f;
-                        yMin = midY + 0.5f;
-                    }
-
-                    float x = playX0 + (c + 0.5f) / playCols * playW;
-                    if (x < -1 || x > width + 1) continue;
-                    DrawLine(new Vector2(x, yMax), new Vector2(x, yMin), color, 1.2f);
-                }
+                var playRect = new Rect2(playX0, 0f, segmentWidth, height);
+                WaveformPainter.DrawEnvelope(this, Peaks, playRect, startN, endN, color, peakScale, 0.45f);
 
                 // Divider at the start of each subsequent play
                 if (play > 0)

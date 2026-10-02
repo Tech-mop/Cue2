@@ -59,7 +59,18 @@ public class AudioComponent : ICueComponent
     public int PlayCount { get; set; } = 1;
     
     public double FadeInDuration { get; set; } = 0.0; // In seconds
+
+    /// <summary>
+    /// Amplitude shape used for <see cref="FadeInDuration"/>.
+    /// </summary>
+    public FadeCurveType FadeInCurve { get; set; } = FadeCurveType.Linear;
+
     public double FadeOutDuration { get; set; } = 0.0; // In seconds
+
+    /// <summary>
+    /// Amplitude shape used for <see cref="FadeOutDuration"/> (natural end and component fade-out).
+    /// </summary>
+    public FadeCurveType FadeOutCurve { get; set; } = FadeCurveType.Linear;
 
     /// <summary>
     /// In-memory peak envelope for UI display only.
@@ -89,7 +100,9 @@ public class AudioComponent : ICueComponent
         data.Add("Pan", Pan);
         data.Add("PlayCount", PlayCount);
         data.Add("FadeInDuration", FadeInDuration);
+        data.Add("FadeInCurve", (int)FadeInCurve);
         data.Add("FadeOutDuration", FadeOutDuration);
+        data.Add("FadeOutCurve", (int)FadeOutCurve);
         if (Routing != null)
         {
             data.Add("Routing", Routing.GetData());
@@ -168,7 +181,13 @@ public class AudioComponent : ICueComponent
             : 0f;
         PlayCount = data.ContainsKey("PlayCount") ? data["PlayCount"].AsInt32() : 1;
         FadeInDuration = data.ContainsKey("FadeInDuration") ? data["FadeInDuration"].AsDouble() : 0.0;
+        FadeInCurve = data.ContainsKey("FadeInCurve")
+            ? FadeCurve.FromInt(data["FadeInCurve"].AsInt32())
+            : FadeCurveType.Linear;
         FadeOutDuration = data.ContainsKey("FadeOutDuration") ? data["FadeOutDuration"].AsDouble() : 0.0;
+        FadeOutCurve = data.ContainsKey("FadeOutCurve")
+            ? FadeCurve.FromInt(data["FadeOutCurve"].AsInt32())
+            : FadeCurveType.Linear;
         // Legacy showfiles may still embed peaks; accept into memory so open can migrate to Waveforms/.
         // New saves omit this key — UI regenerates via MediaEngine disk cache when empty.
         WaveformData = TryReadByteArray(data, "WaveformData");

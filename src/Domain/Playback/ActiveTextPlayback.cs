@@ -298,7 +298,7 @@ public partial class ActiveTextPlayback : Node
             while (timer.Elapsed.TotalSeconds < duration && !token.IsCancellationRequested && !IsStopped && !_isExiting)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
-                _fadeAlpha = Mathf.Clamp(t, 0f, 1f);
+                _fadeAlpha = FadeCurve.Evaluate(t, _textComponent?.FadeInCurve ?? FadeCurveType.Linear);
                 ApplyOpacityModulate();
                 await Task.Delay(FadeUpdateIntervalMs, token);
             }
@@ -454,7 +454,8 @@ public partial class ActiveTextPlayback : Node
     /// a second call while fading hard-stops immediately (matches video).
     /// </summary>
     /// <param name="fadeTime">Session stop-fade seconds; 0 may still use component FadeOutDuration.</param>
-    public async Task Stop(double fadeTime = 0.0)
+    /// <param name="fadeCurve">Curve for a session/control stop fade. Ignored when using component FadeOutDuration.</param>
+    public async Task Stop(double fadeTime = 0.0, FadeCurveType? fadeCurve = null)
     {
         if (IsStopped)
             return;
@@ -471,11 +472,14 @@ public partial class ActiveTextPlayback : Node
         double fadeDuration = fadeTime > 1e-9
             ? fadeTime
             : (_textComponent?.FadeOutDuration ?? 0);
+        FadeCurveType shape = fadeTime > 1e-9
+            ? (fadeCurve ?? FadeCurveType.Linear)
+            : (_textComponent?.FadeOutCurve ?? FadeCurveType.Linear);
 
         // Allow fade even if paused — user expects stop-fade from active cues.
         if (fadeDuration > 1e-9 && !_isExiting && _layerHosts.Count > 0)
         {
-            await FadeOutAsync(fadeDuration);
+            await FadeOutAsync(fadeDuration, shape);
             return;
         }
 
@@ -509,7 +513,7 @@ public partial class ActiveTextPlayback : Node
             CallDeferred(GodotObject.MethodName.Free);
     }
 
-    private async Task FadeOutAsync(double duration)
+    private async Task FadeOutAsync(double duration, FadeCurveType? curve = null)
     {
         if (duration <= 1e-9)
         {
@@ -524,6 +528,7 @@ public partial class ActiveTextPlayback : Node
         _isFadingOut = true;
         _fadeCts = new CancellationTokenSource();
         var token = _fadeCts.Token;
+        var shape = curve ?? _textComponent?.FadeOutCurve ?? FadeCurveType.Linear;
 
         // Ensure process keeps applying opacity if wall clock was paused.
         if (!_isPlaying)
@@ -543,7 +548,8 @@ public partial class ActiveTextPlayback : Node
             while (timer.Elapsed.TotalSeconds < duration && !token.IsCancellationRequested && !IsStopped)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
-                _fadeAlpha = Mathf.Lerp(startAlpha, 0f, Mathf.Clamp(t, 0f, 1f));
+                float shaped = FadeCurve.Evaluate(t, shape);
+                _fadeAlpha = Mathf.Lerp(startAlpha, 0f, shaped);
                 // Deferred so modulate always lands on the main thread after await (video pattern).
                 CallDeferred(MethodName.ApplyOpacityModulate);
                 EmitSignal(SignalName.TimeUpdated, GetPlaybackTimeSeconds());

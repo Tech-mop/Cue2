@@ -142,12 +142,18 @@ text = "Fade in"
 
 [node name="FadeInInput" type="LineEdit" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 tooltip_text = "Fade-in duration at play start (0 = immediate)."
 text = "0:00.000"
 alignment = 1
+
+[node name="FadeInCurveOption" type="OptionButton" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Fade-in curve"
 
 [node name="FadeOutLabel" type="Label" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
 layout_mode = 2
@@ -157,12 +163,18 @@ text = "Fade out"
 
 [node name="FadeOutInput" type="LineEdit" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
 text = "0:00.000"
 alignment = 1
+
+[node name="FadeOutCurveOption" type="OptionButton" parent="ContentRoot/VBox/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Fade-out curve"
 
 [node name="EditorSplit" type="HBoxContainer" parent="ContentRoot/VBox/InspectorContent" unique_id=2125154186]
 layout_mode = 2

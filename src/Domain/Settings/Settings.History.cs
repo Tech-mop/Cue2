@@ -108,6 +108,8 @@ public partial class Settings
             WaveformResolution = value.AsInt32();
         if (TryGetSettingsValue(settingsData, "StopFadeDuration", out value))
             StopFadeDuration = value.AsSingle();
+        if (TryGetSettingsValue(settingsData, "StopFadeCurve", out value))
+            StopFadeCurve = FadeCurve.FromInt(value.AsInt32());
         if (TryGetSettingsValue(settingsData, "DoubleGoProtection", out value))
             DoubleGoProtectionSeconds = Mathf.Clamp(value.AsSingle(), 0f, MaxDoubleGoProtectionSeconds);
         if (TryGetSettingsValue(settingsData, "MediaBackupEnabled", out value))
@@ -414,6 +416,9 @@ public partial class Settings
                 return true;
             case "StopFadeDuration":
                 value = StopFadeDuration;
+                return true;
+            case "StopFadeCurve":
+                value = (int)StopFadeCurve;
                 return true;
             case "DoubleGoProtection":
                 value = DoubleGoProtectionSeconds;

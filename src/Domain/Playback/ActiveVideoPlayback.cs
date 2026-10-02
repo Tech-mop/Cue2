@@ -1722,10 +1722,12 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// starts a fade-out; a second call while fading hard-stops immediately.
     /// </summary>
     /// <param name="fadeTime">Stop-fade seconds from settings; 0 forces immediate stop on first press if the cue has no own fade.</param>
-    public async Task Stop(double fadeTime = 0.0)
+    /// <param name="fadeCurve">Curve for a session/control stop fade. Ignored when using component FadeOutDuration.</param>
+    public async Task Stop(double fadeTime = 0.0, FadeCurveType? fadeCurve = null)
     {
         bool needFade = false;
         double fadeDuration = 0;
+        FadeCurveType shape = FadeCurveType.Linear;
         bool wasFadingOut;
         lock (_lock)
         {
@@ -1738,6 +1740,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 fadeDuration = fadeTime > 0
                     ? fadeTime
                     : (_videoComponent?.FadeOutDuration ?? 0);
+                shape = fadeTime > 0
+                    ? (fadeCurve ?? FadeCurveType.Linear)
+                    : (_videoComponent?.FadeOutCurve ?? FadeCurveType.Linear);
                 _isFadingIn = false;
             }
         }
@@ -1750,7 +1755,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
         if (needFade)
         {
-            await FadeOutAsync(fadeDuration);
+            await FadeOutAsync(fadeDuration, shape);
             return;
         }
 
@@ -1862,8 +1867,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             while (timer.Elapsed.TotalSeconds < duration && !_fadeCts.Token.IsCancellationRequested)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
-                SetVolume(Mathf.Lerp(startVol, endVol, t));
-                _fadeAlpha = Mathf.Lerp(startAlpha, 1.0f, t);
+                float shaped = FadeCurve.Evaluate(t, _videoComponent?.FadeInCurve ?? FadeCurveType.Linear);
+                SetVolume(Mathf.Lerp(startVol, endVol, shaped));
+                _fadeAlpha = Mathf.Lerp(startAlpha, 1.0f, shaped);
                 ApplyOpacityModulate();
                 await Task.Delay(FadeUpdateIntervalMs, _fadeCts.Token);
             }
@@ -1890,7 +1896,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }
     }
 
-    public async Task FadeOutAsync(double duration)
+    public async Task FadeOutAsync(double duration, FadeCurveType? curve = null)
     {
         if (duration <= 0)
         {
@@ -1908,6 +1914,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _fadeCts = new CancellationTokenSource();
         }
 
+        var shape = curve ?? _videoComponent?.FadeOutCurve ?? FadeCurveType.Linear;
         float startVol = _volume;
         float startAlpha = _fadeAlpha;
         var token = _fadeCts.Token;
@@ -1918,8 +1925,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             while (timer.Elapsed.TotalSeconds < duration && !token.IsCancellationRequested)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
-                SetVolume(Mathf.Lerp(startVol, 0f, t));
-                _fadeAlpha = Mathf.Lerp(startAlpha, 0f, t);
+                float shaped = FadeCurve.Evaluate(t, shape);
+                SetVolume(Mathf.Lerp(startVol, 0f, shaped));
+                _fadeAlpha = Mathf.Lerp(startAlpha, 0f, shaped);
                 // Match FadeInAsync: push visual alpha immediately (images do not re-present frames).
                 // Deferred so TextureRect updates always land on the main thread after await.
                 CallDeferred(nameof(ApplyOpacityModulate));

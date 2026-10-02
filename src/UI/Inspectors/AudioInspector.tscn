@@ -2,18 +2,7 @@
 
 [ext_resource type="Script" uid="uid://ceriyergi0tea" path="res://src/UI/Inspectors/AudioInspector.cs" id="1_hjudx"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hjudx"]
-bg_color = Color(0, 0.055, 0.06, 1)
-draw_center = false
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0, 0, 0, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_wave"]
 
 [sub_resource type="StyleBoxLine" id="StyleBoxLine_bbkhr"]
 color = Color(0.243137, 0.113725, 0, 1)
@@ -318,11 +307,18 @@ text = "Fade in:"
 
 [node name="FadeInInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
 tooltip_text = "Fade-in duration at play start (0 = immediate)."
 text = "0:00.000"
 alignment = 1
+
+[node name="FadeInCurveOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Fade-in curve"
 
 [node name="FadeOutLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
 layout_mode = 2
@@ -332,11 +328,18 @@ text = "Fade out:"
 
 [node name="FadeOutInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
+custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
 tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
 text = "0:00.000"
 alignment = 1
+
+[node name="FadeOutCurveOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Fade-out curve"
 
 [node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1603489166]
 layout_mode = 2
@@ -440,7 +443,7 @@ theme_type_variation = &"HSepLight"
 [node name="WaveformAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1521957115]
 unique_name_in_owner = true
 clip_contents = true
-custom_minimum_size = Vector2(0, 100)
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian" unique_id=402062261]
@@ -451,13 +454,14 @@ theme_override_constants/margin_right = 20
 [node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer" unique_id=951717597]
 unique_name_in_owner = true
 clip_contents = true
-custom_minimum_size = Vector2(0, 80)
+custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_styles/panel = SubResource("StyleBoxFlat_hjudx")
+theme_override_styles/panel = SubResource("StyleBoxEmpty_wave")
 
 [node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel" unique_id=351993399]
 layout_mode = 2
+mouse_filter = 2
 
 [node name="StartDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=371983948]
 unique_name_in_owner = true
@@ -488,22 +492,5 @@ theme_override_styles/pressed = SubResource("StyleBoxLine_4h5an")
 theme_override_styles/hover = SubResource("StyleBoxLine_i246q")
 action_mode = 0
 keep_pressed_outside = true
-
-[node name="TimeBar" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel" unique_id=263569630]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(30, 20)
-layout_mode = 2
-size_flags_vertical = 0
-mouse_filter = 2
-
-[node name="ZoomSlider" type="HSlider" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian" unique_id=1267338959]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
-layout_mode = 2
-size_flags_horizontal = 0
-min_value = 1.0
-max_value = 10.0
-step = 0.1
-value = 1.0
 
 [connection signal="pressed" from="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer/ButtonSelectFile" to="." method="_on_button_select_file_pressed"]

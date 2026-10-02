@@ -142,6 +142,13 @@ suffix = "s"
 alignment = 1
 editable = true
 
+[node name="StopFadeCurveOption" type="OptionButton" parent="VBoxContainer/StopFadeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Stop fade-out curve"
+
 [node name="StopFadeResetButton" type="Button" parent="VBoxContainer/StopFadeRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(18, 18)

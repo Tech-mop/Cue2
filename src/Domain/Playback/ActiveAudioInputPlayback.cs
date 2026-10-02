@@ -37,6 +37,7 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
     private bool _cleaned;
     private bool _stopRequested;
     private double _requestedFadeOut;
+    private FadeCurveType _stopFadeCurve = FadeCurveType.Linear;
     private double _fadeInSeconds;
     private long _fadeOutStartMs = -1;
     private readonly System.Diagnostics.Stopwatch _clock = new();
@@ -133,9 +134,13 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
     /// Fades out, then tears the playback down.
     /// </summary>
     /// <param name="fadeOutSeconds">Fade length before close.</param>
-    public async Task Stop(double fadeOutSeconds)
+    /// <param name="fadeCurve">Curve for a session/control stop fade. Ignored when using component FadeOutDuration.</param>
+    public async Task Stop(double fadeOutSeconds, FadeCurveType? fadeCurve = null)
     {
         _requestedFadeOut = Math.Max(0, fadeOutSeconds);
+        _stopFadeCurve = fadeOutSeconds > 1e-4
+            ? (fadeCurve ?? FadeCurveType.Linear)
+            : _component.FadeOutCurve;
         _stopRequested = true;
         if (fadeOutSeconds > 1e-4 && _fillTask != null)
         {
@@ -315,7 +320,10 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
         float env = 1f;
         bool fadingIn = _fadeInSeconds > 1e-4 && elapsed < _fadeInSeconds;
         if (fadingIn)
-            env = (float)Math.Clamp(elapsed / _fadeInSeconds, 0, 1);
+        {
+            float inT = (float)Math.Clamp(elapsed / _fadeInSeconds, 0, 1);
+            env = FadeCurve.Evaluate(inT, _component.FadeInCurve);
+        }
 
         double fadeOutSeconds = _stopRequested ? _requestedFadeOut : naturalFadeOut;
         bool beginFadeOut = _stopRequested
@@ -333,7 +341,9 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
                 return true;
             }
 
-            env *= (float)Math.Clamp(1.0 - (into / fadeOutSeconds), 0, 1);
+            float outT = (float)Math.Clamp(into / fadeOutSeconds, 0, 1);
+            var outCurve = _stopRequested ? _stopFadeCurve : _component.FadeOutCurve;
+            env *= 1f - FadeCurve.Evaluate(outT, outCurve);
             IsFadingIn = false;
             IsFadingOut = true;
             _envelope = env;

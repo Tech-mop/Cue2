@@ -724,6 +724,9 @@ public partial class VideoInspector
 		_cachedPeaksSource = null;
 		_isDraggingStart = false;
 		_isDraggingEnd = false;
+		_isDraggingFadeIn = false;
+		_isDraggingFadeOut = false;
+		_waveformZoom?.Reset();
 
 		// Rebuild output + routing matrix; RefreshAudioUiState also regenerates waveform peaks when missing.
 		await RefreshAudioUiState();
@@ -858,6 +861,74 @@ public partial class VideoInspector
 		}
 
 		if (field.HasFocus()) field.ReleaseFocus();
+	}
+
+	/// <summary>
+	/// Fills fade-in and fade-out curve OptionButtons (call again on locale change).
+	/// </summary>
+	private void PopulateFadeCurveOptions()
+	{
+		_isSyncingUi = true;
+		try
+		{
+			FadeCurveUi.Populate(_fadeInCurveOption, fadeOut: false);
+			FadeCurveUi.Populate(_fadeOutCurveOption, fadeOut: true);
+		}
+		finally
+		{
+			_isSyncingUi = false;
+		}
+	}
+
+	private void OnFadeInCurveSelected(long index) => CommitFadeCurve(index, isIn: true);
+
+	private void OnFadeOutCurveSelected(long index) => CommitFadeCurve(index, isIn: false);
+
+	private void CommitFadeCurve(long index, bool isIn)
+	{
+		if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+		var option = isIn ? _fadeInCurveOption : _fadeOutCurveOption;
+		if (option == null) return;
+
+		var targets = GetVideoTargets();
+		if (targets.Count == 0) return;
+
+		var curve = FadeCurveUi.CurveAt(option, index);
+		bool anyChange = targets.Any(t =>
+			(isIn ? t.Component.FadeInCurve : t.Component.FadeOutCurve) != curve);
+		if (!anyChange)
+			return;
+
+		RecordVideoHistory(isIn ? "Edit video fade-in curve" : "Edit video fade-out curve");
+		foreach (var (_, comp) in targets)
+		{
+			if (isIn)
+				comp.FadeInCurve = curve;
+			else
+				comp.FadeOutCurve = curve;
+		}
+
+		RedrawWaveformView();
+	}
+
+	/// <summary>
+	/// Syncs fade curve OptionButtons from video targets (blank when mixed).
+	/// </summary>
+	private void SyncFadeCurveOptions()
+	{
+		var targets = GetVideoTargets();
+		FadeCurveType? fadeIn = null;
+		FadeCurveType? fadeOut = null;
+		if (targets.Count > 0)
+		{
+			if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.FadeInCurve), out var inCurve))
+				fadeIn = inCurve;
+			if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.FadeOutCurve), out var outCurve))
+				fadeOut = outCurve;
+		}
+
+		FadeCurveUi.Sync(_fadeInCurveOption, visible: _focusedVideoComponent != null, fadeIn);
+		FadeCurveUi.Sync(_fadeOutCurveOption, visible: _focusedVideoComponent != null, fadeOut);
 	}
 
 	/// <summary>

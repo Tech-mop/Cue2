@@ -300,7 +300,14 @@ public class VideoComponent : ICueComponent
     public byte[] WaveformData { get; set; } = null;
 
     public double FadeInDuration { get; set; } = 0.0; // In seconds
+
+    /// <summary>Amplitude shape used for <see cref="FadeInDuration"/>.</summary>
+    public FadeCurveType FadeInCurve { get; set; } = FadeCurveType.Linear;
+
     public double FadeOutDuration { get; set; } = 0.0; // In seconds
+
+    /// <summary>Amplitude shape used for <see cref="FadeOutDuration"/>.</summary>
+    public FadeCurveType FadeOutCurve { get; set; } = FadeCurveType.Linear;
 
     /// <summary>
     /// When true and a text-based subtitle track is available, drive the cue's
@@ -367,7 +374,9 @@ public class VideoComponent : ICueComponent
         data.Add("Volume", Volume);
         data.Add("PlayCount", PlayCount);
         data.Add("FadeInDuration", FadeInDuration);
+        data.Add("FadeInCurve", (int)FadeInCurve);
         data.Add("FadeOutDuration", FadeOutDuration);
+        data.Add("FadeOutCurve", (int)FadeOutCurve);
         data.Add("ScaledWidth", ScaledWidth);
         data.Add("ScaledHeight", ScaledHeight);
         data.Add("OffsetX", OffsetX);
@@ -447,7 +456,13 @@ public class VideoComponent : ICueComponent
         Volume = data.ContainsKey("Volume") ? data["Volume"].AsSingle() : 1.0f;
         PlayCount = data.ContainsKey("PlayCount") ? data["PlayCount"].AsInt32() : 1;
         FadeInDuration = data.ContainsKey("FadeInDuration") ? data["FadeInDuration"].AsDouble() : 0.0;
+        FadeInCurve = data.ContainsKey("FadeInCurve")
+            ? FadeCurve.FromInt(data["FadeInCurve"].AsInt32())
+            : FadeCurveType.Linear;
         FadeOutDuration = data.ContainsKey("FadeOutDuration") ? data["FadeOutDuration"].AsDouble() : 0.0;
+        FadeOutCurve = data.ContainsKey("FadeOutCurve")
+            ? FadeCurve.FromInt(data["FadeOutCurve"].AsInt32())
+            : FadeCurveType.Linear;
         ScaledWidth = data.ContainsKey("ScaledWidth") ? data["ScaledWidth"].AsInt32() : 0;
         ScaledHeight = data.ContainsKey("ScaledHeight") ? data["ScaledHeight"].AsInt32() : 0;
         OffsetX = data.ContainsKey("OffsetX") ? data["OffsetX"].AsInt32() : 0;

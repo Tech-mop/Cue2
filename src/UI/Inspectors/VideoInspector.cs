@@ -76,7 +76,9 @@ public partial class VideoInspector : Control
 	private CheckBox _loopInput;
 	private LineEdit _playCountInput;
 	private LineEdit _fadeInInput;
+	private OptionButton _fadeInCurveOption;
 	private LineEdit _fadeOutInput;
+	private OptionButton _fadeOutCurveOption;
 
 	private Label _fileMetadataLabel;
 	private OptionButton _targetLayerOptionButton;
@@ -133,12 +135,13 @@ public partial class VideoInspector : Control
 	private byte[] _cachedPeaksSource;
 	private Button _startDragHandle;
 	private Button _endDragHandle;
-	private HSlider _zoomSlider;
-	private HScrollBar _waveformScroll;
+	private Button _fadeInHandle;
+	private Button _fadeOutHandle;
+	private WaveformZoomBar _waveformZoom;
 	private bool _isDraggingStart;
 	private bool _isDraggingEnd;
-	private float _viewStartNorm;
-	private float _viewSpanNorm = 1f;
+	private bool _isDraggingFadeIn;
+	private bool _isDraggingFadeOut;
 
 	private FileDialog _fileDialog;
 	
@@ -193,6 +196,11 @@ public partial class VideoInspector : Control
 			_fadeOutInput.TextSubmitted += text => OnFadeSubmitted(text, isIn: false);
 			_fadeOutInput.FocusExited += () => OnFadeSubmitted(_fadeOutInput.Text, isIn: false);
 		}
+		PopulateFadeCurveOptions();
+		if (_fadeInCurveOption != null)
+			_fadeInCurveOption.ItemSelected += OnFadeInCurveSelected;
+		if (_fadeOutCurveOption != null)
+			_fadeOutCurveOption.ItemSelected += OnFadeOutCurveSelected;
 		_scaleWidthLineEdit.TextSubmitted += newText => OnScaleWidthSubmitted(newText);
 		_scaleHeightLineEdit.TextSubmitted += newText => OnScaleHeightSubmitted(newText);
 		_offsetXLineEdit.TextSubmitted += newText => OnOffsetXSubmitted(newText);
@@ -258,10 +266,18 @@ public partial class VideoInspector : Control
 		if (_globalSignals != null)
 			_globalSignals.LocaleChanged += OnLocaleChanged;
 
+		SetProcess(true);
+
 		if (_globalData != null && _globalData.FocusedCue >= 0)
 			ShellSelected(_globalData.FocusedCue);
 		else
 			ShowNoSelection();
+	}
+
+	/// <inheritdoc />
+	public override void _Process(double delta)
+	{
+		UpdateWaveformPlayhead();
 	}
 
 	/// <inheritdoc />
@@ -294,6 +310,9 @@ public partial class VideoInspector : Control
 			_globalSignals.DisplaysChanged -= OnDisplaysChangedForTargetLayers;
 		}
 
+		if (_waveformZoom != null)
+			_waveformZoom.ViewChanged -= OnWaveformViewChanged;
+
 		_focusedCue = null;
 		_focusedVideoComponent = null;
 		_videoTargets.Clear();
@@ -324,7 +343,9 @@ public partial class VideoInspector : Control
 		_playCountInput  = GetNode<LineEdit>("%PlayCountInput");
 		_loopPlayCountRow = _loopInput?.GetParent() as Control;
 		_fadeInInput = GetNodeOrNull<LineEdit>("%FadeInInput");
+		_fadeInCurveOption = GetNodeOrNull<OptionButton>("%FadeInCurveOption");
 		_fadeOutInput = GetNodeOrNull<LineEdit>("%FadeOutInput");
+		_fadeOutCurveOption = GetNodeOrNull<OptionButton>("%FadeOutCurveOption");
 		
 		_fileMetadataLabel = GetNode<Label>("%FileMetadataLabel");
 		_targetLayerOptionButton = GetNode<OptionButton>("%TargetLayerOptionButton");
@@ -468,100 +489,30 @@ public partial class VideoInspector : Control
 		_waveformPanel.AddChild(_waveformDisplay);
 		_waveformPanel.MoveChild(_waveformDisplay, 0);
 		_waveformPanel.Resized += () => { if (_waveformAccordian.Visible) _ = DrawWaveform(); };
-		_waveformPanel.GuiInput += OnWaveformPanelGuiInput;
 
 		_startDragHandle = GetNode<Button>("%StartDragHandle");
 		_endDragHandle = GetNode<Button>("%EndDragHandle");
-		_startDragHandle.CustomMinimumSize = new Vector2(10, 0);
-		_endDragHandle.CustomMinimumSize = new Vector2(10, 0);
-		_startDragHandle.Modulate = GlobalStyles.LowColor1;
-		_endDragHandle.Modulate = GlobalStyles.HighColor1;
-		UiLocalizer.SetTooltip(_startDragHandle, "Start time (drag)");
-		UiLocalizer.SetTooltip(_endDragHandle, "End time (drag)");
+		WaveformDisplay.PrepareHandleHost(_startDragHandle);
+		WaveformDisplay.StyleHandle(_startDragHandle, isStart: true);
+		WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
 		_startDragHandle.GuiInput += OnStartHandleInput;
 		_endDragHandle.GuiInput += OnEndHandleInput;
+		_fadeInHandle = WaveformDisplay.CreateFadeHandle(isFadeIn: true);
+		_fadeOutHandle = WaveformDisplay.CreateFadeHandle(isFadeIn: false);
+		_startDragHandle.GetParent()?.AddChild(_fadeInHandle);
+		_startDragHandle.GetParent()?.AddChild(_fadeOutHandle);
+		_fadeInHandle.GuiInput += OnFadeInHandleInput;
+		_fadeOutHandle.GuiInput += OnFadeOutHandleInput;
 
-		_zoomSlider = GetNodeOrNull<HSlider>("%ZoomSlider");
-		if (_zoomSlider != null)
-		{
-			_zoomSlider.MinValue = 1;
-			_zoomSlider.MaxValue = 20;
-			_zoomSlider.Step = 0.1;
-			_zoomSlider.Value = 1;
-			_zoomSlider.TooltipText = UiLocalizer.T("Zoom waveform (1× = full file)");
-			_zoomSlider.ValueChanged += OnZoomChanged;
-		}
-
-		_waveformScroll = new HScrollBar
-		{
-			Name = "WaveformScroll",
-			CustomMinimumSize = new Vector2(0, 14),
-			SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			Visible = false,
-			TooltipText = UiLocalizer.T("Scroll zoomed waveform")
-		};
-		_waveformAccordian.AddChild(_waveformScroll);
-		_waveformScroll.ValueChanged += OnWaveformScrollChanged;
+		_waveformZoom = new WaveformZoomBar();
+		_waveformAccordian.AddChild(_waveformZoom);
+		_waveformZoom.Attach(_waveformDisplay, _waveformPanel);
+		_waveformZoom.ViewChanged += OnWaveformViewChanged;
 	}
 
-	private void OnZoomChanged(double value)
+	private void OnWaveformViewChanged()
 	{
-		float zoom = Mathf.Max(1f, (float)value);
-		float oldSpan = _viewSpanNorm;
-		float center = _viewStartNorm + oldSpan * 0.5f;
-		_viewSpanNorm = 1f / zoom;
-		_viewStartNorm = Mathf.Clamp(center - _viewSpanNorm * 0.5f, 0f, 1f - _viewSpanNorm);
-		SyncWaveformScrollBar();
-		_ = DrawWaveform();
-	}
-
-	private void OnWaveformScrollChanged(double value)
-	{
-		float maxStart = Math.Max(0f, 1f - _viewSpanNorm);
-		_viewStartNorm = maxStart <= 0 ? 0 : Mathf.Clamp((float)value, 0f, maxStart);
-		_ = DrawWaveform();
-	}
-
-	private void SyncWaveformScrollBar()
-	{
-		if (_waveformScroll == null) return;
-		bool zoomed = _viewSpanNorm < 0.999f;
-		_waveformScroll.Visible = zoomed;
-		if (!zoomed)
-		{
-			_viewStartNorm = 0f;
-			return;
-		}
-		float maxStart = Math.Max(0.0001f, 1f - _viewSpanNorm);
-		_waveformScroll.MinValue = 0;
-		_waveformScroll.MaxValue = maxStart;
-		_waveformScroll.Page = Math.Max(0.01, _viewSpanNorm * maxStart);
-		_waveformScroll.Step = maxStart / 200.0;
-		_waveformScroll.SetValueNoSignal(Mathf.Clamp(_viewStartNorm, 0f, maxStart));
-	}
-
-	private void OnWaveformPanelGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mb && mb.Pressed &&
-		    (mb.ButtonIndex == MouseButton.WheelUp || mb.ButtonIndex == MouseButton.WheelDown))
-		{
-			if (mb.CtrlPressed && _zoomSlider != null)
-			{
-				double z = _zoomSlider.Value;
-				z += mb.ButtonIndex == MouseButton.WheelUp ? 0.5 : -0.5;
-				_zoomSlider.Value = Mathf.Clamp((float)z, (float)_zoomSlider.MinValue, (float)_zoomSlider.MaxValue);
-				AcceptEvent();
-			}
-			else if (_viewSpanNorm < 0.999f)
-			{
-				float delta = _viewSpanNorm * 0.15f * (mb.ButtonIndex == MouseButton.WheelUp ? -1f : 1f);
-				float maxStart = 1f - _viewSpanNorm;
-				_viewStartNorm = Mathf.Clamp(_viewStartNorm + delta, 0f, maxStart);
-				SyncWaveformScrollBar();
-				_ = DrawWaveform();
-				AcceptEvent();
-			}
-		}
+		RedrawWaveformView();
 	}
 
 	/// <summary>
@@ -584,6 +535,12 @@ public partial class VideoInspector : Control
 		if (!GodotObject.IsInstanceValid(this))
 			return;
 		UiLocalizer.LocalizeTree(this);
+		_waveformZoom?.Localize();
+		WaveformDisplay.StyleHandle(_startDragHandle, isStart: true);
+		WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
+		WaveformDisplay.StyleFadeHandle(_fadeInHandle, isFadeIn: true);
+		WaveformDisplay.StyleFadeHandle(_fadeOutHandle, isFadeIn: false);
+		PopulateFadeCurveOptions();
 		if (_focusedCue == null)
 			ShowNoSelection();
 		if (_addTextForCcButton != null)

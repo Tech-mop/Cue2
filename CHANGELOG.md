@@ -11,13 +11,16 @@
 - While the cue is active, the input patch is summed to that submaster and routed to the assigned output. Blank duration stays up until the cue stops.
 - Settings → Audio → Display → Level meters (on by default, saved with the show). When an audio file, video with audio, or audio input is playing, a thin level meter sits inside that component’s progress row.
 - Audio output patches allow 64 buses. Builds ship a patched SDL 3.4.2 so devices with more than 8 channels can open on Windows, macOS, and Linux. PulseAudio itself stops at 32 channels; ALSA and PipeWire allow 64.
+- Fade-in and fade-out on audio (file and input), video, and text can be Linear, S-Curve, Exponential, or Logarithmic. Each inspector fade time has a curve menu beside it. Waveforms draw those curves. Settings → General Stop Fade Out has a matching curve for the session stop.
 
 ### Fixed
+- Short audio files and zoomed-in waveforms draw as a continuous envelope. They previously showed as sparse thin vertical bars.
 - Playing to a 64-channel device (Dante Virtual Soundcard) no longer crashes when SDL resamples the stream (for example 44100 Hz into 48000 Hz).
 - Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.
 - Native popups follow UI scale (OptionButton lists, colour picker, shell context menu, clock-days). They were opening at 1× because a PopupPanel is its own window.
 
 ### Changed
+- Audio and video inspector waveforms zoom in seconds (Fit is the whole file; max zoom is 50ms), with Fit, −, +, an always-visible scrollbar, and a visible-window readout. Ctrl+wheel zooms at the cursor; drag pans; double-click fits the start–end region. Hover time and a live playhead sit on the ruler. Start and end flags in the time bar can be dragged. Fade-in and fade-out show as wedges with a thin vertical bar and a flag at the bottom of the waveform.
 - Audio output patch editor: unused devices stay off the grid (Add device). Choosing a device adds every hardware channel with no routes. The routing grid uses frozen headers, drawn cells (click-drag paint), collapsible groups of 8 on large devices, and a List view of bus → hardware routes.
 
 

@@ -205,23 +205,24 @@ public partial class ActiveCue
             // Override or session fade; second press or zero duration forces immediate stop.
             double baseFade = fadeDurationOverride ?? _settings.StopFadeDuration;
             double fadeDuration = hardStop ? 0.0 : Math.Max(0.0, baseFade);
+            FadeCurveType stopCurve = _settings.StopFadeCurve;
 
             var tasks = new List<Task>();
             foreach (var audioComp in _activeAudioComponents.Values.ToList())
             {
-                tasks.Add(audioComp.Stop(fadeDuration));
+                tasks.Add(audioComp.Stop(fadeDuration, stopCurve));
             }
             foreach (var inputPb in _activeAudioInputs.Values.ToList())
             {
-                tasks.Add(inputPb.Stop(fadeDuration));
+                tasks.Add(inputPb.Stop(fadeDuration, stopCurve));
             }
             foreach (var videoComp in _activeVideoComponents.Values.ToList())
             {
-                tasks.Add(videoComp.Stop(fadeDuration));
+                tasks.Add(videoComp.Stop(fadeDuration, stopCurve));
             }
             foreach (var textComp in _activeTextComponents.Values.ToList())
             {
-                tasks.Add(textComp.Stop(fadeDuration));
+                tasks.Add(textComp.Stop(fadeDuration, stopCurve));
             }
 
             // Instant components (OSC / MIDI / cue light / control) have no async stop — clear them now.

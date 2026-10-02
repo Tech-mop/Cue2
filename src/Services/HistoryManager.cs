@@ -925,6 +925,7 @@ public partial class HistoryManager : Node
 		"CueListScale",
 		"WaveformResolution",
 		"StopFadeDuration",
+		"StopFadeCurve",
 		"MediaBackupEnabled",
 		"MultiEditEnabled",
 		"SelectNewCues",

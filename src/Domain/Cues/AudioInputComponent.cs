@@ -58,8 +58,14 @@ public class AudioInputComponent : ICueComponent
     /// <summary>Fade-in seconds.</summary>
     public double FadeInDuration { get; set; }
 
+    /// <summary>Amplitude shape used for <see cref="FadeInDuration"/>.</summary>
+    public FadeCurveType FadeInCurve { get; set; } = FadeCurveType.Linear;
+
     /// <summary>Fade-out seconds.</summary>
     public double FadeOutDuration { get; set; }
+
+    /// <summary>Amplitude shape used for <see cref="FadeOutDuration"/>.</summary>
+    public FadeCurveType FadeOutCurve { get; set; } = FadeCurveType.Linear;
 
     /// <summary>
     /// Sets <see cref="TotalDuration"/> from <see cref="Duration"/>.
@@ -92,7 +98,9 @@ public class AudioInputComponent : ICueComponent
             { "Volume", Volume },
             { "Pan", Pan },
             { "FadeInDuration", FadeInDuration },
-            { "FadeOutDuration", FadeOutDuration }
+            { "FadeInCurve", (int)FadeInCurve },
+            { "FadeOutDuration", FadeOutDuration },
+            { "FadeOutCurve", (int)FadeOutCurve }
         };
         if (Routing != null)
             data.Add("Routing", Routing.GetData());
@@ -123,7 +131,13 @@ public class AudioInputComponent : ICueComponent
         Volume = data.ContainsKey("Volume") ? data["Volume"].AsSingle() : 1f;
         Pan = data.ContainsKey("Pan") ? data["Pan"].AsSingle() : 0f;
         FadeInDuration = data.ContainsKey("FadeInDuration") ? data["FadeInDuration"].AsDouble() : 0;
+        FadeInCurve = data.ContainsKey("FadeInCurve")
+            ? FadeCurve.FromInt(data["FadeInCurve"].AsInt32())
+            : FadeCurveType.Linear;
         FadeOutDuration = data.ContainsKey("FadeOutDuration") ? data["FadeOutDuration"].AsDouble() : 0;
+        FadeOutCurve = data.ContainsKey("FadeOutCurve")
+            ? FadeCurve.FromInt(data["FadeOutCurve"].AsInt32())
+            : FadeCurveType.Linear;
         if (data.ContainsKey("Routing") && data["Routing"].VariantType == Variant.Type.Dictionary)
         {
             Routing = new CuePatch();

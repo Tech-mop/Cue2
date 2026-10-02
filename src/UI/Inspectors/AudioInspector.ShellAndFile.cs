@@ -172,10 +172,7 @@ public partial class AudioInspector
         // Generate waveform data if not cached on the component
         _cachedPeaks = null;
         _cachedPeaksSource = null;
-        _viewStartNorm = 0f;
-        _viewSpanNorm = 1f;
-        if (_zoomSlider != null) _zoomSlider.SetValueNoSignal(1);
-        SyncWaveformScrollBar();
+        _waveformZoom?.Reset();
         if (_focusedAudioComponent.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0)
         {
             GD.Print("AudioInspector:ShellSelected - No waveform found");
@@ -311,10 +308,7 @@ public partial class AudioInspector
 
         _cachedPeaks = null;
         _cachedPeaksSource = null;
-        _viewStartNorm = 0f;
-        _viewSpanNorm = 1f;
-        if (_zoomSlider != null) _zoomSlider.SetValueNoSignal(1);
-        SyncWaveformScrollBar();
+        _waveformZoom?.Reset();
 
         if (_focusedAudioComponent != null
             && !string.IsNullOrEmpty(_focusedAudioComponent.AudioFile)
@@ -525,6 +519,8 @@ public partial class AudioInspector
                     _fadeInInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
                 }
             }
+
+            SyncFadeCurveOptions();
 
             if (_fadeOutInput != null)
             {

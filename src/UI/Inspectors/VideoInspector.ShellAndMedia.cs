@@ -592,6 +592,7 @@ public partial class VideoInspector
 
 		_cachedPeaks = null;
 		_cachedPeaksSource = null;
+		_waveformZoom?.Reset();
 
 		_focusedCue.CalculateTotalDuration();
 
@@ -874,6 +875,7 @@ public partial class VideoInspector
 			_fadeInInput.Text = UiUtilities.FormatTime(_focusedVideoComponent.FadeInDuration);
 		if (_fadeOutInput != null)
 			_fadeOutInput.Text = UiUtilities.FormatTime(_focusedVideoComponent.FadeOutDuration);
+		SyncFadeCurveOptions();
 		
 		// Update metadata label
 		var meta = _focusedVideoComponent.Metadata;

@@ -102,31 +102,95 @@ public partial class VideoInspector
 
 		double duration = _focusedVideoComponent.Metadata?.Duration ?? 0;
 		if (duration <= 0) duration = 1;
+		if (_waveformZoom != null)
+			_waveformZoom.Viewport.DurationSeconds = duration;
+
+		RedrawWaveformView();
+	}
+
+	private void RedrawWaveformView()
+	{
+		if (_waveformDisplay == null || _waveformZoom == null) return;
+		if (_focusedVideoComponent == null || !_focusedVideoComponent.UseAudio) return;
+		if (_focusedVideoComponent.WaveformData == null || _focusedVideoComponent.WaveformData.Length == 0)
+			return;
+		if (_cachedPeaks == null) return;
+
+		double duration = _focusedVideoComponent.Metadata?.Duration ?? 0;
+		if (duration <= 0) duration = 1;
+		_waveformZoom.Viewport.DurationSeconds = duration;
 		float startNorm = (float)(_focusedVideoComponent.StartTime / duration);
 		float endTime = _focusedVideoComponent.EndTime < 0
 			? (float)duration
 			: (float)_focusedVideoComponent.EndTime;
 		float endNorm = (float)(endTime / duration);
+		_waveformZoom.SetSelection(startNorm, endNorm);
 
-		_viewSpanNorm = Mathf.Clamp(_viewSpanNorm, 0.01f, 1f);
-		_viewStartNorm = Mathf.Clamp(_viewStartNorm, 0f, 1f - _viewSpanNorm);
+		_waveformDisplay.SetData(
+			_cachedPeaks, startNorm, endNorm,
+			_waveformZoom.Viewport.ViewStartNorm,
+			_waveformZoom.Viewport.ViewSpanNorm,
+			duration,
+			_focusedVideoComponent.FadeInDuration,
+			_focusedVideoComponent.FadeOutDuration,
+			_focusedVideoComponent.FadeInCurve,
+			_focusedVideoComponent.FadeOutCurve);
 
-		_waveformDisplay.SetData(_cachedPeaks, startNorm, endNorm, _viewStartNorm, _viewSpanNorm, duration);
-
-		PositionWaveformHandle(_startDragHandle, startNorm, width);
-		PositionWaveformHandle(_endDragHandle, endNorm, width);
-		SyncWaveformScrollBar();
+		float w = _waveformPanel != null ? _waveformPanel.Size.X : 0f;
+		float h = _waveformPanel != null ? _waveformPanel.Size.Y : 0f;
+		_waveformDisplay.PlaceHandle(_startDragHandle, startNorm, isStart: true, w, h);
+		_waveformDisplay.PlaceHandle(_endDragHandle, endNorm, isStart: false, w, h);
+		_waveformDisplay.PlaceFadeHandle(_fadeInHandle, _waveformDisplay.FadeInEndNorm, isFadeIn: true, w, h);
+		_waveformDisplay.PlaceFadeHandle(_fadeOutHandle, _waveformDisplay.FadeOutStartNorm, isFadeIn: false, w, h);
 	}
 
-	private void PositionWaveformHandle(Button handle, float fileNorm, float width)
+	private void UpdateWaveformPlayhead()
 	{
-		float x = _waveformDisplay.FileNormToX(fileNorm);
-		bool visible = x >= -4 && x <= width + 4;
-		handle.Visible = visible;
-		if (!visible) return;
-		float handleW = handle.CustomMinimumSize.X > 0 ? handle.CustomMinimumSize.X : 10f;
-		handle.Position = new Vector2(x - handleW * 0.5f, 0);
-		handle.Size = new Vector2(handleW, _waveformPanel.Size.Y);
+		if (_waveformZoom == null || _waveformDisplay == null) return;
+		if (_waveformAccordian == null || !_waveformAccordian.Visible)
+		{
+			_waveformZoom.SetPlayheadNorm(-1f);
+			return;
+		}
+
+		double duration = _focusedVideoComponent?.Metadata?.Duration ?? 0;
+		if (duration <= 0 || _focusedCue == null || _focusedVideoComponent == null || !_focusedVideoComponent.UseAudio)
+		{
+			_waveformZoom.SetPlayheadNorm(-1f);
+			return;
+		}
+
+		var exec = _globalData?.CueCommandExecutor;
+		if (exec == null)
+		{
+			_waveformZoom.SetPlayheadNorm(-1f);
+			return;
+		}
+
+		foreach (var root in exec.ActiveCues)
+		{
+			if (root == null || !IsInstanceValid(root)) continue;
+			try
+			{
+				foreach (var active in root.EnumerateSelfAndDescendants())
+				{
+					if (active == null || !IsInstanceValid(active)) continue;
+					if (active.Cue == null || active.Cue.Id != _focusedCue.Id) continue;
+					foreach (var playback in active.EnumerateVideoPlaybacks())
+					{
+						double sec = playback.GetPlaybackTimeSeconds();
+						_waveformZoom.SetPlayheadNorm((float)Math.Clamp(sec / duration, 0, 1));
+						return;
+					}
+				}
+			}
+			catch
+			{
+				// Playback may be mid-teardown
+			}
+		}
+
+		_waveformZoom.SetPlayheadNorm(-1f);
 	}
 
 	private void OnStartHandleInput(InputEvent @event)
@@ -138,6 +202,7 @@ public partial class VideoInspector
 				// Continuous drag session: one undo step for the whole drag (all multi targets).
 				RecordVideoHistory("Edit video start time", VideoCoalesceKey("start-drag"));
 				_isDraggingStart = true;
+				_startDragHandle?.AcceptEvent();
 			}
 			else if (_isDraggingStart)
 			{
@@ -174,7 +239,7 @@ public partial class VideoInspector
 			}
 			_startTimeInput.Text = UiUtilities.FormatTime(
 				_focusedVideoComponent != null ? _focusedVideoComponent.StartTime : startSecs);
-			_ = DrawWaveform();
+			RedrawWaveformView();
 		}
 	}
 
@@ -186,6 +251,7 @@ public partial class VideoInspector
 			{
 				RecordVideoHistory("Edit video end time", VideoCoalesceKey("end-drag"));
 				_isDraggingEnd = true;
+				_endDragHandle?.AcceptEvent();
 			}
 			else if (_isDraggingEnd)
 			{
@@ -218,8 +284,92 @@ public partial class VideoInspector
 				comp.EndTime = localNorm * d;
 			}
 			_endTimeInput.Text = UiUtilities.FormatTime(endSecs);
-			_ = DrawWaveform();
+			RedrawWaveformView();
 		}
+	}
+
+	private void OnFadeInHandleInput(InputEvent @event)
+	{
+		if (@event is InputEventMouseButton mouseButton && mouseButton.ButtonIndex == MouseButton.Left)
+		{
+			if (mouseButton.Pressed)
+			{
+				RecordVideoHistory("Edit video fade-in", VideoCoalesceKey("fade-in-drag"));
+				_isDraggingFadeIn = true;
+				_fadeInHandle?.AcceptEvent();
+			}
+			else if (_isDraggingFadeIn)
+			{
+				_isDraggingFadeIn = false;
+				var key = VideoCoalesceKey("fade-in-drag");
+				if (!string.IsNullOrEmpty(key))
+					InspectorMultiEditSupport.EndCoalesce(_globalData, UseMultiHistory(), key, key);
+			}
+		}
+		else if (@event is InputEventMouseMotion && _isDraggingFadeIn)
+		{
+			ApplyVideoFadeFromWaveform(isIn: true);
+		}
+	}
+
+	private void OnFadeOutHandleInput(InputEvent @event)
+	{
+		if (@event is InputEventMouseButton mouseButton && mouseButton.ButtonIndex == MouseButton.Left)
+		{
+			if (mouseButton.Pressed)
+			{
+				RecordVideoHistory("Edit video fade-out", VideoCoalesceKey("fade-out-drag"));
+				_isDraggingFadeOut = true;
+				_fadeOutHandle?.AcceptEvent();
+			}
+			else if (_isDraggingFadeOut)
+			{
+				_isDraggingFadeOut = false;
+				var key = VideoCoalesceKey("fade-out-drag");
+				if (!string.IsNullOrEmpty(key))
+					InspectorMultiEditSupport.EndCoalesce(_globalData, UseMultiHistory(), key, key);
+			}
+		}
+		else if (@event is InputEventMouseMotion && _isDraggingFadeOut)
+		{
+			ApplyVideoFadeFromWaveform(isIn: false);
+		}
+	}
+
+	private void ApplyVideoFadeFromWaveform(bool isIn)
+	{
+		if (_focusedVideoComponent == null) return;
+		float localX = _waveformPanel.GetLocalMousePosition().X;
+		float norm = _waveformDisplay.XToFileNorm(localX);
+		double duration = _focusedVideoComponent.Metadata?.Duration ?? 0;
+		if (duration <= 0) return;
+
+		double start = _focusedVideoComponent.StartTime;
+		double end = _focusedVideoComponent.EndTime < 0 ? duration : _focusedVideoComponent.EndTime;
+		double sel = Math.Max(0, end - start);
+		double fade = isIn
+			? Math.Clamp(norm * duration - start, 0, sel)
+			: Math.Clamp(end - norm * duration, 0, sel);
+
+		foreach (var (_, comp) in GetVideoTargets())
+		{
+			if (comp.IsImage) continue;
+			double d = comp.Metadata?.Duration ?? duration;
+			if (d <= 0) d = duration;
+			double s = comp.StartTime;
+			double e = comp.EndTime < 0 ? d : comp.EndTime;
+			double localSel = Math.Max(0, e - s);
+			double localFade = Math.Clamp(fade, 0, localSel);
+			if (isIn)
+				comp.FadeInDuration = localFade;
+			else
+				comp.FadeOutDuration = localFade;
+		}
+
+		var field = isIn ? _fadeInInput : _fadeOutInput;
+		if (field != null)
+			field.Text = UiUtilities.FormatTime(fade);
+		RedrawWaveformView();
 	}
 
 	/// <summary>

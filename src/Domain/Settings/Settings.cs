@@ -83,6 +83,9 @@ public partial class Settings : Node
     /// <summary>System default stop fade-out duration in seconds.</summary>
     public const float DefaultStopFadeDuration = 2.5f;
 
+    /// <summary>System default stop fade-out curve.</summary>
+    public const FadeCurveType DefaultStopFadeCurve = FadeCurveType.Linear;
+
     /// <summary>System default double-GO protection (0 = off).</summary>
     public const float DefaultDoubleGoProtectionSeconds = 0f;
 
@@ -320,6 +323,11 @@ public partial class Settings : Node
     /// 0 = immediate stop. Persisted with the session.
     /// </summary>
     public float StopFadeDuration = DefaultStopFadeDuration;
+
+    /// <summary>
+    /// Amplitude shape for the session stop fade-out. Persisted with the session.
+    /// </summary>
+    public FadeCurveType StopFadeCurve = DefaultStopFadeCurve;
 
     /// <summary>
     /// Seconds to block a second GO after each GO (hotkey, button, control, OSC/MIDI).
@@ -1026,6 +1034,7 @@ public partial class Settings : Node
         CueListScale = DefaultCueListScale;
         WaveformResolution = DefaultWaveformResolution;
         StopFadeDuration = DefaultStopFadeDuration;
+        StopFadeCurve = DefaultStopFadeCurve;
         DoubleGoProtectionSeconds = DefaultDoubleGoProtectionSeconds;
         MediaBackupEnabled = DefaultMediaBackupEnabled;
         MultiEditEnabled = DefaultMultiEditEnabled;

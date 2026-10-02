@@ -60,7 +60,9 @@ public partial class TextInspector : Control
     private OptionButton _targetLayerOption;
     private LineEdit _durationLineEdit;
     private LineEdit _fadeInInput;
+    private OptionButton _fadeInCurveOption;
     private LineEdit _fadeOutInput;
+    private OptionButton _fadeOutCurveOption;
     private TextEdit _contentTextEdit;
     private CheckBox _useBbcodeCheck;
     private OptionButton _fontOption;
@@ -160,7 +162,9 @@ public partial class TextInspector : Control
         _targetLayerOption = GetNode<OptionButton>("%TargetLayerOptionButton");
         _durationLineEdit = GetNode<LineEdit>("%DurationLineEdit");
         _fadeInInput = GetNodeOrNull<LineEdit>("%FadeInInput");
+        _fadeInCurveOption = GetNodeOrNull<OptionButton>("%FadeInCurveOption");
         _fadeOutInput = GetNodeOrNull<LineEdit>("%FadeOutInput");
+        _fadeOutCurveOption = GetNodeOrNull<OptionButton>("%FadeOutCurveOption");
         _contentTextEdit = GetNode<TextEdit>("%ContentTextEdit");
         _useBbcodeCheck = GetNode<CheckBox>("%UseBbcodeCheck");
         _fontOption = GetNodeOrNull<OptionButton>("%FontOptionButton");
@@ -209,6 +213,12 @@ public partial class TextInspector : Control
             _fadeOutInput.TextSubmitted += text => OnFadeSubmitted(text, isIn: false);
             _fadeOutInput.FocusExited += () => OnFadeSubmitted(_fadeOutInput.Text, isIn: false);
         }
+
+        PopulateFadeCurveOptions();
+        if (_fadeInCurveOption != null)
+            _fadeInCurveOption.ItemSelected += OnFadeInCurveSelected;
+        if (_fadeOutCurveOption != null)
+            _fadeOutCurveOption.ItemSelected += OnFadeOutCurveSelected;
 
         _contentTextEdit.TextChanged += OnContentChanged;
         _contentTextEdit.FocusExited += OnContentFocusExited;
@@ -921,6 +931,8 @@ public partial class TextInspector : Control
                     _fadeOutInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
                 }
             }
+
+            SyncFadeCurveOptions();
         }
         finally
         {
@@ -1248,6 +1260,73 @@ public partial class TextInspector : Control
         if (field.HasFocus()) field.ReleaseFocus();
     }
 
+    /// <summary>
+    /// Fills fade-in and fade-out curve OptionButtons (call again on locale change).
+    /// </summary>
+    private void PopulateFadeCurveOptions()
+    {
+        _isSyncingUi = true;
+        try
+        {
+            FadeCurveUi.Populate(_fadeInCurveOption, fadeOut: false);
+            FadeCurveUi.Populate(_fadeOutCurveOption, fadeOut: true);
+        }
+        finally
+        {
+            _isSyncingUi = false;
+        }
+    }
+
+    private void OnFadeInCurveSelected(long index) => CommitFadeCurve(index, isIn: true);
+
+    private void OnFadeOutCurveSelected(long index) => CommitFadeCurve(index, isIn: false);
+
+    private void CommitFadeCurve(long index, bool isIn)
+    {
+        if (_isSyncingUi || _history?.IsRestoring == true) return;
+        if (!CanEdit()) return;
+        var option = isIn ? _fadeInCurveOption : _fadeOutCurveOption;
+        if (option == null) return;
+
+        var targets = GetTextTargets();
+        if (targets.Count == 0) return;
+
+        var curve = FadeCurveUi.CurveAt(option, index);
+        bool anyChange = targets.Any(t =>
+            (isIn ? t.Component.FadeInCurve : t.Component.FadeOutCurve) != curve);
+        if (!anyChange)
+            return;
+
+        Record(isIn ? "Edit text fade-in curve" : "Edit text fade-out curve");
+        foreach (var (_, comp) in targets)
+        {
+            if (isIn)
+                comp.FadeInCurve = curve;
+            else
+                comp.FadeOutCurve = curve;
+        }
+    }
+
+    /// <summary>
+    /// Syncs fade curve OptionButtons from text targets (blank when mixed).
+    /// </summary>
+    private void SyncFadeCurveOptions()
+    {
+        var targets = GetTextTargets();
+        FadeCurveType? fadeIn = null;
+        FadeCurveType? fadeOut = null;
+        if (targets.Count > 0)
+        {
+            if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.FadeInCurve), out var inCurve))
+                fadeIn = inCurve;
+            if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.FadeOutCurve), out var outCurve))
+                fadeOut = outCurve;
+        }
+
+        FadeCurveUi.Sync(_fadeInCurveOption, visible: targets.Count > 0, fadeIn);
+        FadeCurveUi.Sync(_fadeOutCurveOption, visible: targets.Count > 0, fadeOut);
+    }
+
     private void SyncDurationFieldOnly()
     {
         if (_durationLineEdit == null)
@@ -1536,6 +1615,7 @@ public partial class TextInspector : Control
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        PopulateFadeCurveOptions();
         RefreshFromFocusedCue();
     }
 

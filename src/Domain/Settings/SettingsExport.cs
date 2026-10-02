@@ -74,7 +74,7 @@ public static class SettingsExport
     {
         // Settings → General (plus related show scalars not currently on that panel)
         new(SettingsGeneral.MenuKey, SettingsGeneral.MenuKey,
-            "GoScale", "CueListScale", "WaveformResolution", "StopFadeDuration",
+            "GoScale", "CueListScale", "WaveformResolution", "StopFadeDuration", "StopFadeCurve",
             "DoubleGoProtection",
             "MediaBackupEnabled", "MultiEditEnabled", "SelectNewCues", "ShowTimelineWaveforms",
             "ShowMode"),

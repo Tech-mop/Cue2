@@ -500,15 +500,44 @@ public partial class MediaEngine : Node
             ret = ffmpeg.swr_init(swrCtx);
             if (ret < 0) throw new Exception($"Swr init failed: {GetFFmpegError(ret)}");
 
-            // Audacity-style: summarize into fixed-size sample chunks while decoding,
-            // then reduce chunks → display bins. Memory is O(duration / chunk), not O(samples).
-            const int samplesPerChunk = 256;
-            var chunks = new List<(float min, float max)>(4096);
+            // Audacity-style: summarize into sample chunks while decoding, then reduce
+            // chunks → display bins. Short files use 1-sample chunks so the envelope
+            // has real shape instead of a handful of peaks scattered across 4096 bins.
+            int maxChunks = Math.Max(binCount * 8, 2048);
+            int samplesPerChunk = 256;
+            double durationSec = TryGetStreamDurationSeconds(formatCtx, stream);
+            if (durationSec > 0)
+            {
+                long estSamples = Math.Max(1L, (long)Math.Round(durationSec * outRate));
+                long raw = estSamples / maxChunks;
+                if (raw < 1) raw = 1;
+                if (raw > 256) raw = 256;
+                samplesPerChunk = (int)raw;
+            }
+
+            var chunks = new List<(float min, float max)>(Math.Min(maxChunks, 4096));
             float chunkMin = float.MaxValue;
             float chunkMax = float.MinValue;
             int chunkCount = 0;
             long sampleIndex = 0;
             int packetIter = 0;
+
+            void CoarsenChunks()
+            {
+                int n = chunks.Count;
+                if (n < 2) return;
+                int w = 0;
+                for (int r = 0; r + 1 < n; r += 2)
+                {
+                    var a = chunks[r];
+                    var b = chunks[r + 1];
+                    chunks[w++] = (Math.Min(a.min, b.min), Math.Max(a.max, b.max));
+                }
+                if ((n & 1) == 1)
+                    chunks[w++] = chunks[n - 1];
+                chunks.RemoveRange(w, chunks.Count - w);
+                samplesPerChunk = Math.Min(samplesPerChunk * 2, 8192);
+            }
 
             void FlushChunk()
             {
@@ -517,6 +546,8 @@ public partial class MediaEngine : Node
                 chunkMin = float.MaxValue;
                 chunkMax = float.MinValue;
                 chunkCount = 0;
+                if (chunks.Count >= maxChunks)
+                    CoarsenChunks();
             }
 
             void Accumulate(float* mono, int count)
@@ -633,35 +664,8 @@ public partial class MediaEngine : Node
             if (sampleIndex == 0 || chunks.Count == 0)
                 throw new Exception("No samples decoded.");
 
-            // Reduce chunk peaks → fixed display resolution
-            float[] minMax = new float[binCount * 2];
-            for (int i = 0; i < binCount; i++)
-            {
-                minMax[i * 2] = float.MaxValue;
-                minMax[i * 2 + 1] = float.MinValue;
-            }
-
-            int chunkN = chunks.Count;
-            for (int c = 0; c < chunkN; c++)
-            {
-                int binIdx = (int)((long)c * binCount / chunkN);
-                if (binIdx >= binCount) binIdx = binCount - 1;
-                var (mn, mx) = chunks[c];
-                if (mn < minMax[binIdx * 2]) minMax[binIdx * 2] = mn;
-                if (mx > minMax[binIdx * 2 + 1]) minMax[binIdx * 2 + 1] = mx;
-            }
-
-            for (int i = 0; i < binCount; i++)
-            {
-                if (minMax[i * 2] == float.MaxValue)
-                {
-                    minMax[i * 2] = 0f;
-                    minMax[i * 2 + 1] = 0f;
-                }
-            }
-
-            var peaks = new WaveformPeaks(binCount, minMax);
-            GD.Print($"MediaEngine:GenerateWaveformAsync - OK bins={binCount} samples={sampleIndex} chunks={chunkN}");
+            var peaks = WaveformPeaks.FromChunks(chunks, binCount);
+            GD.Print($"MediaEngine:GenerateWaveformAsync - OK bins={peaks.BinCount} samples={sampleIndex} chunks={chunks.Count}");
             return peaks.ToBytes();
         }
         catch (OperationCanceledException)
@@ -686,6 +690,18 @@ public partial class MediaEngine : Node
             ffmpeg.av_channel_layout_uninit(&inChLayout);
             ffmpeg.av_channel_layout_uninit(&outChLayout);
         }
+    }
+
+    /// <summary>
+    /// Best-effort duration in seconds from stream or container metadata (0 when unknown).
+    /// </summary>
+    private static unsafe double TryGetStreamDurationSeconds(AVFormatContext* formatCtx, AVStream* stream)
+    {
+        if (stream != null && stream->duration > 0 && stream->duration != ffmpeg.AV_NOPTS_VALUE)
+            return stream->duration * ffmpeg.av_q2d(stream->time_base);
+        if (formatCtx != null && formatCtx->duration > 0 && formatCtx->duration != ffmpeg.AV_NOPTS_VALUE)
+            return formatCtx->duration / (double)ffmpeg.AV_TIME_BASE;
+        return 0;
     }
 
     /// <summary>
