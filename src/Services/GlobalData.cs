@@ -95,7 +95,7 @@ public partial class GlobalData : Node
 
 	/// <summary>
 	/// Dynamically loads <c>CueNet.Host</c> (and later hardware plugins) from <c>plugins/cuenet/</c>.
-	/// Cue2 still runs if the DLL is missing.
+	/// Skipped when <see cref="FeatureFlags.CueNetEnabled"/> is false. Cue2 still runs if the DLL is missing.
 	/// </summary>
 	public HardwarePluginLoader HardwarePluginLoader;
 

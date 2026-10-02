@@ -1,0 +1,128 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/UI/Settings/SettingsCueNet.cs" id="1_cuenet"]
+
+[node name="SettingsCueNet" type="ScrollContainer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_cuenet")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "CueNet"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Intro" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "CueNet talks to Techmop hardware on Ethernet. Discover broadcasts UDP 32512. Connect opens TCP 32513. USB is console only."
+autowrap_mode = 3
+
+[node name="EnableRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EnableLabel" type="Label" parent="VBoxContainer/EnableRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Enable CueNet"
+vertical_alignment = 1
+
+[node name="EnableCueNetCheck" type="CheckButton" parent="VBoxContainer/EnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Start or stop CueNet discovery and TCP sessions."
+focus_mode = 0
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer/EnableRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = ""
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="HostRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="HostCaption" type="Label" parent="VBoxContainer/HostRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Host"
+vertical_alignment = 1
+
+[node name="HostLabel" type="Label" parent="VBoxContainer/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "—"
+autowrap_mode = 3
+vertical_alignment = 1
+
+[node name="DevicesHeaderRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DevicesCaption" type="Label" parent="VBoxContainer/DevicesHeaderRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Devices"
+vertical_alignment = 1
+
+[node name="DeviceCountLabel" type="Label" parent="VBoxContainer/DevicesHeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "0 devices"
+vertical_alignment = 1
+
+[node name="DiscoverButton" type="Button" parent="VBoxContainer/DevicesHeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Broadcast DISCOVER on every network interface."
+text = "Discover"
+
+[node name="RefreshButton" type="Button" parent="VBoxContainer/DevicesHeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Check existing TCP sessions. Does not broadcast DISCOVER."
+text = "Refresh"
+
+[node name="DeviceList" type="VBoxContainer" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="EmptyLabel" type="Label" parent="VBoxContainer/DeviceList"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 10
+text = "No CueNet devices found. Plug etherCON, wait for an IP, then Discover."
+autowrap_mode = 3

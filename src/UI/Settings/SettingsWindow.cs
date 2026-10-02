@@ -968,6 +968,7 @@ public partial class SettingsWindow : Window
 			SettingsOscInputMap.MenuKey => "SettingsOscInputMap",
 			SettingsMidi.MenuKey => "SettingsMidi",
 			SettingsMidiInputMap.MenuKey => "SettingsMidiInputMap",
+			SettingsCueNet.MenuKey => "SettingsCueNet",
 			SettingsCueDefaults.MenuKey => "SettingsCueDefaults",
 			SettingsAudioDefaults.MenuKey => "SettingsAudioDefaults",
 			SettingsVideoDefaults.MenuKey => "SettingsVideoDefaults",
@@ -976,6 +977,12 @@ public partial class SettingsWindow : Window
 			SettingsUpdates.MenuKey => "SettingsUpdates",
 			_ => null
 		};
+		if (menuNode == "SettingsCueNet" && !FeatureFlags.CueNetEnabled)
+		{
+			menuNode = null;
+			return false;
+		}
+
 		return menuNode != null;
 	}
 
@@ -1029,6 +1036,12 @@ public partial class SettingsWindow : Window
 		TreeItem tiMidiInputMap = _setTree.CreateItem(tiMidi);
 		SetTreeItemText(tiMidiInputMap, 0, SettingsMidiInputMap.MenuKey);
 		SetTreeItemTooltip(tiMidiInputMap, 0, "Assign MIDI controls to app actions (Go, Save, Undo, …)");
+		if (FeatureFlags.CueNetEnabled)
+		{
+			TreeItem tiCueNet = _setTree.CreateItem(tiConnections);
+			SetTreeItemText(tiCueNet, 0, SettingsCueNet.MenuKey);
+			SetTreeItemTooltip(tiCueNet, 0, "Techmop hardware discovery (CueNet). Hidden in public builds until CueNet ships.");
+		}
 		// Art-Net: not shipped in this version — re-add under Connections when implementing.
 
 		// Cue defaults (shell + component defaults applied to newly created cues/components)

@@ -1076,6 +1076,7 @@ public partial class Settings : Node
         GetNodeOrNull<OscListen>("/root/OscListen")?.ResetToDefaults();
         GetNodeOrNull<OscConnections>("/root/OscConnections")?.ClearAll();
         GetNodeOrNull<MidiManager>("/root/MidiManager")?.ResetToDefaults();
+        _globalData?.HardwarePluginLoader?.ResetToDefaults();
 
         GD.Print("Settings:ClearForOpen - Settings cleared for showfile apply (no default seed).");
     }
@@ -1118,6 +1119,7 @@ public partial class Settings : Node
         GetNodeOrNull<OscListen>("/root/OscListen")?.ResetToDefaults();
         GetNodeOrNull<OscConnections>("/root/OscConnections")?.ClearAll();
         GetNodeOrNull<MidiManager>("/root/MidiManager")?.ResetToDefaults();
+        _globalData?.HardwarePluginLoader?.ResetToDefaults();
 
         _globalSignals?.EmitSignal(nameof(GlobalSignals.GoScaleChanged), GoScale);
         _globalSignals?.EmitSignal(nameof(GlobalSignals.CueListScaleChanged), CueListScale);

@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsVideoOutput.tscn" id="19_vidout"]
 [ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsUpdates.tscn" id="20_updates"]
 [ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsAudioInput.tscn" id="21_audioin"]
+[ext_resource type="PackedScene" path="res://src/UI/Settings/SettingsCueNet.tscn" id="22_cuenet"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hpi7s"]
 bg_color = Color(0.0980392, 0.0980392, 0.0980392, 0.6)
@@ -209,6 +210,11 @@ visible = false
 layout_mode = 2
 
 [node name="SettingsMidiInputMap" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("14_midi_map")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="SettingsCueNet" parent="Control/VBoxContainer/MarginContainer/HSplitContainer/Panel/RightSide" instance=ExtResource("22_cuenet")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2

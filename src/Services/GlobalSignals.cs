@@ -13,6 +13,7 @@ using Cue2.Domain.Cues;
 using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
+using Cue2.UI.Utilities;
 
 namespace Cue2.Services;
 public partial class GlobalSignals : Node
@@ -302,7 +303,8 @@ public partial class GlobalSignals : Node
 	}
 
 	/// <summary>
-	/// Wires one node for the text-field focus gate or OptionButton dropdown gate.
+	/// Wires one node for the text-field focus gate, OptionButton dropdown gate,
+	/// or PopupPanel UI-scale bind.
 	/// </summary>
 	private void WireKeyboardPolicyNode(Node node)
 	{
@@ -317,6 +319,8 @@ public partial class GlobalSignals : Node
 		}
 		else if (node is OptionButton optionButton)
 			ConnectOptionButtonSpaceBlock(optionButton);
+		else if (node is Popup popup)
+			UiUtilities.BindTransientPopupScale(popup);
 	}
 
 	/// <summary>True when <paramref name="node"/> lives under a <see cref="PopupMenu"/>.</summary>

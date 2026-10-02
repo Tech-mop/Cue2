@@ -41,7 +41,10 @@ public static class Version
     /// <summary> 
     /// Gets the version status. Empty for a public release. 
     /// </summary> 
-    /// <value>The status string, e.g., "dev", or empty when shipping.</value> 
+    /// <value>The status string, e.g., "dev", or empty when shipping.</value>
+    /// <remarks>
+    /// Before a public release, also set <c>FeatureFlags.CueNetEnabled</c> to false until CueNet is ready to ship.
+    /// </remarks>
     public static readonly string Status = ""; 
  
     /// <summary> 

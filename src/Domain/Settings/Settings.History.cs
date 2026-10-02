@@ -227,6 +227,12 @@ public partial class Settings
                 ?.LoadInputMapBindingsData(midiInputMapSlice.AsGodotDictionary());
         }
 
+        if (TryGetSettingsValue(settingsData, HardwarePluginLoader.HistoryKey, out var cueNetSlice)
+            && cueNetSlice.VariantType == Variant.Type.Dictionary)
+        {
+            _globalData?.HardwarePluginLoader?.LoadFromData(cueNetSlice.AsGodotDictionary());
+        }
+
         // Keyboard InputMap is Cue2 Preferences only (user:// via UserDataManager) — not
         // document history. Ignore legacy slices if an old undo entry still has the key.
         if (TryGetSettingsValue(settingsData, "InputMap", out _))
@@ -370,6 +376,12 @@ public partial class Settings
             {
                 var oscConn = GetNodeOrNull<OscConnections>("/root/OscConnections");
                 slice[key] = oscConn != null ? oscConn.GetData() : new Dictionary();
+            }
+            else if (key == HardwarePluginLoader.HistoryKey)
+            {
+                slice[key] = _globalData?.HardwarePluginLoader != null
+                    ? _globalData.HardwarePluginLoader.GetData()
+                    : new Dictionary();
             }
             else
             {

@@ -91,6 +91,9 @@ public partial class Settings
             saveTable.Add("MidiInputMap", midi.GetInputMapBindingsData());
         }
 
+        if (_globalData?.HardwarePluginLoader != null)
+            saveTable.Add(HardwarePluginLoader.HistoryKey, _globalData.HardwarePluginLoader.GetData());
+
         // Keyboard Input Map is stored in user:// via UserDataManager (not in the showfile).
         
         return saveTable;
@@ -381,6 +384,13 @@ public partial class Settings
             GD.Print("Settings:LoadSettings - Loading MidiInputMap");
             GetNodeOrNull<MidiManager>("/root/MidiManager")
                 ?.LoadInputMapBindingsData(midiInputMap.AsGodotDictionary());
+        }
+
+        if (settingsData.TryGetValue(HardwarePluginLoader.HistoryKey, out var cueNetData)
+            && cueNetData.VariantType == Variant.Type.Dictionary)
+        {
+            GD.Print("Settings:LoadSettings - Loading CueNet");
+            _globalData?.HardwarePluginLoader?.LoadFromData(cueNetData.AsGodotDictionary());
         }
 
         // Legacy showfiles may still contain "InputMap" — ignore; bindings are user preferences.
