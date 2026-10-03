@@ -860,6 +860,7 @@ public partial class VideoInspector
 				comp.FadeOutDuration = seconds;
 		}
 
+		RedrawWaveformView();
 		if (field.HasFocus()) field.ReleaseFocus();
 	}
 

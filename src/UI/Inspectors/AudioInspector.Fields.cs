@@ -404,6 +404,139 @@ public partial class AudioInspector
     }
 
     /// <summary>
+    /// Syncs rate / keep-pitch / cents fields from audio targets (blank when mixed).
+    /// </summary>
+    private void SyncRatePitchUi(List<(Cue Cue, AudioComponent Component)> targets)
+    {
+        if (targets == null || targets.Count == 0)
+            return;
+
+        if (_rateInput != null)
+        {
+            if (InspectorMultiEditSupport.TryGetUniformDouble(targets.Select(t => t.Component.PlayRate), out double rate))
+            {
+                _rateInput.Text = FormatPlayRate(rate);
+                _rateInput.PlaceholderText = string.Empty;
+            }
+            else
+            {
+                _rateInput.Text = string.Empty;
+                _rateInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
+            }
+        }
+
+        if (_keepPitchCheck != null)
+        {
+            if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.KeepPitch), out bool keep))
+                _keepPitchCheck.SetPressedNoSignal(keep);
+            else
+                _keepPitchCheck.SetPressedNoSignal(false);
+        }
+
+        if (_pitchInput != null)
+        {
+            if (InspectorMultiEditSupport.TryGetUniformFloat(targets.Select(t => t.Component.PitchCents), out float cents))
+            {
+                _pitchInput.Text = FormatPitchCents(cents);
+                _pitchInput.PlaceholderText = string.Empty;
+            }
+            else
+            {
+                _pitchInput.Text = string.Empty;
+                _pitchInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
+            }
+        }
+    }
+
+    private static string FormatPlayRate(double rate)
+    {
+        rate = AudioComponent.ClampPlayRate(rate);
+        return rate.ToString("0.###");
+    }
+
+    private static string FormatPitchCents(float cents)
+    {
+        int rounded = (int)Math.Round(AudioComponent.ClampPitchCents(cents));
+        return rounded.ToString();
+    }
+
+    private void OnRateSubmitted(string text)
+    {
+        if (_focusedAudioInput != null) return;
+        var targets = GetAudioTargets();
+        if (targets.Count == 0 || _rateInput == null) return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+
+        if (!double.TryParse((text ?? "").Trim(), out double rate) || rate <= 0)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"Invalid play rate: {text}", (int)LogType.Warning);
+            SyncRatePitchUi(targets);
+            if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
+            return;
+        }
+
+        rate = AudioComponent.ClampPlayRate(rate);
+        _rateInput.Text = FormatPlayRate(rate);
+        if (targets.All(t => Math.Abs(t.Component.PlayRate - rate) < 1e-6))
+        {
+            if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
+            return;
+        }
+
+        RecordAudioHistory("Edit audio play rate");
+        foreach (var (_, comp) in targets)
+            comp.PlayRate = rate;
+        SyncDuration();
+        RedrawWaveformView();
+        if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
+    }
+
+    private void OnKeepPitchToggled(bool pressed)
+    {
+        if (_focusedAudioInput != null) return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+        var targets = GetAudioTargets();
+        if (targets.Count == 0) return;
+        if (targets.All(t => t.Component.KeepPitch == pressed)) return;
+
+        RecordAudioHistory("Edit audio keep pitch");
+        foreach (var (_, comp) in targets)
+            comp.KeepPitch = pressed;
+    }
+
+    private void OnPitchSubmitted(string text)
+    {
+        if (_focusedAudioInput != null) return;
+        var targets = GetAudioTargets();
+        if (targets.Count == 0 || _pitchInput == null) return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+
+        string trimmed = (text ?? "").Trim().TrimEnd('¢', 'c', 'C');
+        if (!float.TryParse(trimmed, out float cents))
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"Invalid pitch cents: {text}", (int)LogType.Warning);
+            SyncRatePitchUi(targets);
+            if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();
+            return;
+        }
+
+        cents = AudioComponent.ClampPitchCents(cents);
+        _pitchInput.Text = FormatPitchCents(cents);
+        if (targets.All(t => Math.Abs(t.Component.PitchCents - cents) < 0.5f))
+        {
+            if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();
+            return;
+        }
+
+        RecordAudioHistory("Edit audio pitch");
+        foreach (var (_, comp) in targets)
+            comp.PitchCents = cents;
+        if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();
+    }
+
+    /// <summary>
     /// True when pan UI should be shown (stereo source only).
     /// </summary>
     private bool IsStereoSource =>
@@ -654,6 +787,7 @@ public partial class AudioInspector
                 comp.FadeOutDuration = seconds;
         }
 
+        RedrawWaveformView();
         if (field.HasFocus()) field.ReleaseFocus();
     }
 

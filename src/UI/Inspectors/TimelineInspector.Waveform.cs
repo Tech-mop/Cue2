@@ -181,7 +181,7 @@ public partial class TimelineInspector
 
             double fileDur = audio.Metadata?.Duration ?? 0;
             if (fileDur <= 1e-9 && audio.Duration > 0)
-                fileDur = audio.StartTime + audio.Duration;
+                fileDur = audio.StartTime + audio.Duration * audio.PlayRate;
             if (fileDur > 1e-9)
             {
                 startNorm = (float)Math.Clamp(audio.StartTime / fileDur, 0.0, 1.0);

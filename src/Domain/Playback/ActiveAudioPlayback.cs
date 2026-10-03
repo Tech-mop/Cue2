@@ -99,6 +99,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
     private float[] _srcBuffer;
     private float[] _mixBuffer;
+    private readonly AudioRatePitchProcessor _ratePitch = new();
 
     /// <summary>Frames remaining in the post-start/seek de-click ramp (0 = inactive).</summary>
     private int _declickFramesRemaining;
@@ -179,6 +180,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             SourceSampleRate = Decoder.Info.SampleRate;
             SourceFormat = SDL.AudioFormat.AudioF32LE;
             SourceBytesPerFrame = SourceChannels * sizeof(float);
+            _ratePitch.Configure(SourceChannels, SourceSampleRate);
+            _ratePitch.Reset();
 
             if (!_useCustomEnd && Decoder.Info.DurationUs > 0)
                 _endTimeUs = Decoder.Info.DurationUs;
@@ -502,12 +505,14 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                     continue;
                 }
 
-                // Limit frames so we don't read past end
+                // Limit output frames so we don't read past the file end (rate consumes more source).
                 if (_endTimeUs < long.MaxValue && SourceSampleRate > 0)
                 {
                     long remainingUs = _endTimeUs - posUs;
-                    int remainingFrames = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
-                    framesToRead = Math.Min(framesToRead, Math.Max(1, remainingFrames));
+                    int remainingSource = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
+                    double rate = CurrentPlayRate();
+                    int remainingOut = (int)Math.Max(0, remainingSource / rate);
+                    framesToRead = Math.Min(framesToRead, Math.Max(1, remainingOut));
                 }
 
                 lock (_lock)
@@ -515,8 +520,15 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                     if (IsPaused || IsStopped || _fillSuspended) continue;
                 }
 
-                // Decode outside playback lock to avoid blocking Pause/Seek
-                int frames = Decoder.Read(_srcBuffer.AsSpan(), framesToRead, token);
+                // Decode + rate/pitch outside playback lock to avoid blocking Pause/Seek
+                int frames = _ratePitch.Process(
+                    Decoder,
+                    _srcBuffer.AsSpan(),
+                    framesToRead,
+                    _audioComponent.PlayRate,
+                    _audioComponent.KeepPitch,
+                    _audioComponent.PitchCents,
+                    token);
 
                 if (frames <= 0)
                 {
@@ -677,7 +689,20 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
             int maxFrames = _srcBuffer.Length / SourceChannels;
             int framesToRead = Math.Min(maxNeedFrames, maxFrames);
-            int frames = Decoder.Read(_srcBuffer.AsSpan(), framesToRead);
+            if (_endTimeUs < long.MaxValue && SourceSampleRate > 0)
+            {
+                long remainingUs = _endTimeUs - Decoder.PositionUs;
+                int remainingSource = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
+                int remainingOut = (int)Math.Max(0, remainingSource / CurrentPlayRate());
+                framesToRead = Math.Min(framesToRead, Math.Max(1, remainingOut));
+            }
+            int frames = _ratePitch.Process(
+                Decoder,
+                _srcBuffer.AsSpan(),
+                framesToRead,
+                _audioComponent.PlayRate,
+                _audioComponent.KeepPitch,
+                _audioComponent.PitchCents);
             if (frames <= 0)
                 break;
 
@@ -791,6 +816,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 }
                 Decoder.Seek(_startTimeUs);
                 Decoder.Prefetch(_audioTuning.PrefetchMs);
+                _ratePitch.Reset();
                 _framesDelivered = 0;
                 ArmDeclickRamp();
                 PrefillStreams();
@@ -835,7 +861,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 return;
 
             long remainingUs = _endTimeUs - posUs;
-            long fadeUs = (long)(fadeSec * 1_000_000.0);
+            // Fade duration is wall-clock; file time advances at PlayRate.
+            long fadeUs = (long)(fadeSec * CurrentPlayRate() * 1_000_000.0);
             if (remainingUs > fadeUs)
                 return;
 
@@ -882,7 +909,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             }
 
             long remainingUs = Math.Max(0, _endTimeUs - GetPlaybackPositionUs());
-            double remainingSec = remainingUs / 1_000_000.0;
+            double remainingSec = remainingUs / 1_000_000.0 / CurrentPlayRate();
 
             // Clamp to remaining content so fade completes at the natural end (not after).
             fadeDuration = Math.Max(remainingSec, 1e-3);
@@ -1162,7 +1189,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             double segmentDuration = GetSegmentDurationSecondsUnlocked();
             double posSec = GetPlaybackPositionUs() / 1_000_000.0;
             double startSec = _startTimeUs / 1_000_000.0;
-            double remainingInSegment = Math.Max(0, segmentDuration - (posSec - startSec));
+            double elapsedWall = (posSec - startSec) / CurrentPlayRate();
+            double remainingInSegment = Math.Max(0, segmentDuration - elapsedWall);
             int remainingCounts = Math.Max(0, EffectivePlayCount - _currentPlayCount);
             return remainingInSegment + remainingCounts * segmentDuration;
         }
@@ -1184,7 +1212,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
             double posSec = GetPlaybackPositionUs() / 1_000_000.0;
             double startSec = _startTimeUs / 1_000_000.0;
-            double segmentElapsed = Math.Clamp(posSec - startSec, 0.0, segmentDuration);
+            double segmentElapsed = Math.Clamp((posSec - startSec) / CurrentPlayRate(), 0.0, segmentDuration);
 
             // Infinite loop: do not accumulate unboundedly for UI.
             if (_audioComponent.Loop || EffectivePlayCount >= int.MaxValue / 4)
@@ -1225,7 +1253,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         {
             double local = contentSeconds % segmentDuration;
             if (local < 0) local += segmentDuration;
-            Seek(_startTimeUs + (long)(local * 1_000_000.0));
+            Seek(_startTimeUs + (long)(local * CurrentPlayRate() * 1_000_000.0));
             return;
         }
 
@@ -1252,23 +1280,31 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _currentPlayCount = playIndex + 1;
         }
 
-        long targetUs = _startTimeUs + (long)(localInSegment * 1_000_000.0);
+        long targetUs = _startTimeUs + (long)(localInSegment * CurrentPlayRate() * 1_000_000.0);
         if (_endTimeUs < long.MaxValue)
             targetUs = Math.Min(targetUs, _endTimeUs);
         Seek(targetUs);
     }
 
-    /// <summary>Single play segment length in seconds (StartTime…EndTime).</summary>
+    /// <summary>Single play segment length in wall-clock seconds (StartTime…EndTime / play rate).</summary>
     private double GetSegmentDurationSecondsUnlocked()
     {
         if (_endTimeUs == long.MaxValue || _endTimeUs <= _startTimeUs)
         {
-            // Fall back to component duration when end is open-ended.
+            // Fall back to component duration when end is open-ended (already wall-clock).
             if (_audioComponent.Duration > 0)
                 return _audioComponent.Duration;
             return 0;
         }
-        return (_endTimeUs - _startTimeUs) / 1_000_000.0;
+        return (_endTimeUs - _startTimeUs) / 1_000_000.0 / CurrentPlayRate();
+    }
+
+    /// <summary>Playback speed used by fill, fades, and progress (clamped).</summary>
+    private double CurrentPlayRate()
+    {
+        return _audioComponent != null
+            ? AudioComponent.ClampPlayRate(_audioComponent.PlayRate)
+            : AudioComponent.DefaultPlayRate;
     }
 
     public long GetPlaybackTimeMs()
@@ -1340,6 +1376,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _framesDelivered = 0;
             _pausedAtUs = clamped;
             _seekTargetUs = clamped;
+            _ratePitch.Reset();
 
             bool resumeAfter = !wasPaused && !IsStopped;
             var decoder = Decoder;

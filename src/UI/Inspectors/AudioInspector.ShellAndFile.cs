@@ -505,6 +505,8 @@ public partial class AudioInspector
                 _volumeInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
             }
 
+            SyncRatePitchUi(targets);
+
             if (_fadeInInput != null)
             {
                 if (InspectorMultiEditSupport.TryGetUniformDouble(

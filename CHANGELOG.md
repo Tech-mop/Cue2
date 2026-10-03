@@ -12,6 +12,7 @@
 - Settings → Audio → Display → Level meters (on by default, saved with the show). When an audio file, video with audio, or audio input is playing, a thin level meter sits inside that component’s progress row.
 - Audio output patches allow 64 buses. Builds ship a patched SDL 3.4.2 so devices with more than 8 channels can open on Windows, macOS, and Linux. PulseAudio itself stops at 32 channels; ALSA and PipeWire allow 64.
 - Fade-in and fade-out on audio (file and input), video, and text can be Linear, S-Curve, Exponential, or Logarithmic. Each inspector fade time has a curve menu beside it. Waveforms draw those curves. Settings → General Stop Fade Out has a matching curve for the session stop.
+- Audio file cues have a play rate. Rate shortens the cue and raises pitch unless Keep Pitch is on. Pitch (cents) shifts also added.
 
 ### Fixed
 - Short audio files and zoomed-in waveforms draw as a continuous envelope. They previously showed as sparse thin vertical bars.

@@ -75,7 +75,8 @@ public partial class AudioInspector
 
         double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
         if (duration <= 0) duration = 1;
-        _waveformZoom.Viewport.DurationSeconds = duration;
+        double playRate = _focusedAudioComponent.PlayRate;
+        _waveformZoom.Viewport.DurationSeconds = duration / playRate;
         float startNorm = (float)(_focusedAudioComponent.StartTime / duration);
         float endTime = _focusedAudioComponent.EndTime < 0
             ? (float)duration
@@ -91,7 +92,8 @@ public partial class AudioInspector
             _focusedAudioComponent.FadeInDuration,
             _focusedAudioComponent.FadeOutDuration,
             _focusedAudioComponent.FadeInCurve,
-            _focusedAudioComponent.FadeOutCurve);
+            _focusedAudioComponent.FadeOutCurve,
+            playRate);
 
         float width = _waveformPanel != null ? _waveformPanel.Size.X : 0f;
         float height = _waveformPanel != null ? _waveformPanel.Size.Y : 0f;
@@ -191,7 +193,7 @@ public partial class AudioInspector
         double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
         if (duration <= 0) duration = 1;
         if (_waveformZoom != null)
-            _waveformZoom.Viewport.DurationSeconds = duration;
+            _waveformZoom.Viewport.DurationSeconds = duration / _focusedAudioComponent.PlayRate;
 
         RedrawWaveformView();
     }
@@ -348,9 +350,11 @@ public partial class AudioInspector
         double start = _focusedAudioComponent.StartTime;
         double end = _focusedAudioComponent.EndTime < 0 ? duration : _focusedAudioComponent.EndTime;
         double sel = Math.Max(0, end - start);
-        double fade = isIn
+        double fileFade = isIn
             ? Math.Clamp(norm * duration - start, 0, sel)
             : Math.Clamp(end - norm * duration, 0, sel);
+        double rate = Math.Max(1e-6, _focusedAudioComponent.PlayRate);
+        double fade = fileFade / rate;
 
         foreach (var (_, comp) in GetAudioTargets())
         {
@@ -359,7 +363,8 @@ public partial class AudioInspector
             double s = comp.StartTime;
             double e = comp.EndTime < 0 ? d : comp.EndTime;
             double localSel = Math.Max(0, e - s);
-            double localFade = Math.Clamp(fade, 0, localSel);
+            double localRate = Math.Max(1e-6, comp.PlayRate);
+            double localFade = Math.Clamp(fileFade / localRate, 0, localSel / localRate);
             if (isIn)
                 comp.FadeInDuration = localFade;
             else

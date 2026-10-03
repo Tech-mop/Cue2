@@ -296,6 +296,51 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "The number of times the audio loops then stops."
 
+[node name="RateRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RateLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+layout_mode = 2
+tooltip_text = "Playback speed. 1 is original, 0.5 is half speed, 2 is double speed."
+mouse_filter = 1
+text = "Rate:"
+
+[node name="RateInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+tooltip_text = "Playback speed. 1 is original, 0.5 is half speed, 2 is double speed."
+text = "1"
+alignment = 1
+
+[node name="KeepPitchCheck" type="CheckBox" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Hold musical pitch when rate changes. Rate still shortens or lengthens the cue."
+focus_mode = 0
+text = "Keep Pitch"
+
+[node name="PitchLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+layout_mode = 2
+tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone."
+mouse_filter = 1
+text = "Pitch:"
+
+[node name="PitchInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone. Independent of rate."
+text = "0"
+alignment = 1
+
+[node name="PitchCentsLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+layout_mode = 2
+tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone."
+mouse_filter = 1
+text = "¢"
+
 [node name="FadeRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
 layout_mode = 2
 

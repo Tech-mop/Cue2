@@ -42,6 +42,7 @@ public partial class WaveformDisplay : Control
     private float _viewStartNorm;
     private float _viewSpanNorm = 1f;
     private double _durationSec = 1;
+    private double _playRate = 1;
     private float _playheadNorm = -1f;
     private float _hoverNorm = -1f;
 
@@ -70,12 +71,17 @@ public partial class WaveformDisplay : Control
         set { _peaks = value; QueueRedraw(); }
     }
 
-    /// <summary>Full media duration in seconds (for time ticks).</summary>
+    /// <summary>Full file duration in seconds (start/end and playhead stay in file time).</summary>
     public double DurationSeconds
     {
         get => _durationSec;
         set { _durationSec = Math.Max(1e-6, value); QueueRedraw(); }
     }
+
+    /// <summary>
+    /// Wall-clock length of the full file at the current play rate (file duration / rate).
+    /// </summary>
+    private double PlaybackDurationSeconds() => _durationSec / Math.Max(1e-6, _playRate);
 
     public float StartNorm
     {
@@ -132,8 +138,9 @@ public partial class WaveformDisplay : Control
     }
 
     /// <summary>
-    /// Updates peaks, selection, fades, view window, and duration in one redraw.
+    /// Updates peaks, selection, fades, view window, duration, and play rate in one redraw.
     /// </summary>
+    /// <param name="playRate">Playback speed. Ruler, hover, and fade wedges use wall-clock time.</param>
     public void SetData(
         WaveformPeaks peaks,
         float startNorm,
@@ -144,7 +151,8 @@ public partial class WaveformDisplay : Control
         double fadeInSeconds = 0,
         double fadeOutSeconds = 0,
         FadeCurveType fadeInCurve = FadeCurveType.Linear,
-        FadeCurveType fadeOutCurve = FadeCurveType.Linear)
+        FadeCurveType fadeOutCurve = FadeCurveType.Linear,
+        double playRate = 1)
     {
         _peaks = peaks;
         _startNorm = Mathf.Clamp(startNorm, 0f, 1f);
@@ -154,8 +162,12 @@ public partial class WaveformDisplay : Control
         _viewSpanNorm = Mathf.Clamp(viewSpanNorm, 1e-7f, 1f);
         _viewStartNorm = Mathf.Clamp(viewStartNorm, 0f, 1f - _viewSpanNorm + 1e-6f);
         _durationSec = Math.Max(1e-6, durationSeconds);
-        float fadeInN = (float)(Math.Max(0, fadeInSeconds) / _durationSec);
-        float fadeOutN = (float)(Math.Max(0, fadeOutSeconds) / _durationSec);
+        _playRate = playRate > 1e-6 && !double.IsNaN(playRate) && !double.IsInfinity(playRate)
+            ? playRate
+            : 1;
+        // Fade times are wall-clock; at rate 2 a 1s fade covers 2s of file.
+        float fadeInN = (float)(Math.Max(0, fadeInSeconds) * _playRate / _durationSec);
+        float fadeOutN = (float)(Math.Max(0, fadeOutSeconds) * _playRate / _durationSec);
         _fadeInEndNorm = Mathf.Clamp(_startNorm + fadeInN, _startNorm, _endNorm);
         _fadeOutStartNorm = Mathf.Clamp(_endNorm - fadeOutN, _startNorm, _endNorm);
         _fadeInCurve = fadeInCurve;
@@ -388,11 +400,12 @@ public partial class WaveformDisplay : Control
     /// </summary>
     private void DrawTimeGridAndRuler(float width, float waveTop, float waveHeight)
     {
-        double viewStartSec = _viewStartNorm * _durationSec;
-        double viewEndSec = (_viewStartNorm + _viewSpanNorm) * _durationSec;
+        double playDur = PlaybackDurationSeconds();
+        double viewStartSec = _viewStartNorm * playDur;
+        double viewEndSec = (_viewStartNorm + _viewSpanNorm) * playDur;
         double visibleSec = Math.Max(1e-6, viewEndSec - viewStartSec);
 
-        // Aim for ~6–10 major divisions across the view
+        // Aim for ~6–10 major divisions across the view (playback seconds).
         double majorStep = NiceTimeStep(visibleSec / 7.0);
         double minorStep = majorStep / 5.0;
         // Avoid overcrowding minors when very zoomed out
@@ -407,8 +420,8 @@ public partial class WaveformDisplay : Control
 
         for (double t = firstMinor; t <= viewEndSec + minorStep * 0.5; t += minorStep)
         {
-            if (t < -1e-9 || t > _durationSec + 1e-6) continue;
-            float norm = (float)(t / _durationSec);
+            if (t < -1e-9 || t > playDur + 1e-6) continue;
+            float norm = (float)(t / playDur);
             float x = FileNormToX(norm);
             if (x < -1 || x > width + 1) continue;
 
@@ -622,8 +635,9 @@ public partial class WaveformDisplay : Control
 
         var font = _font ?? ThemeDB.FallbackFont;
         if (font == null) return;
-        double t = _hoverNorm * _durationSec;
-        double visibleSec = Math.Max(1e-6, _viewSpanNorm * _durationSec);
+        double playDur = PlaybackDurationSeconds();
+        double t = _hoverNorm * playDur;
+        double visibleSec = Math.Max(1e-6, _viewSpanNorm * playDur);
         string label = FormatTickLabel(t, NiceTimeStep(visibleSec / 7.0));
         const int fontSize = 10;
         var textSize = font.GetStringSize(label, HorizontalAlignment.Left, -1, fontSize);

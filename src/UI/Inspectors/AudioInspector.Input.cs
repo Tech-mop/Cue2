@@ -101,6 +101,8 @@ public partial class AudioInspector
         if (_playCountInput != null)
             _playCountInput.Visible = !inputMode;
         SetSiblingVisible(_playCountInput, "PlaycountLabel", !inputMode);
+        if (_rateRow != null)
+            _rateRow.Visible = !inputMode;
 
         if (_waveformCollapseButton?.GetParent() is CanvasItem waveformHeader)
             waveformHeader.Visible = !inputMode;

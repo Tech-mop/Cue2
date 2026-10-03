@@ -29,12 +29,12 @@ public class AudioComponent : ICueComponent
     public CuePatch Routing { get; set; }
 
     /// <summary>
-    /// Duration is length of audio between start and endtime
+    /// Wall-clock length of the start–end region at the current <see cref="PlayRate"/>.
     /// </summary>
     public double Duration { get; set; } = 0.0;
     
     /// <summary>
-    /// TotalDuration is time the audio plays including playcount. ((Endtime-Starttime) * playcount)
+    /// Wall-clock time the audio plays including play count (Duration × play count).
     /// </summary>
     /// <value>Returns -1 if looping enabled</value>
     public double TotalDuration { get; set; } = 0.0;
@@ -57,6 +57,72 @@ public class AudioComponent : ICueComponent
 
     public bool Loop { get; set; } = false;
     public int PlayCount { get; set; } = 1;
+
+    /// <summary>Default playback speed (original).</summary>
+    public const double DefaultPlayRate = 1.0;
+
+    /// <summary>Slowest supported playback multiplier.</summary>
+    public const double MinPlayRate = 0.1;
+
+    /// <summary>Fastest supported playback multiplier.</summary>
+    public const double MaxPlayRate = 8.0;
+
+    /// <summary>Default extra pitch shift in cents.</summary>
+    public const float DefaultPitchCents = 0f;
+
+    /// <summary>Lowest extra pitch shift in cents (two octaves down).</summary>
+    public const float MinPitchCents = -2400f;
+
+    /// <summary>Highest extra pitch shift in cents (two octaves up).</summary>
+    public const float MaxPitchCents = 2400f;
+
+    /// <summary>
+    /// Playback speed multiplier. 1 is original, 0.5 is half speed, 2 is double speed.
+    /// Shortens <see cref="Duration"/> and <see cref="TotalDuration"/> by the same factor.
+    /// </summary>
+    public double PlayRate
+    {
+        get => _playRate;
+        set => _playRate = ClampPlayRate(value);
+    }
+    private double _playRate = DefaultPlayRate;
+
+    /// <summary>
+    /// When true, time-stretch so musical pitch stays put as <see cref="PlayRate"/> changes.
+    /// Extra <see cref="PitchCents"/> still apply.
+    /// </summary>
+    public bool KeepPitch { get; set; }
+
+    /// <summary>
+    /// Extra pitch shift in cents (100 cents = 1 semitone), independent of rate.
+    /// Without <see cref="KeepPitch"/>, rate also shifts pitch (vinyl-style).
+    /// </summary>
+    public float PitchCents
+    {
+        get => _pitchCents;
+        set => _pitchCents = ClampPitchCents(value);
+    }
+    private float _pitchCents = DefaultPitchCents;
+
+    /// <summary>
+    /// Clamps a play-rate multiplier into the supported range.
+    /// </summary>
+    public static double ClampPlayRate(double rate)
+    {
+        if (double.IsNaN(rate) || double.IsInfinity(rate))
+            return DefaultPlayRate;
+        return Math.Clamp(rate, MinPlayRate, MaxPlayRate);
+    }
+
+    /// <summary>
+    /// Clamps a pitch shift in cents into the supported range.
+    /// </summary>
+    public static float ClampPitchCents(float cents)
+    {
+        if (float.IsNaN(cents) || float.IsInfinity(cents))
+            return DefaultPitchCents;
+        return Math.Clamp(cents, MinPitchCents, MaxPitchCents);
+    }
     
     public double FadeInDuration { get; set; } = 0.0; // In seconds
 
@@ -99,6 +165,9 @@ public class AudioComponent : ICueComponent
         data.Add("Volume", Volume);
         data.Add("Pan", Pan);
         data.Add("PlayCount", PlayCount);
+        data.Add("PlayRate", PlayRate);
+        data.Add("KeepPitch", KeepPitch);
+        data.Add("PitchCents", PitchCents);
         data.Add("FadeInDuration", FadeInDuration);
         data.Add("FadeInCurve", (int)FadeInCurve);
         data.Add("FadeOutDuration", FadeOutDuration);
@@ -156,9 +225,11 @@ public class AudioComponent : ICueComponent
         // Keep start within file bounds so duration/playback cannot go invalid.
         StartTime = ClampStartTime(StartTime);
 
-        Duration = EndTime < 0
+        double region = EndTime < 0
             ? Math.Max(0, fileDuration - StartTime)
             : Math.Max(0, EndTime - StartTime);
+        // Duration / TotalDuration are wall-clock (rate 2 → half as long).
+        Duration = region / PlayRate;
         TotalDuration = Loop ? -1.0 : Duration * PlayCount;
         return Duration;
     }
@@ -180,6 +251,9 @@ public class AudioComponent : ICueComponent
             ? Math.Clamp(data["Pan"].AsSingle(), -1f, 1f)
             : 0f;
         PlayCount = data.ContainsKey("PlayCount") ? data["PlayCount"].AsInt32() : 1;
+        PlayRate = data.ContainsKey("PlayRate") ? data["PlayRate"].AsDouble() : DefaultPlayRate;
+        KeepPitch = data.ContainsKey("KeepPitch") && data["KeepPitch"].AsBool();
+        PitchCents = data.ContainsKey("PitchCents") ? data["PitchCents"].AsSingle() : DefaultPitchCents;
         FadeInDuration = data.ContainsKey("FadeInDuration") ? data["FadeInDuration"].AsDouble() : 0.0;
         FadeInCurve = data.ContainsKey("FadeInCurve")
             ? FadeCurve.FromInt(data["FadeInCurve"].AsInt32())
@@ -229,7 +303,10 @@ public class AudioComponent : ICueComponent
         { 
             GD.Print("AudioComponent:LoadFromData - No metadata in save data; will extract on next load.");
             Metadata = null; 
-        } 
+        }
+
+        if (Metadata != null)
+            RecalculateDuration();
     }
 
     /// <summary>

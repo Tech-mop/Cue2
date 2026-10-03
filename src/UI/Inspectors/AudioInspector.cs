@@ -86,6 +86,10 @@ public partial class AudioInspector : Control
     private CheckBox _loopInput;
     private LineEdit _playCountInput;
     private LineEdit _volumeInput;
+    private Control _rateRow;
+    private LineEdit _rateInput;
+    private CheckBox _keepPitchCheck;
+    private LineEdit _pitchInput;
     private LineEdit _fadeInInput;
     private OptionButton _fadeInCurveOption;
     private LineEdit _fadeOutInput;
@@ -188,6 +192,10 @@ public partial class AudioInspector : Control
         _loopInput = GetNode<CheckBox>("%LoopInput");
         _playCountInput = GetNode<LineEdit>("%PlayCountInput");
         _volumeInput = GetNode<LineEdit>("%VolumeInput");
+        _rateRow = GetNodeOrNull<Control>("%RateRow");
+        _rateInput = GetNodeOrNull<LineEdit>("%RateInput");
+        _keepPitchCheck = GetNodeOrNull<CheckBox>("%KeepPitchCheck");
+        _pitchInput = GetNodeOrNull<LineEdit>("%PitchInput");
         _fadeInInput = GetNodeOrNull<LineEdit>("%FadeInInput");
         _fadeInCurveOption = GetNodeOrNull<OptionButton>("%FadeInCurveOption");
         _fadeOutInput = GetNodeOrNull<LineEdit>("%FadeOutInput");
@@ -255,6 +263,18 @@ public partial class AudioInspector : Control
         _volumeInput.TextSubmitted += newText => VolumeInputSubmitted(newText, _volumeInput);
         _volumeInput.FocusExited += () => VolumeInputSubmitted(_volumeInput.Text, _volumeInput);
         LineEditDbDragSlider.EnableVolume(_volumeInput);
+        if (_rateInput != null)
+        {
+            _rateInput.TextSubmitted += OnRateSubmitted;
+            _rateInput.FocusExited += () => OnRateSubmitted(_rateInput.Text);
+        }
+        if (_keepPitchCheck != null)
+            _keepPitchCheck.Toggled += OnKeepPitchToggled;
+        if (_pitchInput != null)
+        {
+            _pitchInput.TextSubmitted += OnPitchSubmitted;
+            _pitchInput.FocusExited += () => OnPitchSubmitted(_pitchInput.Text);
+        }
         if (_panSlider != null)
         {
             _panSlider.MinValue = -100;
