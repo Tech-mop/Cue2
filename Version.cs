@@ -30,13 +30,13 @@ public static class Version
     /// Gets the minor version number. 
     /// </summary> 
     /// <value>The minor version integer.</value> 
-    public static readonly int Minor = 1; 
+    public static readonly int Minor = 2; 
  
     /// <summary> 
     /// Gets the patch version number. 
     /// </summary> 
     /// <value>The patch version integer.</value> 
-    public static readonly int Patch = 1; 
+    public static readonly int Patch = 0; 
  
     /// <summary> 
     /// Gets the version status. Empty for a public release. 

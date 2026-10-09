@@ -481,8 +481,8 @@ public partial class VideoOutputDevice : Window, IDisposable
     }
 
     /// <summary>
-    /// Positions the layer host on this screen and makes LayerOutput fill it so Fit/Fill/Stretch work.
-    /// StretchMode is left alone if already set by <see cref="VideoComponent.ApplyTextureLayout"/>.
+    /// Positions the layer host on this screen. Ignore Size fills the host; Keep Size / Fit Width /
+    /// Fit Height keep the expand and stretch already set by <see cref="VideoComponent.ApplyTextureLayout"/>.
     /// </summary>
     private void ApplyLayerRectToHost(Control host, TextureRect outputLayer, VideoTargetLayer layer)
     {
@@ -494,10 +494,9 @@ public partial class VideoOutputDevice : Window, IDisposable
         host.Size = (Vector2)layer.Size;
         host.ClipContents = true;
 
-        // Texture fills the host; VideoDisplayMode stretch mode maps the frame inside.
         outputLayer.Position = Vector2.Zero;
-        outputLayer.Size = host.Size;
-        outputLayer.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+        if (outputLayer.ExpandMode == TextureRect.ExpandModeEnum.IgnoreSize)
+            outputLayer.Size = host.Size;
     }
 
     

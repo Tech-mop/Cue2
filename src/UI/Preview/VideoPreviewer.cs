@@ -28,6 +28,9 @@ public partial class VideoPreviewer : Control
     private ImageTexture _godotTexture;
     private Image _godotImage;
     private byte[] _displayRgba;
+    private byte[] _sourceRgba;
+    private int _sourceWidth;
+    private int _sourceHeight;
 
     private VideoSourceDecoder _decoder;
     private bool _isExiting;
@@ -42,7 +45,14 @@ public partial class VideoPreviewer : Control
 
     private Control _viewArea;
     private Panel _canvasArea;
+    private Control _layerHost;
     private TextureRect _previewTextRect;
+
+    private int _layerId = -1;
+    private bool _areasDirty = true;
+    private float _previewScale = 1f;
+    private TextureRect.ExpandModeEnum _expandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+    private TextureRect.StretchModeEnum _stretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 
     private bool _isDraggingProgress;
 
@@ -69,7 +79,17 @@ public partial class VideoPreviewer : Control
 
         _viewArea = GetNode<Control>("%ViewArea");
         _canvasArea = GetNode<Panel>("%CanvasArea");
+        _layerHost = GetNode<Control>("%LayerHost");
         _previewTextRect = GetNode<TextureRect>("%PreviewTextRect");
+
+        _viewArea.ClipContents = true;
+        _canvasArea.ClipContents = true;
+        _canvasArea.MouseFilter = MouseFilterEnum.Ignore;
+        _layerHost.ClipContents = true;
+        _layerHost.MouseFilter = MouseFilterEnum.Ignore;
+        _previewTextRect.MouseFilter = MouseFilterEnum.Ignore;
+
+        _viewArea.Resized += OnViewResized;
 
         _godotImage = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
         _godotTexture = ImageTexture.CreateFromImage(_godotImage);
@@ -99,12 +119,8 @@ public partial class VideoPreviewer : Control
         {
             await _decoder.OpenAsync(file);
             if (_isExiting || _decoder == null) return;
-            var info = _decoder.Info;
-            _godotImage = Image.CreateEmpty(info.Width, info.Height, false, Image.Format.Rgba8);
-            _godotTexture = ImageTexture.CreateFromImage(_godotImage);
-            _previewTextRect.Texture = _godotTexture;
-            _displayRgba = new byte[info.FrameByteSize];
             // Prefetch + first frame off main (decode can be multi-ms).
+            // Image / display buffer are created in UploadFromSource at canvas preview size.
             var decoder = _decoder;
             await Task.Run(() => decoder.Prefetch(4));
             if (_isExiting || _decoder != decoder) return;
@@ -123,18 +139,24 @@ public partial class VideoPreviewer : Control
 
     public void SetAreasDeferred(int layerId)
     {
-        CallDeferred(nameof(SetAreas), layerId);
+        _layerId = layerId;
+        _areasDirty = true;
+        CallDeferred(nameof(RefreshLayout));
     }
 
     /// <summary>
     /// Applies TextureRect expand + stretch modes for the inspector preview.
     /// </summary>
+    /// <remarks>
+    /// The preview TextureRect is parented to a layer-sized host inside the canvas clip,
+    /// matching house <see cref="VideoComponent.ApplyTextureLayout"/> (fill parent on IgnoreSize).
+    /// Parent clip keeps Keep / Covered / KeepSize drawing inside the canvas outline.
+    /// </remarks>
     public void ApplyTextureLayout(TextureRect.ExpandModeEnum expand, TextureRect.StretchModeEnum stretch)
     {
-        if (_previewTextRect == null || !IsInstanceValid(_previewTextRect))
-            return;
-        _previewTextRect.ClipContents = true;
-        VideoComponent.ApplyTextureLayout(_previewTextRect, expand, stretch);
+        _expandMode = expand;
+        _stretchMode = stretch;
+        ApplyStoredTextureLayout();
     }
 
     /// <summary>
@@ -158,27 +180,98 @@ public partial class VideoPreviewer : Control
         _previewTextRect.Modulate = new Color(1f, 1f, 1f, a);
     }
 
-    private void SetAreas(int layerId)
+    /// <inheritdoc />
+    public override void _Notification(int what)
     {
-        var canvas = DisplaysManager.Canvas;
-        var layer = DisplaysManager.GetLayerById(layerId);
-        if (layer == null || canvas == null)
+        if (what == NotificationVisibilityChanged && IsVisibleInTree() && _areasDirty)
+            CallDeferred(nameof(RefreshLayout));
+    }
+
+    private void OnViewResized()
+    {
+        _areasDirty = true;
+        if (IsVisibleInTree())
+            CallDeferred(nameof(RefreshLayout));
+    }
+
+    /// <summary>
+    /// Fits the scaled canvas and layer host into the view, then re-applies expand/stretch.
+    /// </summary>
+    private void RefreshLayout()
+    {
+        if (_isExiting || _viewArea == null || _canvasArea == null || _layerHost == null
+            || !IsInstanceValid(_viewArea) || !IsInstanceValid(_canvasArea) || !IsInstanceValid(_layerHost))
             return;
 
-        var viewArea = _viewArea.Size;
+        var viewSize = _viewArea.Size;
+        if (viewSize.X < 1f || viewSize.Y < 1f)
+        {
+            _areasDirty = true;
+            return;
+        }
+
+        var canvas = DisplaysManager.Canvas;
+        if (canvas == null)
+        {
+            _layerHost.Visible = false;
+            _areasDirty = false;
+            return;
+        }
+
         var canvasSize = new Vector2(canvas.CanvasSize.X, canvas.CanvasSize.Y);
-        var scale = Mathf.Min(viewArea.X / canvasSize.X, viewArea.Y / canvasSize.Y);
-        var scaledSize = canvasSize * scale;
+        if (canvasSize.X < 1f || canvasSize.Y < 1f)
+            canvasSize = new Vector2(1920, 1080);
 
-        _canvasArea.Size = scaledSize;
+        float scale = Mathf.Min(viewSize.X / canvasSize.X, viewSize.Y / canvasSize.Y);
+        if (scale <= 0f)
+            scale = 1f;
 
-        var scaledLayerPos = new Vector2(layer.CanvasPosition.X * scale, layer.CanvasPosition.Y * scale);
-        var scaledLayerSize = new Vector2(layer.Size.X * scale, layer.Size.Y * scale);
+        _previewScale = scale;
+        var scaledCanvas = canvasSize * scale;
+        _canvasArea.Size = scaledCanvas;
+        _canvasArea.Position = Vector2.Zero;
+        _canvasArea.ClipContents = true;
 
-        _previewTextRect.Position = scaledLayerPos;
-        _previewTextRect.Size = scaledLayerSize;
+        var layer = DisplaysManager.GetLayerById(_layerId);
+        if (layer == null || _layerId < 0)
+        {
+            _layerHost.Visible = false;
+            _areasDirty = false;
+            UpdateSeekBarWidth(scaledCanvas.X);
+            return;
+        }
 
-        _seekProgressBar.CustomMinimumSize = new Vector2(scaledSize.X - 93, _seekProgressBar.CustomMinimumSize.Y);
+        _layerHost.Visible = true;
+        _layerHost.ClipContents = true;
+        // LayerHost is a child of CanvasArea, so position is canvas-local (layer * scale).
+        _layerHost.Position = new Vector2(layer.CanvasPosition.X, layer.CanvasPosition.Y) * scale;
+        _layerHost.Size = new Vector2(layer.Size.X, layer.Size.Y) * scale;
+
+        // Texture pixels follow preview scale so Keep Size / Fit Width match the drawn canvas.
+        UploadFromSource();
+        ApplyStoredTextureLayout();
+        UpdateSeekBarWidth(scaledCanvas.X);
+        _areasDirty = false;
+    }
+
+    /// <summary>
+    /// Applies stored expand/stretch. Ignore Size fills the layer host; Keep Size / Fit Width /
+    /// Fit Height use the preview-scaled texture size (same ratio as house canvas pixels).
+    /// </summary>
+    private void ApplyStoredTextureLayout()
+    {
+        if (_previewTextRect == null || !IsInstanceValid(_previewTextRect))
+            return;
+        _previewTextRect.Position = Vector2.Zero;
+        VideoComponent.ApplyTextureLayout(_previewTextRect, _expandMode, _stretchMode);
+    }
+
+    private void UpdateSeekBarWidth(float scaledCanvasWidth)
+    {
+        if (_seekProgressBar == null || !IsInstanceValid(_seekProgressBar))
+            return;
+        float barWidth = Mathf.Max(0f, scaledCanvasWidth - 93f);
+        _seekProgressBar.CustomMinimumSize = new Vector2(barWidth, _seekProgressBar.CustomMinimumSize.Y);
     }
 
     public override void _Process(double delta)
@@ -368,61 +461,67 @@ public partial class VideoPreviewer : Control
     {
         if (frame?.Rgba == null || _isExiting) return;
 
-        // Inspector-only scale; house outputs never read this path.
-        // Always copy into _displayRgba so the decoder buffer can be pooled immediately after.
-        float scale = ResolvePreviewScale();
         int srcW = frame.Width;
         int srcH = frame.Height;
+        if (srcW < 1 || srcH < 1)
+            return;
+
+        int needed = srcW * srcH * 4;
+        if (_sourceRgba == null || _sourceRgba.Length < needed)
+            _sourceRgba = new byte[needed];
+        Buffer.BlockCopy(frame.Rgba, 0, _sourceRgba, 0, needed);
+        _sourceWidth = srcW;
+        _sourceHeight = srcH;
+
+        UploadFromSource();
+    }
+
+    /// <summary>
+    /// Uploads the last native frame at canvas preview scale so TextureRect expand/stretch
+    /// min-size (Keep Size, Fit Width, Fit Height) matches the drawn canvas, not native pixels.
+    /// </summary>
+    private void UploadFromSource()
+    {
+        if (_sourceRgba == null || _sourceWidth < 1 || _sourceHeight < 1 || _isExiting)
+            return;
+
+        float scale = _previewScale > 0.0001f ? _previewScale : 1f;
+        int srcW = _sourceWidth;
+        int srcH = _sourceHeight;
         int dstW = Math.Max(1, (int)Math.Round(srcW * scale));
         int dstH = Math.Max(1, (int)Math.Round(srcH * scale));
+        int neededDst = dstW * dstH * 4;
+        // Image.SetData uses the array Length, so this buffer must be exactly dstW*dstH*4.
+        EnsureDisplayBuffer(neededDst);
 
-        // Full-quality path: present source buffer via owned display copy.
         if (dstW == srcW && dstH == srcH)
         {
-            int needed = srcW * srcH * 4;
-            if (_displayRgba == null || _displayRgba.Length < needed)
-                _displayRgba = new byte[needed];
-            Buffer.BlockCopy(frame.Rgba, 0, _displayRgba, 0, needed);
-
-            if (_godotImage == null || !IsInstanceValid(_godotImage)
-                || _godotImage.GetWidth() != srcW || _godotImage.GetHeight() != srcH)
-            {
-                _godotImage = Image.CreateEmpty(srcW, srcH, false, Image.Format.Rgba8);
-                _godotTexture = ImageTexture.CreateFromImage(_godotImage);
-                if (_previewTextRect != null && IsInstanceValid(_previewTextRect))
-                    _previewTextRect.Texture = _godotTexture;
-            }
-
-            _godotImage.SetData(srcW, srcH, false, Image.Format.Rgba8, _displayRgba);
-            _godotTexture.Update(_godotImage);
-            return;
+            Buffer.BlockCopy(_sourceRgba, 0, _displayRgba, 0, neededDst);
         }
-
-        // Downscale for laptop programming sessions (nearest-neighbour, cheap).
-        int neededDst = dstW * dstH * 4;
-        if (_displayRgba == null || _displayRgba.Length < neededDst)
-            _displayRgba = new byte[neededDst];
-
-        byte[] src = frame.Rgba;
-        for (int y = 0; y < dstH; y++)
+        else
         {
-            int srcY = Math.Min(srcH - 1, (y * srcH) / dstH);
-            int srcRow = srcY * srcW * 4;
-            int dstRow = y * dstW * 4;
-            for (int x = 0; x < dstW; x++)
+            byte[] src = _sourceRgba;
+            for (int y = 0; y < dstH; y++)
             {
-                int srcX = Math.Min(srcW - 1, (x * srcW) / dstW);
-                int si = srcRow + srcX * 4;
-                int di = dstRow + x * 4;
-                _displayRgba[di] = src[si];
-                _displayRgba[di + 1] = src[si + 1];
-                _displayRgba[di + 2] = src[si + 2];
-                _displayRgba[di + 3] = src[si + 3];
+                int srcY = Math.Min(srcH - 1, (y * srcH) / dstH);
+                int srcRow = srcY * srcW * 4;
+                int dstRow = y * dstW * 4;
+                for (int x = 0; x < dstW; x++)
+                {
+                    int srcX = Math.Min(srcW - 1, (x * srcW) / dstW);
+                    int si = srcRow + srcX * 4;
+                    int di = dstRow + x * 4;
+                    _displayRgba[di] = src[si];
+                    _displayRgba[di + 1] = src[si + 1];
+                    _displayRgba[di + 2] = src[si + 2];
+                    _displayRgba[di + 3] = src[si + 3];
+                }
             }
         }
 
-        if (_godotImage == null || !IsInstanceValid(_godotImage)
-            || _godotImage.GetWidth() != dstW || _godotImage.GetHeight() != dstH)
+        bool sizeChanged = _godotImage == null || !IsInstanceValid(_godotImage)
+            || _godotImage.GetWidth() != dstW || _godotImage.GetHeight() != dstH;
+        if (sizeChanged)
         {
             _godotImage = Image.CreateEmpty(dstW, dstH, false, Image.Format.Rgba8);
             _godotTexture = ImageTexture.CreateFromImage(_godotImage);
@@ -432,23 +531,22 @@ public partial class VideoPreviewer : Control
 
         _godotImage.SetData(dstW, dstH, false, Image.Format.Rgba8, _displayRgba);
         _godotTexture.Update(_godotImage);
+
+        if (sizeChanged)
+            ApplyStoredTextureLayout();
     }
 
     /// <summary>
-    /// Reads show-scoped preview quality (defaults to full resolution).
+    /// Ensures <see cref="_displayRgba"/> is exactly <paramref name="byteCount"/> long.
+    /// Godot <see cref="Image.SetData"/> rejects a buffer that is larger than width×height×4.
     /// </summary>
-    private float ResolvePreviewScale()
+    private void EnsureDisplayBuffer(int byteCount)
     {
-        try
-        {
-            var quality = _globalData?.Settings?.VideoPreviewQuality
-                ?? Cue2.Domain.ShowSettings.VideoPreviewQuality.Full;
-            return Cue2.Domain.ShowSettings.VideoPresentTuning.PreviewScale(quality);
-        }
-        catch
-        {
-            return 1f;
-        }
+        if (_displayRgba != null && _displayRgba.Length == byteCount)
+            return;
+        if (_displayRgba != null)
+            MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_displayRgba));
+        _displayRgba = new byte[byteCount];
     }
 
     private void OnPlayPausePressed()
@@ -539,6 +637,13 @@ public partial class VideoPreviewer : Control
             MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_displayRgba));
             _displayRgba = null;
         }
+        if (_sourceRgba != null)
+        {
+            MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_sourceRgba));
+            _sourceRgba = null;
+        }
+        _sourceWidth = 0;
+        _sourceHeight = 0;
         if (_previewTextRect != null && IsInstanceValid(_previewTextRect))
             _previewTextRect.Texture = null;
         if (_godotTexture != null && IsInstanceValid(_godotTexture))
@@ -562,6 +667,8 @@ public partial class VideoPreviewer : Control
 
     public override void _ExitTree()
     {
+        if (_viewArea != null && IsInstanceValid(_viewArea))
+            _viewArea.Resized -= OnViewResized;
         _isExiting = true;
         ClearDecoder();
         base._ExitTree();

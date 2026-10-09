@@ -15,12 +15,17 @@
 - Audio file cues have a play rate. Rate shortens the cue and raises pitch unless Keep Pitch is on. Pitch (cents) shifts also added.
 
 ### Fixed
+- Video inspector preview stays inside the canvas outline when expand or stretch mode changes. The preview rect was filling the whole view instead of the target layer.
+- Video inspector preview sits on the left above the transport controls (it was centering in the view).
+- Expand / stretch in the inspector preview use the scaled canvas size. Fit Width was using the file’s native pixel width, so the picture ran wider than the preview.
+- Moving or resizing a target layer no longer resets a playing video to Ignore Size. House outputs keep the cue’s expand and stretch modes.
 - Short audio files and zoomed-in waveforms draw as a continuous envelope. They previously showed as sparse thin vertical bars.
 - Playing to a 64-channel device (Dante Virtual Soundcard) no longer crashes when SDL resamples the stream (for example 44100 Hz into 48000 Hz).
 - Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.
 - Native popups follow UI scale (OptionButton lists, colour picker, shell context menu, clock-days). They were opening at 1× because a PopupPanel is its own window.
 
 ### Changed
+- Video inspector no longer shows the unused Scale resolution / Offset row. Expand and stretch size the picture on the layer; those leftover fields were never applied to preview or playback.
 - Audio and video inspector waveforms zoom in seconds (Fit is the whole file; max zoom is 50ms), with Fit, −, +, an always-visible scrollbar, and a visible-window readout. Ctrl+wheel zooms at the cursor; drag pans; double-click fits the start–end region. Hover time and a live playhead sit on the ruler. Start and end flags in the time bar can be dragged. Fade-in and fade-out show as wedges with a thin vertical bar and a flag at the bottom of the waveform.
 - Audio output patch editor: unused devices stay off the grid (Add device). Choosing a device adds every hardware channel with no routes. The routing grid uses frozen headers, drawn cells (click-drag paint), collapsible groups of 8 on large devices, and a List view of bus → hardware routes.
 

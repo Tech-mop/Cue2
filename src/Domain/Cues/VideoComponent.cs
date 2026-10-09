@@ -248,13 +248,22 @@ public class VideoComponent : ICueComponent
     public bool Loop { get; set; } = false;
     public int PlayCount { get; set; } = 1;
 
-    /// <summary>Scaled width in pixels</summary>
+    /// <summary>
+    /// Legacy explicit pixel width. Kept for showfile compatibility; layout uses
+    /// <see cref="TextureExpandMode"/> / <see cref="TextureStretchMode"/>.
+    /// </summary>
     public int ScaledWidth { get; set; } = 0;
-    /// <summary>Scaled height in pixels</summary>
+    /// <summary>
+    /// Legacy explicit pixel height. Kept for showfile compatibility; layout uses expand/stretch.
+    /// </summary>
     public int ScaledHeight { get; set; } = 0;
-    /// <summary>Offset X position in pixels</summary>
+    /// <summary>
+    /// Legacy pixel offset X. Kept for showfile compatibility; layout uses expand/stretch.
+    /// </summary>
     public int OffsetX { get; set; } = 0;
-    /// <summary>Offset Y position in pixels</summary>
+    /// <summary>
+    /// Legacy pixel offset Y. Kept for showfile compatibility; layout uses expand/stretch.
+    /// </summary>
     public int OffsetY { get; set; } = 0;
     /// <summary>Whether to use audio if available</summary>
     public bool UseAudio { get; set; } = true;

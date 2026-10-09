@@ -36,26 +36,37 @@ grow_vertical = 2
 
 [node name="ViewArea" type="Control" parent="VBoxContainer2"]
 unique_name_in_owner = true
+clip_contents = true
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="CanvasArea" type="Panel" parent="VBoxContainer2/ViewArea"]
 unique_name_in_owner = true
+clip_contents = true
 layout_mode = 0
 offset_right = 100.0
 offset_bottom = 100.0
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_4rb8y")
 
-[node name="PreviewTextRect" type="TextureRect" parent="VBoxContainer2/ViewArea"]
+[node name="LayerHost" type="Control" parent="VBoxContainer2/ViewArea/CanvasArea"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+
+[node name="PreviewTextRect" type="TextureRect" parent="VBoxContainer2/ViewArea/CanvasArea/LayerHost"]
 unique_name_in_owner = true
 material = ExtResource("2_avyjy")
 layout_mode = 0
-offset_right = 500.0
-offset_bottom = 500.0
-size_flags_vertical = 3
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
 texture = SubResource("GradientTexture2D_paorf")
 expand_mode = 1
-stretch_mode = 4
+stretch_mode = 5
 
 [node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer2"]
 layout_mode = 2

@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Cue2"
-config/version="0.1.1"
+config/version="0.2.0"
 run/main_scene="res://src/App/Cue2Base.tscn"
 run/print_header=false
 config/use_custom_user_dir=true

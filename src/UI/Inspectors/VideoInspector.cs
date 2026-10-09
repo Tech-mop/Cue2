@@ -85,10 +85,6 @@ public partial class VideoInspector : Control
 	private OptionButton _expandModeOptionButton;
 	private OptionButton _stretchModeOptionButton;
 	private LineEdit _opacityLineEdit;
-	private LineEdit _scaleWidthLineEdit;
-	private LineEdit _scaleHeightLineEdit;
-	private LineEdit _offsetXLineEdit;
-	private LineEdit _offsetYLineEdit;
 
 	// Closed captions / subtitles → Text component link
 	private HBoxContainer _subtitleRow;
@@ -201,14 +197,6 @@ public partial class VideoInspector : Control
 			_fadeInCurveOption.ItemSelected += OnFadeInCurveSelected;
 		if (_fadeOutCurveOption != null)
 			_fadeOutCurveOption.ItemSelected += OnFadeOutCurveSelected;
-		_scaleWidthLineEdit.TextSubmitted += newText => OnScaleWidthSubmitted(newText);
-		_scaleHeightLineEdit.TextSubmitted += newText => OnScaleHeightSubmitted(newText);
-		_offsetXLineEdit.TextSubmitted += newText => OnOffsetXSubmitted(newText);
-		_offsetYLineEdit.TextSubmitted += newText => OnOffsetYSubmitted(newText);
-		_scaleWidthLineEdit.FocusExited += () => OnScaleWidthSubmitted(_scaleWidthLineEdit.Text);
-		_scaleHeightLineEdit.FocusExited += () => OnScaleHeightSubmitted(_scaleHeightLineEdit.Text);
-		_offsetXLineEdit.FocusExited += () => OnOffsetXSubmitted(_offsetXLineEdit.Text);
-		_offsetYLineEdit.FocusExited += () => OnOffsetYSubmitted(_offsetYLineEdit.Text);
 		_useAudioCheckButton.Toggled += OnUseAudioToggled;
 		_volumeInput.TextSubmitted += newText => VolumeInputSubmitted(newText, _volumeInput);
 		_volumeInput.FocusExited += () => VolumeInputSubmitted(_volumeInput.Text, _volumeInput);
@@ -352,10 +340,6 @@ public partial class VideoInspector : Control
 		_expandModeOptionButton = GetNode<OptionButton>("%ExpandModeOptionButton");
 		_stretchModeOptionButton = GetNode<OptionButton>("%StretchModeOptionButton");
 		_opacityLineEdit = GetNode<LineEdit>("%OpacityLineEdit");
-		_scaleWidthLineEdit  = GetNode<LineEdit>("%ScaleWidthLineEdit");
-		_scaleHeightLineEdit  = GetNode<LineEdit>("%ScaleHeightLineEdit");
-		_offsetXLineEdit  = GetNode<LineEdit>("%OffsetXLineEdit");
-		_offsetYLineEdit  = GetNode<LineEdit>("%OffsetYLineEdit");
 
 		PopulateTextureLayoutOptions();
 		BuildSubtitleUi();

@@ -256,55 +256,6 @@ alignment = 1
 layout_mode = 2
 text = "%"
 
-[node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=785119897]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="ScaleResolutionLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=184281687]
-layout_mode = 2
-text = "Scale resolution -"
-
-[node name="ScaleWidthLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=649576710]
-layout_mode = 2
-text = "Width:"
-
-[node name="ScaleWidthLineEdit" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=511451019]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="ScaleHeightLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1794961117]
-layout_mode = 2
-text = "Height:"
-
-[node name="ScaleHeightLineEdit" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=2136334323]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=309552018]
-custom_minimum_size = Vector2(20, 0)
-layout_mode = 2
-
-[node name="OffsetLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1465932594]
-layout_mode = 2
-text = "Offset -"
-
-[node name="OffsetXLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=134034026]
-layout_mode = 2
-text = "X:"
-
-[node name="OffsetXLineEdit" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1193648211]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="OffsetYLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=342890536]
-layout_mode = 2
-text = "Y:"
-
-[node name="OffsetYLineEdit" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1782494757]
-unique_name_in_owner = true
-layout_mode = 2
-
 [node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1688783011]
 layout_mode = 2
 

@@ -491,8 +491,6 @@ public partial class CueList
 					videoComp.HasAudio = meta.AudioChannels > 0;
 					videoComp.UseAudio = videoComp.HasAudio;
 				}
-				videoComp.ScaledWidth = meta.Width;
-				videoComp.ScaledHeight = meta.Height;
 				videoComp.RecalculateDuration();
 			}
 

@@ -692,8 +692,6 @@ public partial class VideoInspector
 			comp.UseAudio = comp.HasAudio && comp.UseAudio;
 		else
 			comp.UseAudio = comp.HasAudio;
-		comp.ScaledWidth = fileMetadata.Width;
-		comp.ScaledHeight = fileMetadata.Height;
 
 		var fileDuration = fileMetadata.Duration > 0 ? fileMetadata.Duration : 0.0;
 
@@ -938,12 +936,6 @@ public partial class VideoInspector
 
 		RefreshSubtitleUi();
 		
-		// Update scale and offset
-		_scaleWidthLineEdit.Text = _focusedVideoComponent.ScaledWidth.ToString();
-		_scaleHeightLineEdit.Text = _focusedVideoComponent.ScaledHeight.ToString();
-		_offsetXLineEdit.Text = _focusedVideoComponent.OffsetX.ToString();
-		_offsetYLineEdit.Text = _focusedVideoComponent.OffsetY.ToString();
-
 		// TextureRect expand + stretch + opacity
 		SelectOptionById(_expandModeOptionButton, (int)_focusedVideoComponent.TextureExpandMode);
 		SelectOptionById(_stretchModeOptionButton, (int)_focusedVideoComponent.TextureStretchMode);
