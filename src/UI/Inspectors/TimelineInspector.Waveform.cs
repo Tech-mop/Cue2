@@ -37,7 +37,8 @@ public partial class TimelineInspector
         WaveformPeaks peaks,
         float startNorm,
         float endNorm,
-        int playCount)
+        int playCount,
+        List<CueBarWaveSlice> slices)
     {
         if (bar == null || peaks == null) return;
         var existing = bar.GetNodeOrNull<CueBarWaveform>("Waveform");
@@ -47,6 +48,7 @@ public partial class TimelineInspector
             existing.StartNorm = startNorm;
             existing.EndNorm = endNorm;
             existing.PlayCount = Math.Max(1, playCount);
+            existing.Slices = slices;
             existing.Size = bar.Size;
             existing.QueueRedraw();
             return;
@@ -60,6 +62,7 @@ public partial class TimelineInspector
             StartNorm = startNorm,
             EndNorm = endNorm,
             PlayCount = Math.Max(1, playCount),
+            Slices = slices,
             WaveColor = GlobalStyles.LowColor1.Lightened(0.25f),
             DividerColor = new Color(1f, 1f, 1f, 0.45f)
         };
@@ -112,9 +115,10 @@ public partial class TimelineInspector
             if (!_cueToBar.TryGetValue(cue, out var bar) || bar == null || !IsInstanceValid(bar))
                 continue;
 
-            if (TryGetCueWaveformSource(cue, out var peaks, out float startNorm, out float endNorm, out int playCount))
+            if (TryGetCueWaveformSource(cue, out var peaks, out float startNorm, out float endNorm,
+                    out int playCount, out var slices))
             {
-                AttachWaveformLayer(bar, peaks, startNorm, endNorm, playCount);
+                AttachWaveformLayer(bar, peaks, startNorm, endNorm, playCount, slices);
                 if (_cueToRow.ContainsKey(cue))
                 {
                     double start = ComputeActionStart(cue);
@@ -165,12 +169,14 @@ public partial class TimelineInspector
         out WaveformPeaks peaks,
         out float startNorm,
         out float endNorm,
-        out int playCount)
+        out int playCount,
+        out List<CueBarWaveSlice> slices)
     {
         peaks = null;
         startNorm = 0f;
         endNorm = 1f;
         playCount = 1;
+        slices = null;
         if (cue == null) return false;
 
         var audio = cue.GetAudioComponent();
@@ -189,7 +195,23 @@ public partial class TimelineInspector
                     ? 1f
                     : (float)Math.Clamp(audio.EndTime / fileDur, startNorm + 1e-6, 1.0);
             }
-            playCount = audio.Loop ? 1 : Math.Max(1, audio.PlayCount);
+
+            audio.EnsureFileEndNode();
+            slices = BuildAudioWaveSlices(audio, fileDur);
+            bool regionLoop = false;
+            if (slices != null)
+            {
+                foreach (var slice in slices)
+                {
+                    if (slice.Loop)
+                    {
+                        regionLoop = true;
+                        break;
+                    }
+                }
+            }
+
+            playCount = audio.Loop || regionLoop ? 1 : Math.Max(1, audio.PlayCount);
             return true;
         }
 
@@ -214,6 +236,51 @@ public partial class TimelineInspector
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Builds cue-bar tiles for audio timeline regions: each slice is the file span,
+    /// repeated by region play count (looping regions as one cycle with Loop set).
+    /// </summary>
+    private static List<CueBarWaveSlice> BuildAudioWaveSlices(AudioComponent audio, double fileDur)
+    {
+        if (audio == null)
+            return null;
+
+        var regions = audio.GetPlaybackRegions();
+        if (regions == null || regions.Count == 0)
+            return null;
+
+        var slices = new List<CueBarWaveSlice>(regions.Count);
+        foreach (var region in regions)
+        {
+            double wall = audio.IntegrateTimelineWallClock(region.StartSeconds, region.EndSeconds);
+            if (wall <= 1e-12)
+                continue;
+
+            float n0 = startNormFromFile(region.StartSeconds);
+            float n1 = startNormFromFile(region.EndSeconds);
+            if (n1 <= n0 + 1e-6f)
+                n1 = Math.Min(1f, n0 + 1e-6f);
+
+            slices.Add(new CueBarWaveSlice
+            {
+                FileStartNorm = n0,
+                FileEndNorm = n1,
+                WallSeconds = wall,
+                PlayCount = region.Loop ? 1 : Math.Max(1, region.PlayCount),
+                Loop = region.Loop
+            });
+        }
+
+        return slices.Count > 0 ? slices : null;
+
+        float startNormFromFile(double seconds)
+        {
+            if (fileDur <= 1e-9)
+                return 0f;
+            return (float)Math.Clamp(seconds / fileDur, 0.0, 1.0);
+        }
     }
 
     /// <summary>

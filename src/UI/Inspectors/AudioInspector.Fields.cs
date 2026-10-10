@@ -316,6 +316,8 @@ public partial class AudioInspector
         _isDraggingEnd = false;
         _isDraggingFadeIn = false;
         _isDraggingFadeOut = false;
+        _draggingTimelineNodeId = -1;
+        CancelPendingTimelineNodeClick();
 
         if (!string.IsNullOrEmpty(_focusedAudioComponent.AudioFile)
             && (_focusedAudioComponent.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0))

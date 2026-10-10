@@ -658,19 +658,30 @@ public partial class VideoPreviewer : Control
         }
         if (_seekProgressBar != null && IsInstanceValid(_seekProgressBar))
             _seekProgressBar.Value = 0;
-        _godotImage = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-        _godotTexture = ImageTexture.CreateFromImage(_godotImage);
-        if (_previewTextRect != null && IsInstanceValid(_previewTextRect))
-            _previewTextRect.Texture = _godotTexture;
+        // Do not allocate a placeholder while the inspector is leaving the tree —
+        // those Image / ImageTexture objects leaked as "resources still in use at exit".
+        if (!_isExiting)
+        {
+            _godotImage = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+            _godotTexture = ImageTexture.CreateFromImage(_godotImage);
+            if (_previewTextRect != null && IsInstanceValid(_previewTextRect))
+                _previewTextRect.Texture = _godotTexture;
+        }
         MediaMemory.ReclaimIfNeeded();
+    }
+
+    /// <summary>Stops decode and drops GPU resources without creating a placeholder frame.</summary>
+    public void ShutdownPreview()
+    {
+        _isExiting = true;
+        ClearDecoder();
     }
 
     public override void _ExitTree()
     {
         if (_viewArea != null && IsInstanceValid(_viewArea))
             _viewArea.Resized -= OnViewResized;
-        _isExiting = true;
-        ClearDecoder();
+        ShutdownPreview();
         base._ExitTree();
     }
 }

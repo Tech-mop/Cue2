@@ -485,7 +485,7 @@ public partial class ActiveCue
         // Pending chain members stay until armed / cancelled.
         if (_chainMember != null && !_contentStarted && !_suppressContentCompleted)
             return;
-        Callable.From(Cleanup).CallDeferred();
+        Callable.From(() => Cleanup()).CallDeferred();
     }
 
     /// <summary>
@@ -502,13 +502,19 @@ public partial class ActiveCue
     /// <summary>
     /// Cleans up resources and removes the cue from the UI.
     /// </summary>
-    public void Cleanup()
+    /// <param name="freeImmediately">
+    /// When true (app quit / executor TreeExiting), <see cref="GodotObject.Free"/> runs in this call
+    /// so a deferred free cannot be dropped by <c>SceneTree.Quit</c>.
+    /// </param>
+    public void Cleanup(bool freeImmediately = false)
     {
         lock (_lock) // Add lock for thread safety
         {
             if (_isCleaned)
             {
                 GD.Print("ActiveCue:Cleanup - Already cleaned");
+                if (freeImmediately && IsInstanceValid(this))
+                    Free();
                 return;
             }
 
@@ -522,14 +528,14 @@ public partial class ActiveCue
         // Hard-stop any remaining playbooks so decoders/fill loops do not leak.
         foreach (var playback in _activeAudioComponents.Values.ToList())
         {
-            try { playback.Clean(); } catch (Exception ex)
+            try { playback.Clean(freeImmediately); } catch (Exception ex)
             {
                 GD.PrintErr($"ActiveCue:Cleanup - Audio clean failed: {ex.Message}");
             }
         }
         foreach (var playback in _activeAudioInputs.Values.ToList())
         {
-            try { playback.Clean(); } catch (Exception ex)
+            try { playback.Clean(freeImmediately); } catch (Exception ex)
             {
                 GD.PrintErr($"ActiveCue:Cleanup - Audio input clean failed: {ex.Message}");
             }
@@ -601,7 +607,7 @@ public partial class ActiveCue
             if (child == null || !IsInstanceValid(child)) continue;
             try
             {
-                child.Cleanup();
+                child.Cleanup(freeImmediately);
             }
             catch (Exception ex)
             {
@@ -633,8 +639,14 @@ public partial class ActiveCue
 
         // Free must not run while this GodotObject is locked (signal/method dispatch).
         // Callable.From invokes the C# Free() after the idle frame — reliable for GodotObject.
+        // On quit, deferred idle never runs — free now that Completed has returned.
         if (IsInstanceValid(this))
-            Callable.From(FreeDeferred).CallDeferred();
+        {
+            if (freeImmediately)
+                Free();
+            else
+                Callable.From(FreeDeferred).CallDeferred();
+        }
     }
 
     /// <summary>

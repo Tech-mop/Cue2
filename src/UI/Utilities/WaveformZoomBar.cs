@@ -15,6 +15,15 @@ public partial class WaveformZoomBar : VBoxContainer
     /// <summary>Raised after the view window changes and chrome has been synced.</summary>
     public event Action ViewChanged;
 
+    /// <summary>
+    /// Raised on a left click that did not pan and was not a double-click Fit.
+    /// Argument is the file-normalized time under the pointer at press.
+    /// </summary>
+    public event Action<float> PanelClicked;
+
+    /// <summary>Raised when a double-click Fit Range is applied.</summary>
+    public event Action PanelDoubleClicked;
+
     /// <summary>Duration-based view window shared with the display.</summary>
     public WaveformViewport Viewport { get; } = new WaveformViewport();
 
@@ -27,9 +36,13 @@ public partial class WaveformZoomBar : VBoxContainer
     private Control _panel;
     private bool _syncing;
     private bool _panning;
+    private bool _pressPending;
+    private Vector2 _pressPos;
+    private float _pressFileNorm;
     private float _panGrabNorm;
     private float _selectionStartNorm;
     private float _selectionEndNorm = 1f;
+    private const float ClickSlopPx = 5f;
 
     /// <summary>
     /// Creates the scrollbar and Fit / − / + toolbar.
@@ -205,6 +218,7 @@ public partial class WaveformZoomBar : VBoxContainer
         _panel = null;
         _display = null;
         _panning = false;
+        _pressPending = false;
     }
 
     private static Button MakeToolButton(string text, float width)
@@ -261,6 +275,7 @@ public partial class WaveformZoomBar : VBoxContainer
         if (_display != null)
             _display.HoverNorm = -1f;
         _panning = false;
+        _pressPending = false;
     }
 
     private void OnPanelGuiInput(InputEvent @event)
@@ -300,21 +315,27 @@ public partial class WaveformZoomBar : VBoxContainer
         {
             if (click.DoubleClick && click.Pressed)
             {
+                PanelDoubleClicked?.Invoke();
                 Viewport.FitRange(_selectionStartNorm, _selectionEndNorm);
                 NotifyViewChanged();
                 _panning = false;
+                _pressPending = false;
                 _panel.GetViewport()?.SetInputAsHandled();
                 return;
             }
 
-            if (click.Pressed && !Viewport.IsFitted)
+            if (click.Pressed)
             {
-                _panning = true;
-                _panGrabNorm = _display.XToFileNorm(click.Position.X);
-                _panel.GetViewport()?.SetInputAsHandled();
+                _pressPending = true;
+                _panning = false;
+                _pressPos = click.Position;
+                _pressFileNorm = _display.XToFileNorm(click.Position.X);
             }
-            else if (!click.Pressed)
+            else
             {
+                if (_pressPending && !_panning)
+                    PanelClicked?.Invoke(_pressFileNorm);
+                _pressPending = false;
                 _panning = false;
             }
             return;
@@ -324,10 +345,17 @@ public partial class WaveformZoomBar : VBoxContainer
         {
             float fileNorm = _display.XToFileNorm(motion.Position.X);
             _display.HoverNorm = fileNorm;
+            if (_pressPending && !_panning && !Viewport.IsFitted
+                && motion.Position.DistanceTo(_pressPos) > ClickSlopPx)
+            {
+                _panning = true;
+                _pressPending = false;
+                _panGrabNorm = _display.XToFileNorm(_pressPos.X);
+            }
+
             if (_panning && (motion.ButtonMask & MouseButtonMask.Left) != 0)
             {
-                float now = fileNorm;
-                Viewport.Pan(_panGrabNorm - now);
+                Viewport.Pan(_panGrabNorm - fileNorm);
                 // Keep the grabbed time under the cursor after the pan.
                 _panGrabNorm = _display.XToFileNorm(motion.Position.X);
                 NotifyViewChanged();

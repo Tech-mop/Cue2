@@ -51,6 +51,8 @@ public partial class TimelineInspector : Control
     private Button _zoomOutButton;
     private HSlider _zoomSlider;
     private Button _zoomInButton;
+    private Label _zoomReadout;
+    private HScrollBar _timeScroll;
 
     // Body layout
     private Control _trackSidebar;
@@ -63,14 +65,15 @@ public partial class TimelineInspector : Control
     private Ruler _ruler;
     private ColorRect _playheadLine;
 
-    private float _scale = 10.0f; // Pixels per second
+    /// <summary>Pixels per second, derived from the duration-based view window.</summary>
+    private float _scale = 10.0f;
+    /// <summary>Fit = whole timeline; max zoom = <see cref="WaveformViewport.MinVisibleSeconds"/>.</summary>
+    private readonly WaveformViewport _timeView = new();
+    private bool _syncingTimeView;
     private const float RowHeight = 42.0f;
-    private const float MinScale = 1.0f;
-    private const float MaxScale = 200.0f;
     private const float MinBarWidth = 4.0f;
     private const float InstantBarMinWidth = 8.0f;
     private const float LabelStartOffsetX = 6.0f;
-    private const float ZoomStepFactor = 1.4f;
     private const float SidebarWidth = 156.0f;
     private const float CollapseBtnSize = 16.0f;
     private const float SwatchSize = 8.0f;
@@ -88,8 +91,7 @@ public partial class TimelineInspector : Control
     private readonly List<TimelineItem> _visibleItems = new();
     /// <summary>Fallback single-cycle length when a looping cue has no measurable segment duration.</summary>
     private const float InfiniteLoopDisplaySeconds = 8.0f;
-    /// <summary>Extra content size so bars/labels sit clear of ScrollContainer scrollbars.</summary>
-    private const float ScrollbarPadRight = 20.0f;
+    /// <summary>Extra content height so bars sit clear of the vertical scrollbar.</summary>
     private const float ScrollbarPadBottom = 20.0f;
 
     /// <summary>Cue IDs whose children are hidden in the timeline (local UI state).</summary>
@@ -120,6 +122,8 @@ public partial class TimelineInspector : Control
     private Vector2 _initialBarPos;
     private Vector2 _initialMousePos;
     private Cue _draggedCue;
+    /// <summary>Action-start seconds of the bar when the current drag began.</summary>
+    private double _dragStartSeconds;
     /// <summary>True after the first real pre-wait change in the current drag (history recorded).</summary>
     private bool _preWaitDragHistoryRecorded;
     private double _lastClickTime;
@@ -189,6 +193,8 @@ public partial class TimelineInspector : Control
 
         if (_zoomSlider != null)
             _zoomSlider.ValueChanged -= OnZoomChanged;
+        if (_timeScroll != null)
+            _timeScroll.ValueChanged -= OnTimeScrollChanged;
         if (_goToStartButton != null)
             _goToStartButton.Pressed -= OnGoToStartPressed;
         if (_playFromPlayheadButton != null)
@@ -216,6 +222,8 @@ public partial class TimelineInspector : Control
         FreeNodeIfValid(ref _ruler);
         FreeNodeIfValid(ref _sidebarSeparator);
         FreeNodeIfValid(ref _sidebarContent);
+        FreeNodeIfValid(ref _timeScroll);
+        FreeNodeIfValid(ref _zoomReadout);
 
         base._ExitTree();
     }
@@ -239,10 +247,38 @@ public partial class TimelineInspector : Control
     private void WireToolbar()
     {
         _zoomSlider = GetNode<HSlider>("%ZoomSlider");
-        _zoomSlider.MinValue = MinScale;
-        _zoomSlider.MaxValue = MaxScale;
-        _zoomSlider.Value = _scale;
+        _zoomSlider.MinValue = 0;
+        _zoomSlider.MaxValue = 1;
+        _zoomSlider.Step = 0.001;
+        _zoomSlider.Value = 0;
+        _zoomSlider.TooltipText = UiLocalizer.T("Horizontal zoom (Ctrl + scroll wheel over timeline)");
         _zoomSlider.ValueChanged += OnZoomChanged;
+
+        if (_zoomInButton == null)
+            _zoomInButton = GetNodeOrNull<Button>("%ZoomInButton");
+        var zoomParent = _zoomSlider.GetParent();
+        if (zoomParent != null && zoomParent.GetNodeOrNull<Label>("ZoomReadout") == null)
+        {
+            _zoomReadout = new Label
+            {
+                Name = "ZoomReadout",
+                SizeFlagsVertical = SizeFlags.ShrinkCenter,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                CustomMinimumSize = new Vector2(92, 0),
+                MouseFilter = MouseFilterEnum.Ignore
+            };
+            _zoomReadout.AddThemeFontSizeOverride("font_size", 10);
+            _zoomReadout.AddThemeColorOverride("font_color", new Color(0.72f, 0.74f, 0.76f, 0.95f));
+            // Insert after Zoom In so Fit / − / slider / + / readout match the waveform toolbar.
+            int insertAt = _zoomInButton != null ? _zoomInButton.GetIndex() + 1 : zoomParent.GetChildCount();
+            zoomParent.AddChild(_zoomReadout);
+            zoomParent.MoveChild(_zoomReadout, insertAt);
+        }
+        else
+        {
+            _zoomReadout = zoomParent?.GetNodeOrNull<Label>("ZoomReadout");
+        }
 
         _goToStartButton = GetNodeOrNull<Button>("%GoToStartButton");
         if (_goToStartButton != null)
@@ -264,7 +300,10 @@ public partial class TimelineInspector : Control
 
         _fitButton = GetNodeOrNull<Button>("%FitButton");
         if (_fitButton != null)
+        {
+            _fitButton.TooltipText = UiLocalizer.T("Fit whole timeline");
             _fitButton.Pressed += OnFitPressed;
+        }
 
         _zoomOutButton = GetNodeOrNull<Button>("%ZoomOutButton");
         if (_zoomOutButton != null)
@@ -330,12 +369,29 @@ public partial class TimelineInspector : Control
         AddChild(_sidebarSeparator);
 
         _scrollContainer = GetNode<ScrollContainer>("%TimelineScrollContainer");
-        _scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.ShowAlways;
+        _scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.ShowNever;
         _scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.ShowAlways;
         _scrollContainer.GuiInput += OnScrollContainerGuiInput;
 
+        var rightCol = _scrollContainer.GetParent();
+        if (rightCol != null)
+        {
+            _timeScroll = new HScrollBar
+            {
+                Name = "TimelineTimeScroll",
+                CustomMinimumSize = new Vector2(0, 8),
+                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                TooltipText = UiLocalizer.T("Scroll zoomed timeline")
+            };
+            int scrollIdx = _scrollContainer.GetIndex();
+            rightCol.AddChild(_timeScroll);
+            rightCol.MoveChild(_timeScroll, scrollIdx);
+            _timeScroll.ValueChanged += OnTimeScrollChanged;
+        }
+
         _timelineArea = GetNode<Control>("%TimelineArea");
         _timelineArea.MouseFilter = MouseFilterEnum.Stop;
+        _timelineArea.ClipContents = true;
         _timelineArea.GuiInput += OnTimelineAreaGuiInput;
         _timelineArea.FocusMode = FocusModeEnum.Click;
 
@@ -483,7 +539,7 @@ public partial class TimelineInspector : Control
 
         if (_ruler == null || _scrollContainer == null) return;
 
-        float currentOffset = _scrollContainer.GetHScroll();
+        float currentOffset = (float)(ViewStartSeconds * _scale);
         float currentScale = _scale;
         Vector2 currentSize = _rulerHost != null
             ? new Vector2(_rulerHost.Size.X, _rulerHost.Size.Y)
@@ -491,9 +547,11 @@ public partial class TimelineInspector : Control
 
         bool needsRedraw = false;
 
-        if (Mathf.Abs(currentOffset - _prevOffset) > 0.001f)
+        if (Mathf.Abs(currentOffset - _prevOffset) > 0.001f
+            || Math.Abs(_ruler.ViewStartSeconds - ViewStartSeconds) > 1e-9)
         {
-            _ruler.Offset = currentOffset;
+            _ruler.Offset = 0;
+            _ruler.ViewStartSeconds = ViewStartSeconds;
             _prevOffset = currentOffset;
             needsRedraw = true;
         }
@@ -512,6 +570,9 @@ public partial class TimelineInspector : Control
             _ruler.Size = currentSize;
             _prevSize = currentSize;
             needsRedraw = true;
+            RefreshTimeViewScale();
+            UpdateAllPositionsAndSizes();
+            SyncTimeViewChrome();
         }
 
         _ruler.PlayheadSeconds = _playheadSeconds;
@@ -621,73 +682,160 @@ public partial class TimelineInspector : Control
         }
     }
 
+    /// <summary>Seconds at the left edge of the visible timeline window.</summary>
+    private double ViewStartSeconds => _timeView.ViewStartNorm * _timeView.DurationSeconds;
+
+    /// <summary>Pixel width of the timeline viewport used for Fit / max zoom.</summary>
+    private float GetTimelineViewWidth()
+    {
+        float w = 0f;
+        if (_scrollContainer != null && _scrollContainer.Size.X > 1f)
+            w = _scrollContainer.Size.X;
+        else if (_rulerHost != null && _rulerHost.Size.X > 1f)
+            w = _rulerHost.Size.X;
+        if (w < 40f)
+            w = 800f;
+        return w;
+    }
+
+    /// <summary>Maps display time to X in the timeline area (view-relative).</summary>
+    private float TimeToX(double seconds) =>
+        (float)((seconds - ViewStartSeconds) * _scale);
+
+    /// <summary>Maps timeline-area X to display time.</summary>
+    private double XToTime(float x) =>
+        ViewStartSeconds + x / Math.Max(0.001f, _scale);
+
     /// <summary>
-    /// Handles changes to the zoom slider value.
+    /// Updates <see cref="WaveformViewport.DurationSeconds"/> from content length.
+    /// Empty timelines use 1s so Fit still has a defined window.
     /// </summary>
-    /// <param name="value">The new zoom scale value.</param>
+    private void SyncTimeViewDuration()
+    {
+        double dur = _contentMaxTime > 1e-6 ? _contentMaxTime : 1.0;
+        _timeView.DurationSeconds = dur;
+    }
+
+    /// <summary>Derives pixels-per-second from the view window and viewport width.</summary>
+    private void RefreshTimeViewScale()
+    {
+        float viewW = GetTimelineViewWidth();
+        double vis = Math.Max(1e-6, _timeView.VisibleSeconds);
+        _scale = (float)(viewW / vis);
+        if (_scale < 1e-6f)
+            _scale = 1e-6f;
+    }
+
+    /// <summary>Syncs zoom slider, time scrollbar, and readout from <see cref="_timeView"/>.</summary>
+    private void SyncTimeViewChrome()
+    {
+        _syncingTimeView = true;
+        try
+        {
+            bool canZoom = _timeView.MinSpanNorm < 0.999f;
+            bool fitted = _timeView.IsFitted;
+            bool atMax = _timeView.ViewSpanNorm <= _timeView.MinSpanNorm + 1e-6f;
+
+            if (_zoomOutButton != null)
+                _zoomOutButton.Disabled = fitted || !canZoom;
+            if (_zoomInButton != null)
+                _zoomInButton.Disabled = atMax || !canZoom;
+            if (_fitButton != null)
+                _fitButton.Disabled = fitted;
+
+            if (_zoomSlider != null)
+                _zoomSlider.SetValueNoSignal(_timeView.SliderT);
+
+            if (_timeScroll != null)
+            {
+                _timeScroll.MinValue = 0;
+                _timeScroll.MaxValue = 1;
+                _timeScroll.Page = Math.Max(0.001, _timeView.ViewSpanNorm);
+                _timeScroll.Step = _timeView.ViewSpanNorm * 0.05;
+                _timeScroll.SetValueNoSignal(_timeView.ViewStartNorm);
+                _timeScroll.Modulate = fitted ? new Color(1, 1, 1, 0.45f) : Colors.White;
+            }
+
+            if (_zoomReadout != null)
+            {
+                string shown = UiUtilities.FormatTime(_timeView.VisibleSeconds);
+                string total = UiUtilities.FormatTime(_timeView.DurationSeconds);
+                _zoomReadout.Text = UiLocalizer.Tf("{0} / {1}", shown, total);
+                _zoomReadout.TooltipText = UiLocalizer.Tf("Showing {0} of {1}", shown, total);
+            }
+        }
+        finally
+        {
+            _syncingTimeView = false;
+        }
+    }
+
+    private void ApplyTimeView()
+    {
+        RefreshTimeViewScale();
+        ApplyScaleToVisuals();
+        SyncTimeViewChrome();
+    }
+
+    /// <summary>
+    /// Handles changes to the zoom slider value (0 = Fit, 1 = max zoom / 50ms).
+    /// </summary>
+    /// <param name="value">Log slider t in 0–1.</param>
     private void OnZoomChanged(double value)
     {
-        _scale = (float)value;
-        ApplyScaleToVisuals();
+        if (_syncingTimeView) return;
+        _timeView.SetFromSliderT((float)value);
+        ApplyTimeView();
+    }
+
+    private void OnTimeScrollChanged(double value)
+    {
+        if (_syncingTimeView) return;
+        _timeView.Pan((float)value - _timeView.ViewStartNorm);
+        ApplyTimeView();
     }
 
     private void OnZoomInPressed()
     {
-        SetScaleAnchored(_scale * ZoomStepFactor, _scrollContainer?.Size.X * 0.5f ?? 0f);
+        float anchor = _timeView.ViewStartNorm + _timeView.ViewSpanNorm * 0.5f;
+        _timeView.ZoomAt(anchor, WaveformViewport.ZoomStepFactor);
+        ApplyTimeView();
     }
 
     private void OnZoomOutPressed()
     {
-        SetScaleAnchored(_scale / ZoomStepFactor, _scrollContainer?.Size.X * 0.5f ?? 0f);
+        float anchor = _timeView.ViewStartNorm + _timeView.ViewSpanNorm * 0.5f;
+        _timeView.ZoomAt(anchor, 1f / WaveformViewport.ZoomStepFactor);
+        ApplyTimeView();
     }
 
     private void OnGoToStartPressed()
     {
         _followLivePlayhead = false;
         SetPlayheadSeconds(0);
-        if (_scrollContainer != null)
-            _scrollContainer.SetHScroll(0);
+        _timeView.Pan(-_timeView.ViewStartNorm);
+        ApplyTimeView();
     }
 
     private void OnFitPressed()
     {
-        if (_scrollContainer == null || _contentMaxTime <= 1e-6)
-            return;
-
-        float viewW = Math.Max(40f, _scrollContainer.Size.X - 8f);
-        // Leave a little padding on the right
-        float targetScale = (float)(viewW / (_contentMaxTime + 0.5));
-        targetScale = Mathf.Clamp(targetScale, MinScale, MaxScale);
-
-        _scale = targetScale;
-        if (_zoomSlider != null && Math.Abs(_zoomSlider.Value - _scale) > 0.001)
-            _zoomSlider.SetValueNoSignal(_scale);
-        ApplyScaleToVisuals();
-        _scrollContainer.SetHScroll(0);
+        _timeView.FitAll();
+        ApplyTimeView();
     }
 
     /// <summary>
-    /// Sets zoom scale while keeping the time under <paramref name="anchorViewportX"/> stable.
+    /// Zooms while keeping the time under <paramref name="anchorViewportX"/> stable.
     /// </summary>
     private void SetScaleAnchored(float newScale, float anchorViewportX)
     {
-        newScale = Mathf.Clamp(newScale, MinScale, MaxScale);
-        if (Mathf.Abs(newScale - _scale) < 0.001f) return;
-
-        float hScroll = _scrollContainer?.GetHScroll() ?? 0f;
-        double timeUnderCursor = (hScroll + anchorViewportX) / Math.Max(0.001f, _scale);
-
-        _scale = newScale;
-        if (_zoomSlider != null && Math.Abs(_zoomSlider.Value - _scale) > 0.001)
-            _zoomSlider.SetValueNoSignal(_scale);
-
-        ApplyScaleToVisuals();
-
-        if (_scrollContainer != null)
-        {
-            float newScroll = (float)(timeUnderCursor * _scale) - anchorViewportX;
-            _scrollContainer.SetHScroll(Mathf.Max(0, (int)newScroll));
-        }
+        if (newScale <= 1e-8f || float.IsNaN(newScale))
+            return;
+        double duration = Math.Max(1e-9, _timeView.DurationSeconds);
+        double timeUnderCursor = XToTime(anchorViewportX);
+        float factor = newScale / Math.Max(1e-8f, _scale);
+        float anchorNorm = (float)Math.Clamp(timeUnderCursor / duration, 0.0, 1.0);
+        _timeView.ZoomAt(anchorNorm, factor);
+        ApplyTimeView();
     }
 
     private void ApplyScaleToVisuals()
@@ -697,11 +845,14 @@ public partial class TimelineInspector : Control
         if (_ruler != null)
         {
             _ruler.ZoomScale = _scale;
+            _ruler.Offset = 0;
+            _ruler.ViewStartSeconds = ViewStartSeconds;
             _ruler.QueueRedraw();
         }
         if (_timeGrid != null)
         {
             _timeGrid.ZoomScale = _scale;
+            _timeGrid.ViewStartSeconds = ViewStartSeconds;
             _timeGrid.QueueRedraw();
         }
     }
@@ -750,12 +901,7 @@ public partial class TimelineInspector : Control
                 && mb.Pressed
                 && (mb.CtrlPressed || mb.MetaPressed))
             {
-                // Position is local to timeline area; convert to viewport-relative for scroll container
-                float viewportX = mb.Position.X - (_scrollContainer?.GetHScroll() ?? 0);
-                // Actually timeline area is inside scroll: local X is content X
-                float contentX = mb.Position.X;
-                float viewX = contentX - (_scrollContainer?.GetHScroll() ?? 0);
-                ZoomAtViewportX(viewX, mb.ButtonIndex == MouseButton.WheelUp);
+                ZoomAtViewportX(mb.Position.X, mb.ButtonIndex == MouseButton.WheelUp);
                 _timelineArea.GetViewport()?.SetInputAsHandled();
                 return;
             }
@@ -795,20 +941,18 @@ public partial class TimelineInspector : Control
 
     private void ZoomAtViewportX(float viewportX, bool zoomIn)
     {
-        float factor = zoomIn ? ZoomStepFactor : 1f / ZoomStepFactor;
+        float factor = zoomIn ? WaveformViewport.ZoomStepFactor : 1f / WaveformViewport.ZoomStepFactor;
         SetScaleAnchored(_scale * factor, viewportX);
     }
 
     private void SetPlayheadFromRulerLocalX(float localX)
     {
-        float contentX = localX + (_scrollContainer?.GetHScroll() ?? 0);
-        SetPlayheadFromContentX(contentX);
+        SetPlayheadFromContentX(localX);
     }
 
     private void SetPlayheadFromContentX(float contentX)
     {
-        double time = contentX / Math.Max(0.001f, _scale);
-        SetPlayheadSeconds(time);
+        SetPlayheadSeconds(XToTime(contentX));
     }
 
     /// <summary>
@@ -888,14 +1032,17 @@ public partial class TimelineInspector : Control
         if (_playheadLine == null || !IsInstanceValid(_playheadLine) || _timelineArea == null)
             return;
 
-        float x = (float)(_playheadSeconds * _scale);
+        float x = TimeToX(_playheadSeconds);
+        float viewW = GetTimelineViewWidth();
         // Stay within drawable content (exclude scrollbar pad) so the line doesn't sit under the bar.
         float h = Math.Max(RowHeight, _timelineArea.CustomMinimumSize.Y - ScrollbarPadBottom);
         if (_cueToRow.Count > 0)
             h = Math.Max(h, _cueToRow.Values.Max() * RowHeight + RowHeight);
         _playheadLine.Position = new Vector2(x, 0);
         _playheadLine.Size = new Vector2(2, h);
-        _playheadLine.Visible = _focusedCue != null && _timeLineContainer != null && _timeLineContainer.Visible;
+        bool inView = x >= -2f && x <= viewW + 2f;
+        _playheadLine.Visible = inView && _focusedCue != null && _timeLineContainer != null
+            && _timeLineContainer.Visible;
     }
 
     /// <summary>
@@ -903,16 +1050,23 @@ public partial class TimelineInspector : Control
     /// </summary>
     private void EnsurePlayheadVisible()
     {
-        if (_scrollContainer == null) return;
-        float px = (float)(_playheadSeconds * _scale);
-        float viewW = _scrollContainer.Size.X;
-        float hScroll = _scrollContainer.GetHScroll();
-        const float margin = 40f;
+        double visStart = ViewStartSeconds;
+        double visEnd = visStart + _timeView.VisibleSeconds;
+        double margin = 40.0 / Math.Max(0.001f, _scale);
+        double duration = Math.Max(1e-9, _timeView.DurationSeconds);
 
-        if (px < hScroll + margin)
-            _scrollContainer.SetHScroll(Mathf.Max(0, (int)(px - margin)));
-        else if (px > hScroll + viewW - margin)
-            _scrollContainer.SetHScroll(Mathf.Max(0, (int)(px - viewW + margin)));
+        if (_playheadSeconds < visStart + margin)
+        {
+            double newStart = Math.Max(0, _playheadSeconds - margin);
+            _timeView.Pan((float)(newStart / duration) - _timeView.ViewStartNorm);
+            ApplyTimeView();
+        }
+        else if (_playheadSeconds > visEnd - margin)
+        {
+            double newStart = _playheadSeconds + margin - _timeView.VisibleSeconds;
+            _timeView.Pan((float)(newStart / duration) - _timeView.ViewStartNorm);
+            ApplyTimeView();
+        }
     }
 
     private void GrabFocusSafe()
@@ -1064,6 +1218,13 @@ public partial class TimelineInspector : Control
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        if (_zoomSlider != null)
+            _zoomSlider.TooltipText = UiLocalizer.T("Horizontal zoom (Ctrl + scroll wheel over timeline)");
+        if (_timeScroll != null)
+            _timeScroll.TooltipText = UiLocalizer.T("Scroll zoomed timeline");
+        if (_fitButton != null)
+            _fitButton.TooltipText = UiLocalizer.T("Fit whole timeline");
+        SyncTimeViewChrome();
         if (_focusedCue == null)
             ShowNoSelection();
     }

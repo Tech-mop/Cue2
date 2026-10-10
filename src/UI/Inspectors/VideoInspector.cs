@@ -282,7 +282,7 @@ public partial class VideoInspector : Control
 		try
 		{
 			if (_videoPreviewer != null && IsInstanceValid(_videoPreviewer))
-				_videoPreviewer.ClearDecoder();
+				_videoPreviewer.ShutdownPreview();
 		}
 		catch
 		{
@@ -300,6 +300,11 @@ public partial class VideoInspector : Control
 
 		if (_waveformZoom != null)
 			_waveformZoom.ViewChanged -= OnWaveformViewChanged;
+
+		if (_fileUrl != null && GodotObject.IsInstanceValid(_fileUrl))
+			InspectorMediaUrlStyle.Apply(_fileUrl, null, false);
+		UiUtilities.DisposeRefCounted(_fileUrlMissingStyle);
+		_fileUrlMissingStyle = null;
 
 		_focusedCue = null;
 		_focusedVideoComponent = null;

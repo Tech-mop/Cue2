@@ -68,10 +68,17 @@ public partial class AudioInspector
     /// </summary>
     private void RedrawWaveformView()
     {
-        if (_waveformDisplay == null || _waveformZoom == null) return;
-        if (_focusedAudioComponent?.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0)
+        if (_waveformDisplay == null || _waveformZoom == null)
+        {
+            SyncTimelineNodes();
             return;
-        if (_cachedPeaks == null) return;
+        }
+        if (_focusedAudioComponent?.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0
+            || _cachedPeaks == null)
+        {
+            SyncTimelineNodes();
+            return;
+        }
 
         double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
         if (duration <= 0) duration = 1;
@@ -101,12 +108,13 @@ public partial class AudioInspector
         _waveformDisplay.PlaceHandle(_endDragHandle, endNorm, isStart: false, width, height);
         _waveformDisplay.PlaceFadeHandle(_fadeInHandle, _waveformDisplay.FadeInEndNorm, isFadeIn: true, width, height);
         _waveformDisplay.PlaceFadeHandle(_fadeOutHandle, _waveformDisplay.FadeOutStartNorm, isFadeIn: false, width, height);
+        SyncTimelineNodes();
     }
 
     private void UpdateWaveformPlayhead()
     {
         if (_waveformZoom == null || _waveformDisplay == null) return;
-        if (_waveformAccordian == null || !_waveformAccordian.Visible)
+        if (_timelineAccordian == null || !_timelineAccordian.Visible)
         {
             _waveformZoom.SetPlayheadNorm(-1f);
             return;
@@ -157,7 +165,7 @@ public partial class AudioInspector
     /// </summary>
     private async Task DrawWaveform()
     {
-        if (_waveformAccordian == null || _waveformAccordian.Visible == false) return;
+        if (_timelineAccordian == null || _timelineAccordian.Visible == false) return;
         if (_focusedAudioComponent?.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0)
         {
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "AudioInspector:DrawWaveform - No waveform data available", 1);
@@ -549,6 +557,7 @@ public partial class AudioInspector
                     {
                         existing.WaveformData = null;
                         existing.Metadata = null;
+                        existing.ClearTimelineNodes();
                     }
                 }
                 else
@@ -563,6 +572,7 @@ public partial class AudioInspector
                 {
                     comp.StartTime = 0.0;
                     comp.EndTime = -1.0;
+                    comp.ClearTimelineNodes();
                 }
                 else if (sharedMeta != null)
                 {
@@ -571,6 +581,7 @@ public partial class AudioInspector
                         comp.StartTime = 0.0;
                     if (comp.EndTime >= 0 && (comp.EndTime > fileDuration || comp.EndTime <= comp.StartTime))
                         comp.EndTime = -1.0;
+                    comp.ClampAllTimelineNodes();
                 }
 
                 comp.RecalculateDuration();
@@ -606,6 +617,7 @@ public partial class AudioInspector
                 // Stale peaks/metadata from previous file must not stick
                 existingAudio.WaveformData = null;
                 existingAudio.Metadata = null;
+                existingAudio.ClearTimelineNodes();
             }
         }
         else
@@ -639,6 +651,7 @@ public partial class AudioInspector
             {
                 _focusedAudioComponent.StartTime = 0.0;
                 _focusedAudioComponent.EndTime = -1.0; // full file
+                _focusedAudioComponent.ClearTimelineNodes();
                 GD.Print($"AudioInspector:SetAudioFile - Metadata loaded: Duration {fileDuration}s, Channels {fileMetadata.Channels}");
             }
             else
@@ -660,6 +673,8 @@ public partial class AudioInspector
                     _focusedAudioComponent.EndTime = -1.0;
                     GD.Print("AudioInspector:SetAudioFile - Reset end time to undefined (was <= start time)");
                 }
+
+                _focusedAudioComponent.ClampAllTimelineNodes();
             }
 
             // Duration fields need RecalculateDuration after Metadata is set
@@ -745,6 +760,1162 @@ public partial class AudioInspector
     }
     
     /// <summary>
+    /// Creates the node list under the timeline accordion (hint + rows).
+    /// </summary>
+    private void BuildTimelineNodeListHost()
+    {
+        if (_timelineAccordian == null)
+            return;
+
+        var margin = new MarginContainer { Name = "TimelineNodeListMargin" };
+        margin.AddThemeConstantOverride("margin_left", 20);
+        margin.AddThemeConstantOverride("margin_right", 20);
+        margin.AddThemeConstantOverride("margin_top", 4);
+        _timelineAccordian.AddChild(margin);
+
+        _timelineNodeList = new VBoxContainer { Name = "TimelineNodeList" };
+        _timelineNodeList.AddThemeConstantOverride("separation", 2);
+        margin.AddChild(_timelineNodeList);
+
+        _timelineNodeHint = new Label
+        {
+            Name = "TimelineNodeHint",
+            Text = UiLocalizer.T("Click the waveform to add a node"),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = MouseFilterEnum.Ignore
+        };
+        _timelineNodeHint.AddThemeFontSizeOverride("font_size", 10);
+        _timelineNodeHint.AddThemeColorOverride("font_color", GlobalStyles.SoftFontColor);
+        _timelineNodeList.AddChild(_timelineNodeHint);
+
+        _timelineNodeHeader = new HBoxContainer
+        {
+            Name = "TimelineNodeHeader",
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
+        };
+        _timelineNodeHeader.AddThemeConstantOverride("separation", 6);
+        _timelineNodeHeader.AddChild(new Control { CustomMinimumSize = new Vector2(TimelineNodeDeleteWidth, 0) });
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("#", 28, HorizontalAlignment.Right));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Time", TimelineNodeTimeWidth));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Vol", 56, HorizontalAlignment.Center));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Rate", 48, HorizontalAlignment.Center));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Pitch", 48, HorizontalAlignment.Center));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Interp", 78, HorizontalAlignment.Center));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Continue", TimelineNodeContinueWidth, HorizontalAlignment.Center));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("Loop", TimelineNodeLoopWidth, HorizontalAlignment.Center));
+        _timelineNodeHeader.AddChild(MakeTimelineHeaderLabel("n", TimelineNodePlayCountWidth, HorizontalAlignment.Center));
+        _timelineNodeHeader.Visible = false;
+        _timelineNodeList.AddChild(_timelineNodeHeader);
+
+        _timelineAddRow = new HBoxContainer { Name = "TimelineAddRow" };
+        _timelineAddRow.AddThemeConstantOverride("separation", 8);
+
+        _timelineAddNodeButton = new Button
+        {
+            Name = "TimelineAddNodeButton",
+            Text = UiLocalizer.T("Add node"),
+            FocusMode = FocusModeEnum.None,
+            SizeFlagsHorizontal = SizeFlags.ShrinkBegin
+        };
+        _timelineAddNodeButton.AddThemeFontSizeOverride("font_size", 10);
+        _timelineAddNodeButton.TooltipText = UiLocalizer.T("Add a node at the midpoint of the longest gap");
+        _timelineAddNodeButton.Pressed += OnAddTimelineNodePressed;
+        _timelineAddRow.AddChild(_timelineAddNodeButton);
+
+        _timelineNodeList.AddChild(_timelineAddRow);
+    }
+
+    private const float TimelineNodeTimeWidth = 76f;
+    private const float TimelineNodeContinueWidth = 64f;
+    private const float TimelineNodeLoopWidth = 36f;
+    private const float TimelineNodePlayCountWidth = 36f;
+    private const float TimelineNodeDeleteWidth = 22f;
+
+    /// <summary>
+    /// Left-column delete control, or a matching empty slot for the locked end-of-file row.
+    /// </summary>
+    /// <param name="nodeId">Stable node id.</param>
+    /// <param name="isFileEnd">When true, return a spacer instead of a button.</param>
+    /// <returns>A 22px-wide control for the row.</returns>
+    private Control MakeTimelineNodeDeleteControl(int nodeId, bool isFileEnd)
+    {
+        if (isFileEnd)
+        {
+            return new Control
+            {
+                CustomMinimumSize = new Vector2(TimelineNodeDeleteWidth, TimelineNodeDeleteWidth),
+                MouseFilter = MouseFilterEnum.Ignore
+            };
+        }
+
+        var del = new Button
+        {
+            FocusMode = FocusModeEnum.None,
+            CustomMinimumSize = new Vector2(TimelineNodeDeleteWidth, TimelineNodeDeleteWidth),
+            Flat = true
+        };
+        try
+        {
+            del.Icon = GetThemeIcon("DeleteBin", "AtlasIcons");
+            del.ExpandIcon = true;
+            del.AddThemeConstantOverride("icon_max_width", 12);
+        }
+        catch
+        {
+            del.Text = "×";
+        }
+        del.TooltipText = UiLocalizer.T("Remove node");
+        del.Pressed += () => RemoveTimelineNodeAt(nodeId);
+        return del;
+    }
+
+    private static void FillInterpOption(OptionButton button, TimelineVolumeInterpolation selected)
+    {
+        if (button == null || !GodotObject.IsInstanceValid(button))
+            return;
+
+        button.SetBlockSignals(true);
+        try
+        {
+            button.Clear();
+            foreach (var mode in TimelineVolume.All)
+            {
+                UiLocalizer.AddTranslatedItem(
+                    button,
+                    TimelineVolume.DisplayName(mode),
+                    (int)mode,
+                    TimelineVolume.Tooltip(mode));
+            }
+
+            UiLocalizer.SetTooltip(button, "Interpolation into this node (volume, rate, pitch)");
+            int idx = button.GetItemIndex((int)selected);
+            button.Selected = idx >= 0 ? idx : 0;
+        }
+        finally
+        {
+            button.SetBlockSignals(false);
+        }
+    }
+
+    private void SyncTimelineAddRowState()
+    {
+        if (_timelineAddNodeButton == null)
+            return;
+        bool atCap = _focusedAudioComponent != null
+            && _focusedAudioComponent.CountUserTimelineNodes() >= AudioComponent.MaxTimelineNodes;
+        _timelineAddNodeButton.Disabled = atCap || _focusedAudioComponent == null;
+    }
+
+    private static Label MakeTimelineHeaderLabel(string text, float minWidth, HorizontalAlignment align = HorizontalAlignment.Left)
+    {
+        var label = new Label
+        {
+            Text = UiLocalizer.T(text),
+            CustomMinimumSize = new Vector2(minWidth, 0),
+            HorizontalAlignment = align,
+            VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = MouseFilterEnum.Ignore
+        };
+        label.AddThemeFontSizeOverride("font_size", 9);
+        label.AddThemeColorOverride("font_color", GlobalStyles.SoftFontColor);
+        return label;
+    }
+
+    /// <summary>
+    /// Relocalizes the empty-state hint and rebuilds node row chrome.
+    /// </summary>
+    private void RefreshTimelineNodeListChrome()
+    {
+        if (_timelineNodeHint != null)
+            _timelineNodeHint.Text = UiLocalizer.T("Click the waveform to add a node");
+        if (_timelineAddNodeButton != null)
+        {
+            _timelineAddNodeButton.Text = UiLocalizer.T("Add node");
+            _timelineAddNodeButton.TooltipText = UiLocalizer.T("Add a node at the midpoint of the longest gap");
+        }
+        if (_timelineNodeHeader != null)
+        {
+            string[] keys = { "#", "Time", "Vol", "Rate", "Pitch", "Interp", "Continue", "Loop", "n" };
+            int i = 0;
+            foreach (var child in _timelineNodeHeader.GetChildren())
+            {
+                if (child is Label label && i < keys.Length)
+                    label.Text = UiLocalizer.T(keys[i++]);
+            }
+        }
+        foreach (var kv in _timelineNodeInterpOptions)
+        {
+            var node = _focusedAudioComponent?.FindTimelineNode(kv.Key);
+            FillInterpOption(kv.Value, node?.VolumeInterpolation ?? TimelineVolumeInterpolation.Linear);
+        }
+        SyncTimelineNodes();
+    }
+
+    /// <summary>
+    /// Draws node slices, places drag handles, and refreshes the list under the waveform.
+    /// </summary>
+    private void SyncTimelineNodes()
+    {
+        _focusedAudioComponent?.EnsureFileEndNode();
+        var ordered = _focusedAudioComponent?.GetTimelineNodesInTimeOrder()
+                      ?? new List<AudioTimelineNode>();
+        double duration = _focusedAudioComponent?.Metadata?.Duration ?? 0;
+        if (duration <= 0)
+            duration = 1;
+
+        var draw = BuildTimelineNodeDrawList(ordered);
+        int selectedNumber = -1;
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            if (ordered[i].Id == _selectedTimelineNodeId)
+            {
+                selectedNumber = i + 1;
+                break;
+            }
+        }
+
+        _waveformDisplay?.SetNodes(draw, selectedNumber);
+        SyncTimelineNodeHandles(ordered, duration);
+        SyncTimelineNodeList(ordered);
+    }
+
+    /// <summary>
+    /// Ensures one time handle and one volume handle per timeline node.
+    /// </summary>
+    private void SyncTimelineNodeHandles(List<AudioTimelineNode> ordered, double duration)
+    {
+        var host = _startDragHandle?.GetParent() as Control;
+        if (host == null)
+            return;
+
+        float width = _waveformPanel != null ? _waveformPanel.Size.X : 0f;
+        var keep = new HashSet<int>();
+        foreach (var node in ordered)
+            keep.Add(node.Id);
+
+        PruneTimelineHandles(_timelineNodeHandles, keep, OnTimelineNodeHandleInput);
+        PruneTimelineHandles(_timelineVolumeHandles, keep, OnTimelineVolumeHandleInput);
+
+        var squares = IndexHandlesByNodeId(_timelineNodeHandles);
+        var circles = IndexHandlesByNodeId(_timelineVolumeHandles);
+        int flagIndex = _startDragHandle != null && GodotObject.IsInstanceValid(_startDragHandle)
+            ? Math.Max(0, _startDragHandle.GetIndex())
+            : 0;
+
+        foreach (var node in ordered)
+        {
+            float norm = (float)Math.Clamp(node.TimeSeconds / duration, 0, 1);
+            if (!squares.TryGetValue(node.Id, out var square))
+            {
+                square = WaveformDisplay.CreateNodeHandle(node.Id);
+                square.GuiInput += OnTimelineNodeHandleInput;
+                host.AddChild(square);
+                host.MoveChild(square, 0);
+                _timelineNodeHandles.Add(square);
+            }
+            if (node.IsFileEnd)
+            {
+                square.Visible = false;
+                square.MouseFilter = MouseFilterEnum.Ignore;
+            }
+            else
+            {
+                square.MouseFilter = MouseFilterEnum.Stop;
+                _waveformDisplay?.PlaceNodeHandle(square, norm, width);
+            }
+
+            if (!circles.TryGetValue(node.Id, out var circle))
+            {
+                circle = WaveformDisplay.CreateVolumeHandle(node.Id);
+                circle.GuiInput += OnTimelineVolumeHandleInput;
+                host.AddChild(circle);
+                host.MoveChild(circle, flagIndex);
+                _timelineVolumeHandles.Add(circle);
+                flagIndex = circle.GetIndex() + 1;
+            }
+            if (node.IsFileEnd)
+                WaveformDisplay.StyleFileEndVolumeHandle(circle);
+            else
+                WaveformDisplay.StyleVolumeHandle(circle);
+            _waveformDisplay?.PlaceVolumeHandle(circle, norm, node.VolumeLinear, width);
+        }
+    }
+
+    private static void PruneTimelineHandles(
+        List<Button> handles, HashSet<int> keep, Control.GuiInputEventHandler handler)
+    {
+        for (int i = handles.Count - 1; i >= 0; i--)
+        {
+            var handle = handles[i];
+            int id = handle != null && GodotObject.IsInstanceValid(handle) && handle.HasMeta("node_id")
+                ? handle.GetMeta("node_id").AsInt32()
+                : -1;
+            if (keep.Contains(id))
+                continue;
+            if (handle != null && GodotObject.IsInstanceValid(handle))
+            {
+                handle.GuiInput -= handler;
+                handle.QueueFree();
+            }
+            handles.RemoveAt(i);
+        }
+    }
+
+    private static Dictionary<int, Button> IndexHandlesByNodeId(List<Button> handles)
+    {
+        var byId = new Dictionary<int, Button>();
+        foreach (var handle in handles)
+        {
+            if (handle == null || !GodotObject.IsInstanceValid(handle) || !handle.HasMeta("node_id"))
+                continue;
+            byId[handle.GetMeta("node_id").AsInt32()] = handle;
+        }
+        return byId;
+    }
+
+    /// <summary>
+    /// Rebuilds list rows when node identity or order changes; otherwise refreshes times.
+    /// </summary>
+    private void SyncTimelineNodeList(List<AudioTimelineNode> ordered)
+    {
+        var ids = new List<int>(ordered.Count);
+        foreach (var node in ordered)
+            ids.Add(node.Id);
+
+        bool structureChanged = ids.Count != _listedTimelineNodeIds.Count;
+        if (!structureChanged)
+        {
+            for (int i = 0; i < ids.Count; i++)
+            {
+                if (ids[i] != _listedTimelineNodeIds[i])
+                {
+                    structureChanged = true;
+                    break;
+                }
+            }
+        }
+
+        if (structureChanged && _draggingTimelineNodeId < 0)
+            RebuildTimelineNodeList(ordered);
+        else
+            RefreshTimelineNodeListTimes(ordered);
+    }
+
+    /// <summary>
+    /// Recreates numbered time rows under the waveform.
+    /// </summary>
+    /// <param name="ordered">Nodes in display (time) order.</param>
+    private void RebuildTimelineNodeList(List<AudioTimelineNode> ordered)
+    {
+        if (_timelineNodeList == null)
+            return;
+
+        foreach (var child in _timelineNodeList.GetChildren())
+        {
+            if (child == _timelineNodeHint || child == _timelineNodeHeader || child == _timelineAddRow)
+                continue;
+            child.QueueFree();
+        }
+
+        _timelineNodeTimeEdits.Clear();
+        _timelineNodeVolumeEdits.Clear();
+        _timelineNodeRateEdits.Clear();
+        _timelineNodePitchEdits.Clear();
+        _timelineNodeInterpOptions.Clear();
+        _timelineNodeContinueChecks.Clear();
+        _timelineNodeLoopChecks.Clear();
+        _timelineNodePlayCountEdits.Clear();
+        _listedTimelineNodeIds = new List<int>(ordered.Count);
+        foreach (var node in ordered)
+            _listedTimelineNodeIds.Add(node.Id);
+
+        if (_timelineNodeHint != null)
+        {
+            int userCount = _focusedAudioComponent?.CountUserTimelineNodes() ?? 0;
+            _timelineNodeHint.Visible = userCount == 0;
+            _timelineNodeHint.Text = UiLocalizer.T("Click the waveform to add a node");
+        }
+        if (_timelineNodeHeader != null)
+            _timelineNodeHeader.Visible = ordered.Count > 0;
+        SyncTimelineAddRowState();
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            var node = ordered[i];
+            int number = i + 1;
+            int capturedId = node.Id;
+            var row = new HBoxContainer
+            {
+                Name = $"TimelineNodeRow_{capturedId}",
+                SizeFlagsHorizontal = SizeFlags.Fill
+            };
+            row.AddThemeConstantOverride("separation", 6);
+
+            row.AddChild(MakeTimelineNodeDeleteControl(capturedId, node.IsFileEnd));
+
+            var num = new Label
+            {
+                Text = node.IsFileEnd ? UiLocalizer.T("EOF") : number.ToString(),
+                CustomMinimumSize = new Vector2(28, 0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                MouseFilter = MouseFilterEnum.Stop
+            };
+            num.AddThemeFontSizeOverride("font_size", 10);
+            num.AddThemeColorOverride("font_color", GlobalStyles.SoftFontColor);
+            num.GuiInput += @event =>
+            {
+                if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
+                {
+                    _selectedTimelineNodeId = capturedId;
+                    SyncTimelineNodes();
+                    num.AcceptEvent();
+                }
+            };
+            row.AddChild(num);
+
+            var time = new LineEdit
+            {
+                Text = UiUtilities.FormatTime(node.TimeSeconds),
+                CustomMinimumSize = new Vector2(TimelineNodeTimeWidth, 0),
+                SizeFlagsHorizontal = SizeFlags.ShrinkBegin,
+                Alignment = HorizontalAlignment.Center
+            };
+            time.AddThemeFontSizeOverride("font_size", 10);
+            time.Editable = !node.IsFileEnd;
+            time.TooltipText = node.IsFileEnd
+                ? UiLocalizer.T("End of file")
+                : UiLocalizer.T("End of this node's region");
+            if (!node.IsFileEnd)
+            {
+                time.TextSubmitted += text => OnTimelineNodeTimeSubmitted(capturedId, text, time);
+                time.FocusExited += () =>
+                {
+                    if (GodotObject.IsInstanceValid(time))
+                        OnTimelineNodeTimeSubmitted(capturedId, time.Text, time);
+                };
+            }
+            _timelineNodeTimeEdits[capturedId] = time;
+            row.AddChild(time);
+
+            var vol = new LineEdit
+            {
+                Text = UiUtilities.FormatComponentVolumeDb(node.VolumeLinear),
+                CustomMinimumSize = new Vector2(56, 0),
+                Alignment = HorizontalAlignment.Center
+            };
+            vol.AddThemeFontSizeOverride("font_size", 10);
+            vol.TooltipText = UiLocalizer.T("Volume relative to the component");
+            vol.TextSubmitted += text => OnTimelineNodeVolumeSubmitted(capturedId, text, vol);
+            vol.FocusExited += () =>
+            {
+                if (GodotObject.IsInstanceValid(vol))
+                    OnTimelineNodeVolumeSubmitted(capturedId, vol.Text, vol);
+            };
+            LineEditDbDragSlider.Enable(vol, new LineEditDbDragSlider.Config
+            {
+                MinDb = LineEditDbDragSlider.DefaultMinDb,
+                MaxDb = LineEditDbDragSlider.DefaultMaxDb,
+                FormatSigned = true,
+                ValueChanged = db => OnTimelineNodeVolumeScrubbed(capturedId, db)
+            });
+            _timelineNodeVolumeEdits[capturedId] = vol;
+            row.AddChild(vol);
+
+            var rate = new LineEdit
+            {
+                Text = FormatPlayRate(node.RateScale),
+                CustomMinimumSize = new Vector2(48, 0),
+                Alignment = HorizontalAlignment.Center
+            };
+            rate.AddThemeFontSizeOverride("font_size", 10);
+            rate.TooltipText = UiLocalizer.T("Play rate relative to the component");
+            rate.TextSubmitted += text => OnTimelineNodeRateSubmitted(capturedId, text, rate);
+            rate.FocusExited += () =>
+            {
+                if (GodotObject.IsInstanceValid(rate))
+                    OnTimelineNodeRateSubmitted(capturedId, rate.Text, rate);
+            };
+            _timelineNodeRateEdits[capturedId] = rate;
+            row.AddChild(rate);
+
+            var pitch = new LineEdit
+            {
+                Text = FormatPitchCents(node.PitchCents),
+                CustomMinimumSize = new Vector2(48, 0),
+                Alignment = HorizontalAlignment.Center
+            };
+            pitch.AddThemeFontSizeOverride("font_size", 10);
+            pitch.TooltipText = UiLocalizer.T("Pitch offset in cents relative to the component");
+            pitch.TextSubmitted += text => OnTimelineNodePitchSubmitted(capturedId, text, pitch);
+            pitch.FocusExited += () =>
+            {
+                if (GodotObject.IsInstanceValid(pitch))
+                    OnTimelineNodePitchSubmitted(capturedId, pitch.Text, pitch);
+            };
+            _timelineNodePitchEdits[capturedId] = pitch;
+            row.AddChild(pitch);
+
+            var interp = new OptionButton
+            {
+                FocusMode = FocusModeEnum.None,
+                CustomMinimumSize = new Vector2(78, 0),
+                SizeFlagsHorizontal = SizeFlags.ShrinkBegin,
+                FitToLongestItem = false
+            };
+            interp.AddThemeFontSizeOverride("font_size", 10);
+            FillInterpOption(interp, node.VolumeInterpolation);
+            interp.ItemSelected += index => OnTimelineNodeInterpSelected(capturedId, index);
+            _timelineNodeInterpOptions[capturedId] = interp;
+            row.AddChild(interp);
+
+            var continueBox = new CheckBox
+            {
+                ButtonPressed = node.ContinueRegion,
+                FocusMode = FocusModeEnum.None,
+                CustomMinimumSize = new Vector2(TimelineNodeContinueWidth, 0)
+            };
+            continueBox.TooltipText = UiLocalizer.T("Continue through this node without using it as a loop bound (volume, rate, and pitch only)");
+            continueBox.Toggled += state => OnTimelineNodeContinueToggled(capturedId, state);
+            _timelineNodeContinueChecks[capturedId] = continueBox;
+            row.AddChild(continueBox);
+
+            var loop = new CheckBox
+            {
+                ButtonPressed = node.Loop,
+                FocusMode = FocusModeEnum.None,
+                CustomMinimumSize = new Vector2(TimelineNodeLoopWidth, 0),
+                Visible = !node.ContinueRegion
+            };
+            loop.TooltipText = UiLocalizer.T("Loop the region before this node");
+            loop.Toggled += state => OnTimelineNodeLoopToggled(capturedId, state);
+            _timelineNodeLoopChecks[capturedId] = loop;
+            row.AddChild(loop);
+
+            var count = new LineEdit
+            {
+                Text = node.PlayCount.ToString(),
+                CustomMinimumSize = new Vector2(TimelineNodePlayCountWidth, 0),
+                Alignment = HorizontalAlignment.Center,
+                Editable = !node.Loop,
+                Visible = !node.ContinueRegion
+            };
+            count.AddThemeFontSizeOverride("font_size", 10);
+            count.TooltipText = UiLocalizer.T("Plays of the region before this node");
+            count.TextSubmitted += text => OnTimelineNodePlayCountSubmitted(capturedId, text, count);
+            count.FocusExited += () =>
+            {
+                if (GodotObject.IsInstanceValid(count))
+                    OnTimelineNodePlayCountSubmitted(capturedId, count.Text, count);
+            };
+            _timelineNodePlayCountEdits[capturedId] = count;
+            row.AddChild(count);
+
+            _timelineNodeList.AddChild(row);
+        }
+
+        if (_timelineAddRow != null && GodotObject.IsInstanceValid(_timelineAddRow))
+            _timelineNodeList.MoveChild(_timelineAddRow, _timelineNodeList.GetChildCount() - 1);
+    }
+
+    /// <summary>
+    /// Updates time fields in place without rebuilding rows.
+    /// </summary>
+    private void RefreshTimelineNodeListTimes(List<AudioTimelineNode> ordered)
+    {
+        if (_timelineNodeHint != null)
+            _timelineNodeHint.Visible = (_focusedAudioComponent?.CountUserTimelineNodes() ?? 0) == 0;
+        if (_timelineNodeHeader != null)
+            _timelineNodeHeader.Visible = ordered.Count > 0;
+        SyncTimelineAddRowState();
+
+        foreach (var node in ordered)
+        {
+            if (_timelineNodeTimeEdits.TryGetValue(node.Id, out var time)
+                && time != null && GodotObject.IsInstanceValid(time) && !time.HasFocus())
+                time.Text = UiUtilities.FormatTime(node.TimeSeconds);
+
+            if (_timelineNodeVolumeEdits.TryGetValue(node.Id, out var vol)
+                && vol != null && GodotObject.IsInstanceValid(vol) && !vol.HasFocus())
+                vol.Text = UiUtilities.FormatComponentVolumeDb(node.VolumeLinear);
+
+            if (_timelineNodeRateEdits.TryGetValue(node.Id, out var rate)
+                && rate != null && GodotObject.IsInstanceValid(rate) && !rate.HasFocus())
+                rate.Text = FormatPlayRate(node.RateScale);
+
+            if (_timelineNodePitchEdits.TryGetValue(node.Id, out var pitch)
+                && pitch != null && GodotObject.IsInstanceValid(pitch) && !pitch.HasFocus())
+                pitch.Text = FormatPitchCents(node.PitchCents);
+
+            if (_timelineNodeInterpOptions.TryGetValue(node.Id, out var interp)
+                && interp != null && GodotObject.IsInstanceValid(interp))
+            {
+                int idx = interp.GetItemIndex((int)node.VolumeInterpolation);
+                if (idx >= 0 && interp.Selected != idx)
+                {
+                    interp.SetBlockSignals(true);
+                    interp.Selected = idx;
+                    interp.SetBlockSignals(false);
+                }
+            }
+
+            if (_timelineNodeContinueChecks.TryGetValue(node.Id, out var continueBox)
+                && continueBox != null && GodotObject.IsInstanceValid(continueBox)
+                && continueBox.ButtonPressed != node.ContinueRegion)
+                continueBox.SetPressedNoSignal(node.ContinueRegion);
+
+            if (_timelineNodeLoopChecks.TryGetValue(node.Id, out var loop)
+                && loop != null && GodotObject.IsInstanceValid(loop))
+            {
+                loop.Visible = !node.ContinueRegion;
+                if (loop.ButtonPressed != node.Loop)
+                    loop.SetPressedNoSignal(node.Loop);
+            }
+
+            if (_timelineNodePlayCountEdits.TryGetValue(node.Id, out var count)
+                && count != null && GodotObject.IsInstanceValid(count))
+            {
+                count.Visible = !node.ContinueRegion;
+                count.Editable = !node.Loop;
+                if (!count.HasFocus())
+                    count.Text = node.PlayCount.ToString();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Frees overlay drag handles for timeline nodes.
+    /// </summary>
+    private void ClearTimelineNodeHandles()
+    {
+        foreach (var handle in _timelineNodeHandles)
+        {
+            if (handle == null || !GodotObject.IsInstanceValid(handle))
+                continue;
+            handle.GuiInput -= OnTimelineNodeHandleInput;
+            handle.QueueFree();
+        }
+        _timelineNodeHandles.Clear();
+
+        foreach (var handle in _timelineVolumeHandles)
+        {
+            if (handle == null || !GodotObject.IsInstanceValid(handle))
+                continue;
+            handle.GuiInput -= OnTimelineVolumeHandleInput;
+            handle.QueueFree();
+        }
+        _timelineVolumeHandles.Clear();
+    }
+
+    private const double TimelineNodeClickDelaySec = 0.2;
+
+    /// <summary>
+    /// Starts a short delay so a double-click Fit does not also create a node.
+    /// </summary>
+    /// <param name="fileNorm">File-normalized click position.</param>
+    private void OnTimelinePanelClicked(float fileNorm)
+    {
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        if (_focusedAudioComponent == null)
+            return;
+
+        CancelPendingTimelineNodeClick();
+        _pendingTimelineNodeNorm = fileNorm;
+        _pendingTimelineNodeCueId = _focusedCue?.Id ?? -1;
+        var tree = GetTree();
+        if (tree == null)
+            return;
+        _pendingTimelineNodeTimer = tree.CreateTimer(TimelineNodeClickDelaySec);
+        _pendingTimelineNodeTimer.Timeout += OnPendingTimelineNodeClickTimeout;
+    }
+
+    /// <summary>
+    /// Cancels a pending node-create when the click was a double-click Fit.
+    /// </summary>
+    private void OnTimelinePanelDoubleClicked()
+    {
+        CancelPendingTimelineNodeClick();
+    }
+
+    private void OnPendingTimelineNodeClickTimeout()
+    {
+        float norm = _pendingTimelineNodeNorm;
+        int cueId = _pendingTimelineNodeCueId;
+        CancelPendingTimelineNodeClick();
+        if (_focusedCue == null || _focusedCue.Id != cueId)
+            return;
+        AddTimelineNodeAtFileNorm(norm);
+    }
+
+    /// <summary>
+    /// Drops a pending click-to-add so a double-click Fit does not create a node.
+    /// </summary>
+    private void CancelPendingTimelineNodeClick()
+    {
+        if (_pendingTimelineNodeTimer != null)
+        {
+            _pendingTimelineNodeTimer.Timeout -= OnPendingTimelineNodeClickTimeout;
+            _pendingTimelineNodeTimer = null;
+        }
+        _pendingTimelineNodeNorm = -1f;
+        _pendingTimelineNodeCueId = -1;
+    }
+
+    /// <summary>
+    /// Adds a numbered marker at the given file-normalized time.
+    /// </summary>
+    /// <param name="fileNorm">0–1 of the file.</param>
+    private void AddTimelineNodeAtFileNorm(float fileNorm)
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+
+        double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
+        if (duration <= 0)
+            return;
+
+        if (_focusedAudioComponent.CountUserTimelineNodes() >= AudioComponent.MaxTimelineNodes)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"Audio inspector: maximum of {AudioComponent.MaxTimelineNodes} timeline nodes.", 1);
+            return;
+        }
+
+        double time = _focusedAudioComponent.ClampTimelineNodeTime(fileNorm * duration);
+        foreach (var existing in _focusedAudioComponent.TimelineNodes)
+        {
+            if (existing != null && Math.Abs(existing.TimeSeconds - time) < 0.001)
+                return;
+        }
+
+        RecordAudioHistory("Add timeline node");
+        var node = _focusedAudioComponent.AddTimelineNode(time);
+        if (node == null)
+            return;
+        _selectedTimelineNodeId = node.Id;
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    /// <summary>
+    /// Adds a node at the midpoint of the longest gap on the file.
+    /// </summary>
+    private void OnAddTimelineNodePressed()
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+
+        double time = _focusedAudioComponent.PickNewTimelineNodeTime();
+        if (time < 0)
+            return;
+        double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
+        if (duration <= 0)
+            return;
+        AddTimelineNodeAtFileNorm((float)Math.Clamp(time / duration, 0, 1));
+    }
+
+    /// <summary>
+    /// Live relative-volume scrub (history coalesced; commit on TextSubmitted).
+    /// </summary>
+    private void OnTimelineNodeVolumeScrubbed(int nodeId, float db)
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null)
+            return;
+
+        float linear = UiUtilities.DbToLinear(db);
+        if (Math.Abs(node.VolumeLinear - linear) < 1e-6f)
+            return;
+
+        RecordAudioHistory("Edit timeline node volume", AudioCoalesceKey($"node-vol:{nodeId}"));
+        node.VolumeLinear = linear;
+        _waveformDisplay?.SetNodes(
+            BuildTimelineNodeDrawList(_focusedAudioComponent.GetTimelineNodesInTimeOrder()),
+            SelectedTimelineNodeNumber());
+    }
+
+    private void OnTimelineNodeVolumeSubmitted(int nodeId, string text, LineEdit field)
+    {
+        if (_focusedAudioComponent == null || field == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null)
+            return;
+
+        if (!float.TryParse(text.Replace("dB", "").Trim(), out var dbValue))
+        {
+            field.Text = UiUtilities.FormatComponentVolumeDb(node.VolumeLinear);
+            return;
+        }
+
+        dbValue = Mathf.Clamp(dbValue, UiUtilities.MinVolumeDb, UiUtilities.MaxComponentGainDb);
+        float linear = UiUtilities.DbToLinear(dbValue);
+        field.Text = UiUtilities.FormatComponentVolumeDb(linear);
+        var key = AudioCoalesceKey($"node-vol:{nodeId}");
+        if (Math.Abs(node.VolumeLinear - linear) >= 1e-6f)
+        {
+            RecordAudioHistory("Edit timeline node volume", key);
+            node.VolumeLinear = linear;
+        }
+
+        if (!string.IsNullOrEmpty(key))
+            InspectorMultiEditSupport.EndCoalesce(_globalData, UseMultiHistory(), key, key);
+        SyncTimelineNodes();
+    }
+
+    private void OnTimelineNodeLoopToggled(int nodeId, bool state)
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null || node.Loop == state)
+            return;
+
+        RecordAudioHistory("Edit timeline node loop");
+        node.Loop = state;
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    private void OnTimelineNodePlayCountSubmitted(int nodeId, string text, LineEdit field)
+    {
+        if (_focusedAudioComponent == null || field == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null)
+            return;
+
+        if (!int.TryParse(text, out var playCount) || playCount < 1)
+        {
+            field.Text = node.PlayCount.ToString();
+            return;
+        }
+
+        if (node.PlayCount == playCount)
+        {
+            field.Text = playCount.ToString();
+            return;
+        }
+
+        RecordAudioHistory("Edit timeline node play count");
+        node.PlayCount = playCount;
+        field.Text = node.PlayCount.ToString();
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    private void OnTimelineNodeInterpSelected(int nodeId, long index)
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null)
+            return;
+        if (!_timelineNodeInterpOptions.TryGetValue(nodeId, out var button)
+            || button == null || !GodotObject.IsInstanceValid(button))
+            return;
+
+        var mode = TimelineVolume.FromInt(button.GetItemId((int)index));
+        if (node.VolumeInterpolation == mode)
+            return;
+
+        RecordAudioHistory("Edit timeline node interpolation");
+        node.VolumeInterpolation = mode;
+        SyncTimelineNodes();
+    }
+
+    private void OnTimelineNodeContinueToggled(int nodeId, bool state)
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null || node.ContinueRegion == state)
+            return;
+
+        RecordAudioHistory("Edit timeline node continue");
+        node.ContinueRegion = state;
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    private void OnTimelineNodeRateSubmitted(int nodeId, string text, LineEdit field)
+    {
+        if (_focusedAudioComponent == null || field == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null)
+            return;
+
+        if (!double.TryParse((text ?? "").Trim(), out double rate) || rate <= 0)
+        {
+            field.Text = FormatPlayRate(node.RateScale);
+            return;
+        }
+
+        rate = AudioComponent.ClampPlayRate(rate);
+        field.Text = FormatPlayRate(rate);
+        if (Math.Abs(node.RateScale - rate) < 1e-6)
+            return;
+
+        RecordAudioHistory("Edit timeline node rate");
+        node.RateScale = (float)rate;
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    private void OnTimelineNodePitchSubmitted(int nodeId, string text, LineEdit field)
+    {
+        if (_focusedAudioComponent == null || field == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null)
+            return;
+
+        string trimmed = (text ?? "").Trim().TrimEnd('¢', 'c', 'C');
+        if (!float.TryParse(trimmed, out float cents))
+        {
+            field.Text = FormatPitchCents(node.PitchCents);
+            return;
+        }
+
+        cents = AudioComponent.ClampPitchCents(cents);
+        field.Text = FormatPitchCents(cents);
+        if (Math.Abs(node.PitchCents - cents) < 0.5f)
+            return;
+
+        RecordAudioHistory("Edit timeline node pitch");
+        node.PitchCents = cents;
+        SyncTimelineNodes();
+    }
+
+    private List<WaveformDisplay.TimelineNodeDraw> BuildTimelineNodeDrawList(
+        List<AudioTimelineNode> ordered)
+    {
+        double duration = _focusedAudioComponent?.Metadata?.Duration ?? 0;
+        if (duration <= 0)
+            duration = 1;
+        var draw = new List<WaveformDisplay.TimelineNodeDraw>(ordered.Count);
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            var node = ordered[i];
+            float norm = (float)Math.Clamp(node.TimeSeconds / duration, 0, 1);
+            draw.Add(new WaveformDisplay.TimelineNodeDraw
+            {
+                Number = i + 1,
+                FileNorm = norm,
+                VolumeLinear = node.VolumeLinear,
+                RateScale = node.RateScale,
+                PitchCents = node.PitchCents,
+                Loop = node.Loop,
+                PlayCount = node.PlayCount,
+                ContinueRegion = node.ContinueRegion,
+                IsFileEnd = node.IsFileEnd,
+                Interpolation = node.VolumeInterpolation
+            });
+        }
+        return draw;
+    }
+
+    private int SelectedTimelineNodeNumber()
+    {
+        if (_focusedAudioComponent == null || _selectedTimelineNodeId < 0)
+            return -1;
+        var ordered = _focusedAudioComponent.GetTimelineNodesInTimeOrder();
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            if (ordered[i].Id == _selectedTimelineNodeId)
+                return i + 1;
+        }
+        return -1;
+    }
+
+    private void OnTimelineNodeHandleInput(InputEvent @event)
+    {
+        HandleTimelineNodeDrag(@event, volumePoint: false);
+    }
+
+    private void OnTimelineVolumeHandleInput(InputEvent @event)
+    {
+        HandleTimelineNodeDrag(@event, volumePoint: true);
+    }
+
+    private void HandleTimelineNodeDrag(InputEvent @event, bool volumePoint)
+    {
+        if (@event is InputEventMouseButton mouseButton && mouseButton.ButtonIndex == MouseButton.Left)
+        {
+            if (mouseButton.Pressed)
+            {
+                int id = HitTestTimelineHandles(volumePoint
+                    ? _timelineVolumeHandles
+                    : _timelineNodeHandles);
+                if (id < 0)
+                    return;
+                _selectedTimelineNodeId = id;
+                RecordAudioHistory("Move timeline node", AudioCoalesceKey($"node-drag:{id}"));
+                _draggingTimelineNodeId = id;
+                _draggingTimelineVolume = volumePoint;
+                var handles = volumePoint ? _timelineVolumeHandles : _timelineNodeHandles;
+                foreach (var handle in handles)
+                {
+                    if (handle != null && GodotObject.IsInstanceValid(handle)
+                        && handle.HasMeta("node_id") && handle.GetMeta("node_id").AsInt32() == id)
+                    {
+                        handle.AcceptEvent();
+                        break;
+                    }
+                }
+                SyncTimelineNodes();
+            }
+            else if (_draggingTimelineNodeId >= 0)
+            {
+                var key = AudioCoalesceKey($"node-drag:{_draggingTimelineNodeId}");
+                _draggingTimelineNodeId = -1;
+                _draggingTimelineVolume = false;
+                if (!string.IsNullOrEmpty(key))
+                    InspectorMultiEditSupport.EndCoalesce(_globalData, UseMultiHistory(), key, key);
+                SyncDuration();
+                SyncTimelineNodes();
+            }
+        }
+        else if (@event is InputEventMouseMotion && _draggingTimelineNodeId >= 0)
+        {
+            MoveDraggingTimelineNode();
+        }
+    }
+
+    /// <summary>
+    /// Node id under the pointer among the given overlay handles.
+    /// </summary>
+    /// <param name="handles">Handle set to test.</param>
+    /// <returns>Stable node id, or −1.</returns>
+    private static int HitTestTimelineHandles(List<Button> handles)
+    {
+        foreach (var handle in handles)
+        {
+            if (handle == null || !GodotObject.IsInstanceValid(handle) || !handle.Visible)
+                continue;
+            var local = handle.GetLocalMousePosition();
+            if (local.X >= 0 && local.Y >= 0 && local.X <= handle.Size.X && local.Y <= handle.Size.Y)
+                return handle.GetMeta("node_id").AsInt32();
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Moves the node currently being dragged to the pointer (time, and volume when grabbing the circle).
+    /// </summary>
+    private void MoveDraggingTimelineNode()
+    {
+        if (_focusedAudioComponent == null || _waveformDisplay == null || _waveformPanel == null)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(_draggingTimelineNodeId);
+        if (node == null)
+            return;
+
+        double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
+        if (duration <= 0)
+            return;
+
+        var local = _waveformPanel.GetLocalMousePosition();
+        if (!node.IsFileEnd)
+        {
+            float norm = _waveformDisplay.XToFileNorm(local.X);
+            node.TimeSeconds = _focusedAudioComponent.ClampTimelineNodeTime(norm * duration);
+        }
+        if (_draggingTimelineVolume)
+            node.VolumeLinear = _waveformDisplay.YToVolumeLinear(local.Y);
+        SyncTimelineNodes();
+    }
+
+    /// <summary>
+    /// Commits a typed time for a timeline node.
+    /// </summary>
+    /// <param name="nodeId">Stable node id.</param>
+    /// <param name="text">Submitted field text.</param>
+    /// <param name="field">The time LineEdit.</param>
+    private void OnTimelineNodeTimeSubmitted(int nodeId, string text, LineEdit field)
+    {
+        if (_focusedAudioComponent == null || field == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var node = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (node == null || node.IsFileEnd)
+            return;
+
+        var formatted = UiUtilities.ParseAndFormatTime(text, out var seconds, out _, out bool isValid);
+        if (!isValid || string.IsNullOrEmpty(formatted))
+        {
+            field.Text = UiUtilities.FormatTime(node.TimeSeconds);
+            return;
+        }
+
+        double clamped = _focusedAudioComponent.ClampTimelineNodeTime(seconds);
+        if (Math.Abs(node.TimeSeconds - clamped) < 1e-9)
+        {
+            field.Text = UiUtilities.FormatTime(clamped);
+            return;
+        }
+
+        RecordAudioHistory("Edit timeline node");
+        node.TimeSeconds = clamped;
+        field.Text = UiUtilities.FormatTime(clamped);
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    /// <summary>
+    /// Deletes a timeline node and records history.
+    /// </summary>
+    /// <param name="nodeId">Stable node id.</param>
+    private void RemoveTimelineNodeAt(int nodeId)
+    {
+        if (_focusedAudioComponent == null)
+            return;
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        var existing = _focusedAudioComponent.FindTimelineNode(nodeId);
+        if (existing == null || existing.IsFileEnd)
+            return;
+
+        RecordAudioHistory("Remove timeline node");
+        _focusedAudioComponent.RemoveTimelineNode(nodeId);
+        if (_selectedTimelineNodeId == nodeId)
+            _selectedTimelineNodeId = -1;
+        if (_draggingTimelineNodeId == nodeId)
+        {
+            _draggingTimelineNodeId = -1;
+            _draggingTimelineVolume = false;
+        }
+        SyncDuration();
+        SyncTimelineNodes();
+    }
+
+    /// <summary>
     /// Toggles visibility of an accordion container and updates button icon.
     /// </summary>
     /// <param name="accordian">The VBoxContainer to toggle.</param>
@@ -759,7 +1930,7 @@ public partial class AudioInspector
         accordian.Visible = !accordian.Visible;
         button.Icon = GetThemeIcon(accordian.Visible ? "Down" : "Right", "AtlasIcons");
 
-        if (accordian.Name == "WaveformAccordian")
+        if (accordian.Name == "TimelineAccordian")
         {
             await DrawWaveform();
         }

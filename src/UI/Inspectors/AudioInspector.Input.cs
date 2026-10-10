@@ -104,10 +104,10 @@ public partial class AudioInspector
         if (_rateRow != null)
             _rateRow.Visible = !inputMode;
 
-        if (_waveformCollapseButton?.GetParent() is CanvasItem waveformHeader)
-            waveformHeader.Visible = !inputMode;
-        if (_waveformAccordian != null && inputMode)
-            _waveformAccordian.Visible = false;
+        if (_timelineCollapseButton?.GetParent() is CanvasItem timelineHeader)
+            timelineHeader.Visible = !inputMode;
+        if (_timelineAccordian != null && inputMode)
+            _timelineAccordian.Visible = false;
 
         if (_buttonSelectFile != null)
             _buttonSelectFile.Visible = !inputMode;

@@ -50,18 +50,6 @@ public static class InspectorMediaUrlStyle
 
             edit.AddThemeColorOverride("font_color", GlobalStyles.Danger);
             edit.AddThemeColorOverride("font_uneditable_color", GlobalStyles.Danger);
-            try
-            {
-                var italic = new SystemFont();
-                italic.FontNames = new[] { "Segoe UI", "Arial", "Helvetica", "sans-serif" };
-                italic.FontItalic = true;
-                edit.AddThemeFontOverride("font", italic);
-            }
-            catch
-            {
-                // Optional: theme default font is fine
-            }
-
             edit.TooltipText = string.IsNullOrEmpty(tooltip) ? UiLocalizer.T("File Missing") : tooltip;
         }
         else
@@ -70,7 +58,6 @@ public static class InspectorMediaUrlStyle
             edit.RemoveThemeStyleboxOverride("focus");
             edit.RemoveThemeColorOverride("font_color");
             edit.RemoveThemeColorOverride("font_uneditable_color");
-            edit.RemoveThemeFontOverride("font");
             edit.TooltipText = string.Empty;
         }
     }

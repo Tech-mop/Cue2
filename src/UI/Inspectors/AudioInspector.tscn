@@ -460,7 +460,7 @@ layout_mode = 2
 [node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1458483631]
 layout_mode = 2
 
-[node name="WaveformCollapseButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1415507456]
+[node name="TimelineCollapseButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1415507456]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
@@ -472,12 +472,12 @@ theme_override_constants/icon_max_width = 12
 icon_alignment = 1
 expand_icon = true
 
-[node name="WaveformLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=950570257]
+[node name="TimelineLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=950570257]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 10
-text = "Waveform"
+text = "Timeline"
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1434437820]
 layout_mode = 2
@@ -485,18 +485,18 @@ size_flags_horizontal = 3
 size_flags_vertical = 4
 theme_type_variation = &"HSepLight"
 
-[node name="WaveformAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1521957115]
+[node name="TimelineAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1521957115]
 unique_name_in_owner = true
 clip_contents = true
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian" unique_id=402062261]
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian" unique_id=402062261]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_right = 20
 
-[node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer" unique_id=951717597]
+[node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer" unique_id=951717597]
 unique_name_in_owner = true
 clip_contents = true
 custom_minimum_size = Vector2(0, 120)
@@ -504,11 +504,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxEmpty_wave")
 
-[node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel" unique_id=351993399]
+[node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer/WaveformPanel" unique_id=351993399]
 layout_mode = 2
 mouse_filter = 2
 
-[node name="StartDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=371983948]
+[node name="StartDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer/WaveformPanel/Control" unique_id=371983948]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(4, 0)
 layout_mode = 0
@@ -523,7 +523,7 @@ theme_override_styles/hover = SubResource("StyleBoxLine_hjudx")
 action_mode = 0
 keep_pressed_outside = true
 
-[node name="EndDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=1422629812]
+[node name="EndDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer/WaveformPanel/Control" unique_id=1422629812]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(4, 0)
 layout_mode = 0

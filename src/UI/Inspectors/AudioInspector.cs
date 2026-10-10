@@ -76,8 +76,8 @@ public partial class AudioInspector : Control
     private const string FileUrlPlaceholderKey = "URL (Can drag and drop files here)";
     private Button _routingCollapseButton;
     private VBoxContainer _routingAccordian;
-    private Button _waveformCollapseButton;
-    private VBoxContainer _waveformAccordian;
+    private Button _timelineCollapseButton;
+    private VBoxContainer _timelineAccordian;
     
     private LineEdit _startTimeInput;
     private LineEdit _endTimeInput;
@@ -130,6 +130,28 @@ public partial class AudioInspector : Control
     private bool _isDraggingEnd;
     private bool _isDraggingFadeIn;
     private bool _isDraggingFadeOut;
+    private readonly List<Button> _timelineNodeHandles = new();
+    private readonly List<Button> _timelineVolumeHandles = new();
+    private VBoxContainer _timelineNodeList;
+    private Label _timelineNodeHint;
+    private HBoxContainer _timelineNodeHeader;
+    private HBoxContainer _timelineAddRow;
+    private Button _timelineAddNodeButton;
+    private readonly Dictionary<int, LineEdit> _timelineNodeTimeEdits = new();
+    private readonly Dictionary<int, LineEdit> _timelineNodeVolumeEdits = new();
+    private readonly Dictionary<int, LineEdit> _timelineNodeRateEdits = new();
+    private readonly Dictionary<int, LineEdit> _timelineNodePitchEdits = new();
+    private readonly Dictionary<int, OptionButton> _timelineNodeInterpOptions = new();
+    private readonly Dictionary<int, CheckBox> _timelineNodeContinueChecks = new();
+    private readonly Dictionary<int, CheckBox> _timelineNodeLoopChecks = new();
+    private readonly Dictionary<int, LineEdit> _timelineNodePlayCountEdits = new();
+    private List<int> _listedTimelineNodeIds = new();
+    private int _selectedTimelineNodeId = -1;
+    private int _draggingTimelineNodeId = -1;
+    private bool _draggingTimelineVolume;
+    private float _pendingTimelineNodeNorm = -1f;
+    private int _pendingTimelineNodeCueId = -1;
+    private SceneTreeTimer _pendingTimelineNodeTimer;
     
     private FileDialog _fileDialog;
     
@@ -175,9 +197,9 @@ public partial class AudioInspector : Control
         _routingContainer = GetNode<VBoxContainer>("%RoutingContainer");
         _routingMatrixGrid = GetNode<GridContainer>("%RoutingMatrixGrid");
         
-        _waveformCollapseButton = GetNode<Button>("%WaveformCollapseButton");
-        _waveformCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
-        _waveformAccordian = GetNode<VBoxContainer>("%WaveformAccordian");
+        _timelineCollapseButton = GetNode<Button>("%TimelineCollapseButton");
+        _timelineCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
+        _timelineAccordian = GetNode<VBoxContainer>("%TimelineAccordian");
         
         _startTimeInput = GetNode<LineEdit>("%StartTimeInput");
         _endTimeInput = GetNode<LineEdit>("%EndTimeInput");
@@ -232,7 +254,7 @@ public partial class AudioInspector : Control
         _waveformDisplay = new WaveformDisplay();
         _waveformPanel.AddChild(_waveformDisplay);
         _waveformPanel.MoveChild(_waveformDisplay, 0); // behind handles
-        _waveformPanel.Resized += () => { if (_waveformAccordian.Visible) _ = DrawWaveform(); };
+        _waveformPanel.Resized += () => { if (_timelineAccordian.Visible) _ = DrawWaveform(); };
 
         _startDragHandle = GetNode<Button>("%StartDragHandle");
         _endDragHandle = GetNode<Button>("%EndDragHandle");
@@ -249,9 +271,12 @@ public partial class AudioInspector : Control
         _fadeOutHandle.GuiInput += OnFadeOutHandleInput;
 
         _waveformZoom = new WaveformZoomBar();
-        _waveformAccordian.AddChild(_waveformZoom);
+        _timelineAccordian.AddChild(_waveformZoom);
         _waveformZoom.Attach(_waveformDisplay, _waveformPanel);
-        _waveformZoom.ViewChanged += OnWaveformViewChanged; 
+        _waveformZoom.ViewChanged += OnWaveformViewChanged;
+        _waveformZoom.PanelClicked += OnTimelinePanelClicked;
+        _waveformZoom.PanelDoubleClicked += OnTimelinePanelDoubleClicked;
+        BuildTimelineNodeListHost(); 
         
         
         
@@ -320,10 +345,10 @@ public partial class AudioInspector : Control
         SetSelectFileVisible(false);
         _routingAccordian.Visible = false;
         _routingContainer.Visible = false;
-        _waveformAccordian.Visible = false;
+        _timelineAccordian.Visible = false;
         
         _routingCollapseButton.Pressed += () => ToggleAccordian(_routingAccordian, _routingCollapseButton);
-        _waveformCollapseButton.Pressed += () => ToggleAccordian(_waveformAccordian, _waveformCollapseButton);
+        _timelineCollapseButton.Pressed += () => ToggleAccordian(_timelineAccordian, _timelineCollapseButton);
         _buttonSelectFile.Pressed += OpenFileDialog;
         
     
@@ -478,7 +503,18 @@ public partial class AudioInspector : Control
         }
 
         if (_waveformZoom != null)
+        {
             _waveformZoom.ViewChanged -= OnWaveformViewChanged;
+            _waveformZoom.PanelClicked -= OnTimelinePanelClicked;
+            _waveformZoom.PanelDoubleClicked -= OnTimelinePanelDoubleClicked;
+        }
+        CancelPendingTimelineNodeClick();
+        ClearTimelineNodeHandles();
+
+        if (_fileUrl != null && GodotObject.IsInstanceValid(_fileUrl))
+            InspectorMediaUrlStyle.Apply(_fileUrl, null, false);
+        UiUtilities.DisposeRefCounted(_fileUrlMissingStyle);
+        _fileUrlMissingStyle = null;
 
         _focusedCue = null;
         _focusedAudioComponent = null;
@@ -509,6 +545,9 @@ public partial class AudioInspector : Control
         WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
         WaveformDisplay.StyleFadeHandle(_fadeInHandle, isFadeIn: true);
         WaveformDisplay.StyleFadeHandle(_fadeOutHandle, isFadeIn: false);
+        foreach (var handle in _timelineNodeHandles)
+            WaveformDisplay.StyleNodeHandle(handle);
+        RefreshTimelineNodeListChrome();
         PopulateFadeCurveOptions();
         if (_focusedCue == null)
             ShowNoSelection();

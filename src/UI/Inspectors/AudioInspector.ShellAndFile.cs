@@ -47,6 +47,12 @@ public partial class AudioInspector
     private async Task ShellSelectedAsync(int cueId)
     {
         int gen = ++_shellSelectGeneration;
+        if (_focusedCue == null || _focusedCue.Id != cueId)
+        {
+            _selectedTimelineNodeId = -1;
+            _draggingTimelineNodeId = -1;
+            CancelPendingTimelineNodeClick();
+        }
 
         if (cueId < 0)
         {
@@ -225,6 +231,12 @@ public partial class AudioInspector
     /// </summary>
     private void ShowNoSelection()
     {
+        _selectedTimelineNodeId = -1;
+        _draggingTimelineNodeId = -1;
+        CancelPendingTimelineNodeClick();
+        ClearTimelineNodeHandles();
+        _waveformDisplay?.SetNodes(null);
+        RebuildTimelineNodeList(new List<AudioTimelineNode>());
         if (_deleteAudioComponentButton != null)
             _deleteAudioComponentButton.Visible = false;
         _focusedAudioInput = null;

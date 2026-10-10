@@ -13,8 +13,11 @@
 - Audio output patches allow 64 buses. Builds ship a patched SDL 3.4.2 so devices with more than 8 channels can open on Windows, macOS, and Linux. PulseAudio itself stops at 32 channels; ALSA and PipeWire allow 64.
 - Fade-in and fade-out on audio (file and input), video, and text can be Linear, S-Curve, Exponential, or Logarithmic. Each inspector fade time has a curve menu beside it. Waveforms draw those curves. Settings → General Stop Fade Out has a matching curve for the session stop.
 - Audio file cues have a play rate. Rate shortens the cue and raises pitch unless Keep Pitch is on. Pitch (cents) shifts also added.
+- Audio inspector Timeline: click the waveform or use Add node to place numbered markers. Each node is a draggable square with a slice line, and a filled volume circle on the automation line (drag for time and level). Listed with time, relative volume, rate, pitch, interpolation (Linear / Snap / Bezier per node), continue, loop, and play count for the region before it. Loop regions show as a bottom inset bracket ┌── ×n ──┐ (or ∞), one per loop span. Volume, rate, and pitch are relative to the component, including playback. Rate (cyan) and pitch (violet) draw on the waveform; they are edited in the list only.
+- Timeline inspector cue bars show audio region slices at their wall-clock widths (each region’s play count, ∞ for a looping region). Component play count then repeats that whole sequence. Active-cue progress and seek follow the same durations, including play rate along the timeline.
 
 ### Fixed
+- Closing Cue2 no longer leaves leaked objects from video preview textures, inspector tab icons, and playback objects that only freed on a deferred idle frame.
 - Video inspector preview stays inside the canvas outline when expand or stretch mode changes. The preview rect was filling the whole view instead of the target layer.
 - Video inspector preview sits on the left above the transport controls (it was centering in the view).
 - Expand / stretch in the inspector preview use the scaled canvas size. Fit Width was using the file’s native pixel width, so the picture ran wider than the preview.
@@ -25,8 +28,10 @@
 - Native popups follow UI scale (OptionButton lists, colour picker, shell context menu, clock-days). They were opening at 1× because a PopupPanel is its own window.
 
 ### Changed
+- Audio inspector waveform accordion renamed to "timeline"
 - Video inspector no longer shows the unused Scale resolution / Offset row. Expand and stretch size the picture on the layer; those leftover fields were never applied to preview or playback.
 - Audio and video inspector waveforms zoom in seconds (Fit is the whole file; max zoom is 50ms), with Fit, −, +, an always-visible scrollbar, and a visible-window readout. Ctrl+wheel zooms at the cursor; drag pans; double-click fits the start–end region. Hover time and a live playhead sit on the ruler. Start and end flags in the time bar can be dragged. Fade-in and fade-out show as wedges with a thin vertical bar and a flag at the bottom of the waveform.
+- Timeline inspector zoom matches that: Fit is the whole show, max zoom is a 50ms window, the slider is logarithmic, and a readout shows the visible span. Long shows can zoom out to fit and in to 50ms; short cues can fill the view.
 - Audio output patch editor: unused devices stay off the grid (Add device). Choosing a device adds every hardware channel with no routes. The routing grid uses frozen headers, drawn cells (click-drag paint), collapsible groups of 8 on large devices, and a List view of bus → hardware routes.
 
 

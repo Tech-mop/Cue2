@@ -858,14 +858,15 @@ public class Cue : ICue
         {
             if (component.Type == "Audio")
             {
-                if (((AudioComponent)component).Loop == true)
+                var audio = (AudioComponent)component;
+                audio.RecalculateDuration();
+                if (audio.Loop || audio.TotalDuration < 0)
                 {
                     contentsDuration = -1;
                     break;
                 }
-                ((AudioComponent)component).RecalculateDuration();
-                var componentDuration = ((AudioComponent)component).TotalDuration;
-                if (contentsDuration < componentDuration) contentsDuration = componentDuration;
+                if (contentsDuration < audio.TotalDuration)
+                    contentsDuration = audio.TotalDuration;
             }
             else if (component.Type == "AudioInput")
             {

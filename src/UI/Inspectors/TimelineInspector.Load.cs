@@ -411,8 +411,9 @@ public partial class TimelineInspector
         bar.GuiInput += e => HandleBarInput(e, cue, bar);
         _timelineArea.AddChild(bar);
 
-        if (showWaveforms && TryGetCueWaveformSource(cue, out var peaks, out float startNorm, out float endNorm, out int playCount))
-            AttachWaveformLayer(bar, peaks, startNorm, endNorm, playCount);
+        if (showWaveforms && TryGetCueWaveformSource(cue, out var peaks, out float startNorm, out float endNorm,
+                out int playCount, out var slices))
+            AttachWaveformLayer(bar, peaks, startNorm, endNorm, playCount, slices);
 
         var startLine = new ColorRect
         {
@@ -577,7 +578,7 @@ public partial class TimelineInspector
         if (cue == null) return false;
 
         var audio = cue.GetAudioComponent();
-        if (audio != null && audio.Loop)
+        if (audio != null && (audio.Loop || audio.TotalDuration < 0))
             return true;
 
         var video = cue.GetVideoComponent();
@@ -639,9 +640,9 @@ public partial class TimelineInspector
         if (audio != null)
         {
             hasMedia = true;
-            if (audio.Loop)
+            if (audio.Loop || audio.TotalDuration < 0)
                 return -1;
-            // Prefer TotalDuration (segment × play count); fall back to Duration × PlayCount.
+            // Prefer TotalDuration (inner sequence × component play count).
             double audioDur = audio.TotalDuration;
             if (audioDur <= 1e-9 && audio.Duration > 0)
                 audioDur = audio.Duration * Math.Max(1, audio.PlayCount);
@@ -700,8 +701,14 @@ public partial class TimelineInspector
 
         double cycle = 0;
         var audio = cue.GetAudioComponent();
-        if (audio != null && audio.Duration > 0)
-            cycle = Math.Max(cycle, audio.Duration);
+        if (audio != null)
+        {
+            double audioCycle = audio.Duration > 0
+                ? audio.Duration
+                : audio.GetDisplayCycleSeconds();
+            if (audioCycle > 0)
+                cycle = Math.Max(cycle, audioCycle);
+        }
 
         var video = cue.GetVideoComponent();
         if (video != null && video.Duration > 0)

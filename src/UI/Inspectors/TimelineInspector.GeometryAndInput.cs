@@ -90,12 +90,51 @@ public partial class TimelineInspector
         return parent != null ? ComputeActionStart(parent) : 0;
     }
 
+    /// <summary>Latest action-end (plus loop-badge pad) across visible bars and pre-wait ghosts.</summary>
+    private double ComputeContentMaxTime()
+    {
+        double maxTime = 0;
+        foreach (var kvp in _cueToBar)
+        {
+            var cue = kvp.Key;
+            if (cue == null) continue;
+            double start = ComputeActionStart(cue);
+            double end = start + GetBarDisplayDurationSeconds(cue);
+            if (IsInfiniteLoopCue(cue))
+                end += IsChildDrivenInfinite(cue) ? 5.0 : 2.5;
+            maxTime = Math.Max(maxTime, end);
+        }
+
+        foreach (var kvp in _cueToPreWaitGhost)
+        {
+            var cue = kvp.Key;
+            if (cue == null) continue;
+            double parentStart = ComputeParentActionStart(cue);
+            double actionStart = ComputeActionStart(cue);
+            maxTime = Math.Max(maxTime, actionStart);
+            maxTime = Math.Max(maxTime, parentStart + Math.Max(0, cue.PreWait));
+        }
+
+        return maxTime;
+    }
+
     /// <summary>
     /// Updates positions and sizes for all cue bars in the timeline.
     /// </summary>
     private void UpdateAllPositionsAndSizes()
     {
-        double maxTime = 0;
+        double maxTime = ComputeContentMaxTime();
+        _contentMaxTime = maxTime;
+        SyncTimeViewDuration();
+        RefreshTimeViewScale();
+
+        if (_cueToRow.Count == 0)
+        {
+            ApplyTimelineContentSize(GetTimelineViewWidth(), RowHeight);
+            UpdateDurationSummary();
+            SyncTimeViewChrome();
+            return;
+        }
 
         foreach (var kvp in _cueToBar)
         {
@@ -104,46 +143,22 @@ public partial class TimelineInspector
             if (bar == null || !IsInstanceValid(bar)) continue;
 
             var start = ComputeActionStart(cue);
-            ApplyBarGeometry(bar, cue, start, out _, out double contentDur);
-            double end = start + contentDur;
-            if (IsInfiniteLoopCue(cue))
-                end += IsChildDrivenInfinite(cue) ? 5.0 : 2.5; // room for loop / "Child Looping" badge
-            maxTime = Math.Max(maxTime, end);
+            ApplyBarGeometry(bar, cue, start, out _, out _);
         }
 
-        // Pre-wait ghosts can extend before action start
-        foreach (var kvp in _cueToPreWaitGhost)
-        {
-            var cue = kvp.Key;
-            var ghost = kvp.Value;
-            if (ghost == null || !IsInstanceValid(ghost)) continue;
-            double parentStart = ComputeParentActionStart(cue);
-            double actionStart = ComputeActionStart(cue);
-            maxTime = Math.Max(maxTime, actionStart);
-            maxTime = Math.Max(maxTime, parentStart + Math.Max(0, cue.PreWait));
-        }
-
-        _contentMaxTime = maxTime;
-
-        if (_cueToRow.Count == 0)
-        {
-            ApplyTimelineContentSize(100, RowHeight);
-            UpdateDurationSummary();
-            return;
-        }
-
-        float contentWidth = (float)(maxTime * _scale + 100);
+        float viewW = GetTimelineViewWidth();
         float contentHeight = _cueToRow.Values.Max() * RowHeight + RowHeight;
-        ApplyTimelineContentSize(contentWidth, contentHeight);
+        ApplyTimelineContentSize(viewW, contentHeight);
 
         foreach (var bg in _rowBackgrounds)
-            bg.Size = new Vector2(contentWidth, RowHeight);
+            bg.Size = new Vector2(viewW, RowHeight);
 
         if (_timeGrid != null && IsInstanceValid(_timeGrid))
         {
             _timeGrid.Position = Vector2.Zero;
-            _timeGrid.Size = new Vector2(contentWidth, contentHeight);
+            _timeGrid.Size = new Vector2(viewW, contentHeight);
             _timeGrid.ZoomScale = _scale;
+            _timeGrid.ViewStartSeconds = ViewStartSeconds;
             _timeGrid.ContentHeight = contentHeight;
             _timeGrid.QueueRedraw();
         }
@@ -157,6 +172,7 @@ public partial class TimelineInspector
 
         UpdatePlayheadLineGeometry();
         UpdateDurationSummary();
+        SyncTimeViewChrome();
     }
 
     /// <summary>
@@ -178,8 +194,23 @@ public partial class TimelineInspector
         int row = _cueToRow.GetValueOrDefault(cue, 0);
         float barH = RowHeight - 6f;
         float barY = row * RowHeight + 3f;
-        bar.Size = new Vector2(displayWidth, barH);
-        bar.Position = new Vector2((float)(start * _scale), barY);
+        float viewW = GetTimelineViewWidth();
+        float x0 = TimeToX(start);
+        float x1 = x0 + displayWidth;
+        float vis0 = Math.Max(x0, 0f);
+        float vis1 = Math.Min(x1, viewW);
+        bool onScreen = vis1 - vis0 >= 0.5f;
+        bar.Visible = onScreen;
+        if (onScreen)
+        {
+            bar.Position = new Vector2(vis0, barY);
+            bar.Size = new Vector2(vis1 - vis0, barH);
+        }
+        else
+        {
+            bar.Position = new Vector2(x0, barY);
+            bar.Size = new Vector2(Math.Max(1f, displayWidth), barH);
+        }
 
         // Instant cues get a brighter accent
         if (instant)
@@ -196,63 +227,111 @@ public partial class TimelineInspector
         var wave = bar.GetNodeOrNull<CueBarWaveform>("Waveform");
         if (wave != null && IsInstanceValid(wave))
         {
-            // Looping cues: draw one cycle only (playCount forced to 1 for display).
+            // Looping cues (component or region): one outer cycle. Inner region tiles stay.
             if (infinite)
                 wave.PlayCount = 1;
 
-            // Waveform maps peaks across its control width. Parent bars often extend past
-            // own media when children are longer — keep time accuracy by sizing the wave
-            // to own-media duration only; the remainder of the bar stays empty.
-            float waveW = ComputeWaveformDisplayWidth(cue, displayWidth);
-            wave.Position = Vector2.Zero;
-            wave.Size = new Vector2(waveW, barH);
+            float fullWaveW = ComputeWaveformDisplayWidth(cue, displayWidth);
+            float waveFrom = 0f;
+            float waveTo = 1f;
+            if (onScreen && displayWidth > 1e-3f)
+            {
+                waveFrom = (vis0 - x0) / displayWidth;
+                waveTo = (vis1 - x0) / displayWidth;
+                // Waveform is own-media width; if children extend the bar, only the media span has peaks.
+                if (fullWaveW < displayWidth - 0.5f && fullWaveW > 1e-3f)
+                {
+                    float mediaVis0 = Math.Max(x0, vis0);
+                    float mediaVis1 = Math.Min(x0 + fullWaveW, vis1);
+                    if (mediaVis1 > mediaVis0)
+                    {
+                        wave.ViewFrom = (mediaVis0 - x0) / fullWaveW;
+                        wave.ViewTo = (mediaVis1 - x0) / fullWaveW;
+                        wave.Position = new Vector2(mediaVis0 - vis0, 0);
+                        wave.Size = new Vector2(mediaVis1 - mediaVis0, barH);
+                        wave.Visible = true;
+                    }
+                    else
+                    {
+                        wave.Visible = false;
+                    }
+                }
+                else
+                {
+                    wave.ViewFrom = waveFrom;
+                    wave.ViewTo = waveTo;
+                    wave.Position = Vector2.Zero;
+                    wave.Size = new Vector2(bar.Size.X, barH);
+                    wave.Visible = true;
+                }
+            }
+            else
+            {
+                wave.ViewFrom = 0f;
+                wave.ViewTo = 1f;
+                wave.Visible = false;
+            }
+
             wave.QueueRedraw();
         }
 
         var endLine = bar.GetNodeOrNull<ColorRect>("EndLine");
         if (endLine != null)
         {
-            endLine.Position = new Vector2(Mathf.Max(0, displayWidth - 2), 0);
+            bool endVisible = onScreen && x1 <= viewW + 1.5f;
+            endLine.Position = new Vector2(Mathf.Max(0, bar.Size.X - 2), 0);
             endLine.Size = new Vector2(2, bar.Size.Y);
-            // Hide end accent for very short/instant markers
-            endLine.Visible = !instant || displayWidth > 10f;
+            endLine.Visible = endVisible && (!instant || displayWidth > 10f);
         }
 
         var startLine = bar.GetNodeOrNull<ColorRect>("StartLine");
         if (startLine != null)
+        {
             startLine.Size = new Vector2(2, bar.Size.Y);
+            startLine.Visible = onScreen && x0 >= -1.5f;
+        }
 
         var flag = bar.GetNodeOrNull<ColorRect>("Flag");
         if (flag != null)
+        {
             flag.Position = new Vector2(0, Math.Max(0, bar.Size.Y - 8));
+            flag.Visible = onScreen && x0 >= -1.5f;
+        }
 
         // Pre-wait ghost: parentStart → actionStart
         if (_cueToPreWaitGhost.TryGetValue(cue, out var ghost) && ghost != null && IsInstanceValid(ghost))
         {
             double parentStart = ComputeParentActionStart(cue);
-            float ghostX = (float)(parentStart * _scale);
-            float ghostW = (float)(Math.Max(0, start - parentStart) * _scale);
-            ghost.Position = new Vector2(ghostX, barY);
+            float ghostX0 = TimeToX(parentStart);
+            float ghostX1 = TimeToX(start);
+            float g0 = Math.Max(ghostX0, 0f);
+            float g1 = Math.Min(ghostX1, viewW);
+            float ghostW = g1 - g0;
+            ghost.Position = new Vector2(g0, barY);
             ghost.Size = new Vector2(Mathf.Max(0, ghostW), barH);
             ghost.Visible = ghostW > 0.5f;
         }
 
-        PositionCueLabels(cue, bar.Position, displayWidth, start);
+        PositionCueLabels(cue, new Vector2(Math.Max(x0, vis0), barY), displayWidth, start, x0, x1, viewW);
     }
 
     /// <summary>
     /// Places start/pre on the first line, length on the second line below, and loop badge after the bar.
     /// </summary>
-    private void PositionCueLabels(Cue cue, Vector2 barPosition, float barDisplayWidth, double startTimeSeconds)
+    private void PositionCueLabels(
+        Cue cue, Vector2 barPosition, float barDisplayWidth, double startTimeSeconds,
+        float barX0, float barX1, float viewW)
     {
         float labelX = barPosition.X + LabelStartOffsetX;
         float topY = barPosition.Y + 1f;
+        bool labelsOnScreen = barX1 >= 0f && barX0 <= viewW;
 
         if (_cueToTimeLabel.TryGetValue(cue, out var timeLabel) && timeLabel != null && IsInstanceValid(timeLabel))
         {
             timeLabel.Text = FormatBarStartPreLabel(cue, startTimeSeconds);
             timeLabel.Position = new Vector2(labelX, topY);
             timeLabel.ResetSize();
+            timeLabel.Visible = labelsOnScreen;
         }
 
         if (_cueToDurationLabel.TryGetValue(cue, out var durationLabel)
@@ -262,6 +341,7 @@ public partial class TimelineInspector
             // Second line: length sits below pre-wait / start line
             durationLabel.Position = new Vector2(labelX, topY + 13f);
             durationLabel.ResetSize();
+            durationLabel.Visible = labelsOnScreen;
         }
 
         if (_cueToLoopBadge.TryGetValue(cue, out var loopBadge) && loopBadge != null && IsInstanceValid(loopBadge))
@@ -271,10 +351,10 @@ public partial class TimelineInspector
             loopBadge.TooltipText = childLoop
                 ? UiLocalizer.T("A nested child cue loops indefinitely")
                 : UiLocalizer.T("This cue's media loops indefinitely");
-            // Child-loop badge is longer — keep a bit more room after the bar.
-            loopBadge.Position = new Vector2(barPosition.X + barDisplayWidth + 6f, topY + 4f);
+            float badgeX = barX1 + 6f;
+            loopBadge.Position = new Vector2(badgeX, topY + 4f);
             loopBadge.ResetSize();
-            loopBadge.Visible = true;
+            loopBadge.Visible = badgeX >= 0f && badgeX <= viewW;
         }
     }
 
@@ -288,7 +368,7 @@ public partial class TimelineInspector
         contentWidth = Math.Max(1f, contentWidth);
         contentHeight = Math.Max(1f, contentHeight);
         _timelineArea.CustomMinimumSize = new Vector2(
-            contentWidth + ScrollbarPadRight,
+            contentWidth,
             contentHeight + ScrollbarPadBottom);
     }
 
@@ -331,6 +411,7 @@ public partial class TimelineInspector
                     _dragging = true;
                     _initialBarPos = bar.Position;
                     _initialMousePos = GetViewport().GetMousePosition();
+                    _dragStartSeconds = ComputeActionStart(cue);
                     _draggedCue = cue;
                     // Do not RecordCueChange here — click without drag would create a no-op undo step.
                     _preWaitDragHistoryRecorded = false;
@@ -358,12 +439,8 @@ public partial class TimelineInspector
             // Earliest legal action start = parent action start (pre-wait 0). Never snap back
             // to drag-start position — that felt mouse-speed dependent and wrong for children.
             double parentStart = ComputeParentActionStart(cue);
-            float minX = (float)(Math.Max(0.0, parentStart) * _scale);
-
-            float newX = _initialBarPos.X + delta.X;
-            newX = Mathf.Max(minX, newX);
-
-            double newStart = newX / Math.Max(0.001f, _scale);
+            double newStart = _dragStartSeconds + delta.X / Math.Max(0.001f, _scale);
+            newStart = Math.Max(parentStart, newStart);
             double newPreWait = Math.Max(0.0, newStart - parentStart);
 
             // Skip no-op updates (still re-apply geometry so the bar stays clamped at minX).
@@ -473,21 +550,26 @@ public partial class TimelineInspector
             maxTime = Math.Max(maxTime, end);
         }
         _contentMaxTime = maxTime;
-        float contentWidth = (float)(maxTime * _scale + 100);
+        SyncTimeViewDuration();
+        RefreshTimeViewScale();
+        float viewW = GetTimelineViewWidth();
         float contentHeight = Math.Max(RowHeight, _timelineArea.CustomMinimumSize.Y - ScrollbarPadBottom);
-        ApplyTimelineContentSize(contentWidth, contentHeight);
+        ApplyTimelineContentSize(viewW, contentHeight);
 
         foreach (var bg in _rowBackgrounds)
-            bg.Size = new Vector2(contentWidth, RowHeight);
+            bg.Size = new Vector2(viewW, RowHeight);
 
         if (_timeGrid != null && IsInstanceValid(_timeGrid))
         {
-            _timeGrid.Size = new Vector2(contentWidth, contentHeight);
+            _timeGrid.Size = new Vector2(viewW, contentHeight);
+            _timeGrid.ZoomScale = _scale;
+            _timeGrid.ViewStartSeconds = ViewStartSeconds;
             _timeGrid.QueueRedraw();
         }
 
         UpdatePlayheadLineGeometry();
         UpdateDurationSummary();
+        SyncTimeViewChrome();
     }
 
     /// <summary>

@@ -109,6 +109,14 @@ public partial class InspectorTabsController : TabContainer
 			_globalData.HistoryManager.HistoryChanged -= OnSyncIndicators;
 			_globalData.HistoryManager.HistoryRestored -= OnHistoryRestored;
 		}
+
+		for (int i = 0; i < GetTabCount(); i++)
+			SetTabIcon(i, null);
+		if (_contentDotIcon != null)
+		{
+			UiUtilities.DisposeRefCounted(_contentDotIcon);
+			_contentDotIcon = null;
+		}
 	}
 
 	private void OnHistoryRestored(int scope)

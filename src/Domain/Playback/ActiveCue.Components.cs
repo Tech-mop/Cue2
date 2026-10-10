@@ -270,7 +270,9 @@ public partial class ActiveCue
             var pauseButton = componentPanel.GetNode<Button>("%ComponentPause");
             var stopButton = componentPanel.GetNode<Button>("%ComponentStop");
             var timeLabel = componentPanel.GetNode<Label>("%ComponentTime");
-            timeLabel.Text = UiUtilities.FormatTime(audioComponent.TotalDuration);
+            timeLabel.Text = audioComponent.Loop || audioComponent.TotalDuration < 0
+                ? UiUtilities.FormatTime(0)
+                : UiUtilities.FormatTime(audioComponent.TotalDuration);
             
             typeIcon.Texture = _activeCueBar.GetThemeIcon("Audio2", "AtlasIcons");
             // If cue is already paused (global pause during setup), show resume icon.
@@ -306,9 +308,7 @@ public partial class ActiveCue
             // Progress bar seeking (span includes playcount when not looping)
             var progressBar = componentPanel.GetNode<ProgressBar>(ComponentProgressPath);
             double pendingContentSeekSec = 0;
-            double audioSeekSpan = audioComponent.Loop || audioComponent.TotalDuration < 0
-                ? Math.Max(0, audioComponent.Duration)
-                : Math.Max(0, audioComponent.TotalDuration);
+            double audioSeekSpan = audioComponent.GetProgressSpanSeconds();
             progressBar.GuiInput += (@event) =>
             {
                 if (!_activeAudioComponents.ContainsKey(componentPanel)) return;
@@ -1243,9 +1243,7 @@ public partial class ActiveCue
 
         // Content elapsed includes completed playcount iterations (does not reset on replay).
         double contentElapsed = audioPlayback.GetTotalElapsedContentSeconds();
-        double progressSpan = audioComponent.Loop || audioComponent.TotalDuration < 0
-            ? audioComponent.Duration
-            : audioComponent.TotalDuration;
+        double progressSpan = audioComponent.GetProgressSpanSeconds();
         float progressPercentage = progressSpan > 1e-9
             ? (float)(contentElapsed / progressSpan * 100.0)
             : 0f;

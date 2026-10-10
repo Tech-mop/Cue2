@@ -91,6 +91,13 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     private long _startTimeUs;
     private long _endTimeUs;
     private bool _useCustomEnd;
+    private List<AudioTimelineRegion> _regions = new();
+    /// <summary>Cached wall-clock of one play of each region (rate curve).</summary>
+    private double[] _regionWallSeconds = Array.Empty<double>();
+    private int _regionIndex;
+    private int _regionPlayIndex = 1;
+    private long _regionStartUs;
+    private long _regionEndUs;
     private int _currentPlayCount = 1;
     public int EffectivePlayCount;
     private bool _hasStarted;
@@ -139,6 +146,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _endTimeUs = long.MaxValue;
 
         EffectivePlayCount = _audioComponent.Loop ? int.MaxValue : Math.Max(1, _audioComponent.PlayCount);
+        RebuildPlaybackRegions();
+        ApplyRegionUnlocked(0);
     }
 
     /// <summary>
@@ -361,6 +370,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
             // Main thread: snapshot settings before fill loop / prefill use _audioTuning.
             RefreshAudioTuning();
+            lock (_lock)
+            {
+                RebuildPlaybackRegions();
+                ApplyRegionUnlocked(0);
+            }
 
             double fadeIn = fadeInDuration ?? _audioComponent.FadeInDuration;
             if (fadeIn > 1e-9)
@@ -483,8 +497,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 int maxFrames = _srcBuffer.Length / SourceChannels;
                 int framesToRead = Math.Min(maxNeedFrames, maxFrames);
 
-                // Respect custom end time
+                // Respect current timeline-region end (or the cue out point when there are no nodes).
                 long posUs = Decoder.PositionUs;
+                long regionEndUs;
+                lock (_lock) regionEndUs = _regionEndUs;
 
                 // Arm end-fade early so FadeOutDuration runs inside the last seconds of content
                 // (e.g. 10s segment + 4s fade → fade begins at t=6s).
@@ -493,7 +509,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 bool fadingOut;
                 lock (_lock) fadingOut = _isFadingOut;
 
-                if (posUs >= _endTimeUs)
+                if (posUs >= regionEndUs)
                 {
                     // While end-fading, keep the fill loop alive until FadeOutAsync HardStops.
                     if (fadingOut)
@@ -501,17 +517,17 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                         Thread.Sleep(FillLoopSleepMs);
                         continue;
                     }
-                    HandleSegmentEnd();
+                    HandleRegionBoundary();
                     continue;
                 }
 
-                // Limit output frames so we don't read past the file end (rate consumes more source).
-                if (_endTimeUs < long.MaxValue && SourceSampleRate > 0)
+                // Limit output frames so we don't read past the region end (rate consumes more source).
+                var timeline = CurrentTimeline();
+                if (regionEndUs < long.MaxValue && SourceSampleRate > 0)
                 {
-                    long remainingUs = _endTimeUs - posUs;
+                    long remainingUs = regionEndUs - posUs;
                     int remainingSource = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
-                    double rate = CurrentPlayRate();
-                    int remainingOut = (int)Math.Max(0, remainingSource / rate);
+                    int remainingOut = (int)Math.Max(0, remainingSource / timeline.PlayRate);
                     framesToRead = Math.Min(framesToRead, Math.Max(1, remainingOut));
                 }
 
@@ -525,14 +541,16 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                     Decoder,
                     _srcBuffer.AsSpan(),
                     framesToRead,
-                    _audioComponent.PlayRate,
+                    timeline.PlayRate,
                     _audioComponent.KeepPitch,
-                    _audioComponent.PitchCents,
+                    timeline.PitchCents,
                     token);
 
                 if (frames <= 0)
                 {
-                    if (Decoder.EndOfStream || Decoder.PositionUs >= _endTimeUs)
+                    long endUs;
+                    lock (_lock) endUs = _regionEndUs;
+                    if (Decoder.EndOfStream || Decoder.PositionUs >= endUs)
                     {
                         bool fading;
                         lock (_lock) fading = _isFadingOut;
@@ -542,7 +560,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                         }
                         else
                         {
-                            HandleSegmentEnd();
+                            HandleRegionBoundary();
                         }
                     }
                     else
@@ -559,7 +577,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 }
 
                 _framesDelivered += frames;
-                PushMixedFrames(frames);
+                PushMixedFrames(frames, timeline.VolumeLinear);
             }
         }
         catch (OperationCanceledException)
@@ -684,34 +702,37 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             if (maxNeedFrames == 0)
                 break;
 
-            if (Decoder.PositionUs >= _endTimeUs)
+            long regionEndUs;
+            lock (_lock) regionEndUs = _regionEndUs;
+            if (Decoder.PositionUs >= regionEndUs)
                 break;
 
             int maxFrames = _srcBuffer.Length / SourceChannels;
             int framesToRead = Math.Min(maxNeedFrames, maxFrames);
-            if (_endTimeUs < long.MaxValue && SourceSampleRate > 0)
+            var timeline = CurrentTimeline();
+            if (regionEndUs < long.MaxValue && SourceSampleRate > 0)
             {
-                long remainingUs = _endTimeUs - Decoder.PositionUs;
+                long remainingUs = regionEndUs - Decoder.PositionUs;
                 int remainingSource = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
-                int remainingOut = (int)Math.Max(0, remainingSource / CurrentPlayRate());
+                int remainingOut = (int)Math.Max(0, remainingSource / timeline.PlayRate);
                 framesToRead = Math.Min(framesToRead, Math.Max(1, remainingOut));
             }
             int frames = _ratePitch.Process(
                 Decoder,
                 _srcBuffer.AsSpan(),
                 framesToRead,
-                _audioComponent.PlayRate,
+                timeline.PlayRate,
                 _audioComponent.KeepPitch,
-                _audioComponent.PitchCents);
+                timeline.PitchCents);
             if (frames <= 0)
                 break;
 
             _framesDelivered += frames;
-            PushMixedFrames(frames);
+            PushMixedFrames(frames, timeline.VolumeLinear);
         }
     }
 
-    private unsafe void PushMixedFrames(int frames)
+    private unsafe void PushMixedFrames(int frames, float timelineVolumeLinear)
     {
         if (DeviceStreams == null) return;
 
@@ -722,8 +743,9 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         {
             // Cue fade envelope × session master (volume + runtime mute from AudioDevices).
             masterVol = _volume * (_audioDevices?.GetEffectiveSessionMasterLinear() ?? 1f);
-            componentVol = _runtimeLevelLinear
+            float baseVol = _runtimeLevelLinear
                 ?? AudioMixMatrix.ClampComponentGainLinear((float)_audioComponent.Volume);
+            componentVol = AudioMixMatrix.ClampComponentGainLinear(baseVol * timelineVolumeLinear);
             // Stereo pan only; mono / multi-channel ignore (Mix applies identity).
             pan = SourceChannels == 2
                 ? (_runtimePan ?? Mathf.Clamp(_audioComponent.Pan, -1f, 1f))
@@ -781,6 +803,181 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _declickFramesRemaining = Math.Max(0, declickRemainSnapshot - frames);
     }
 
+    /// <summary>
+    /// Reloads timeline regions from the component. Fallback is a single start–end span.
+    /// Call on the main thread before fill starts.
+    /// </summary>
+    private void RebuildPlaybackRegions()
+    {
+        _audioComponent?.EnsureFileEndNode();
+        _regions = _audioComponent?.GetPlaybackRegions() ?? new List<AudioTimelineRegion>();
+        if (_regions.Count == 0)
+        {
+            double start = _startTimeUs / 1_000_000.0;
+            double end = _endTimeUs == long.MaxValue
+                ? (_audioComponent.Metadata?.Duration ?? start)
+                : _endTimeUs / 1_000_000.0;
+            _regions.Add(AudioTimelineRegion.Create(0, start, Math.Max(start, end)));
+        }
+
+        CacheRegionWallSeconds();
+    }
+
+    /// <summary>Stores one-play wall-clock for each playback region.</summary>
+    private void CacheRegionWallSeconds()
+    {
+        int n = _regions?.Count ?? 0;
+        if (_regionWallSeconds == null || _regionWallSeconds.Length != n)
+            _regionWallSeconds = new double[Math.Max(n, 1)];
+        if (n == 0 || _audioComponent == null)
+            return;
+        for (int i = 0; i < n; i++)
+        {
+            var region = _regions[i];
+            _regionWallSeconds[i] = _audioComponent.IntegrateTimelineWallClock(
+                region.StartSeconds, region.EndSeconds);
+        }
+    }
+
+    /// <summary>Wall-clock of one play of region <paramref name="index"/>.</summary>
+    private double RegionWallSeconds(int index)
+    {
+        if (_regionWallSeconds != null && index >= 0 && index < _regionWallSeconds.Length)
+            return Math.Max(0.0, _regionWallSeconds[index]);
+        return 0.0;
+    }
+
+    /// <summary>
+    /// Selects a region and resets its play index. Caller holds <see cref="_lock"/> or is on the ctor path.
+    /// </summary>
+    private void ApplyRegionUnlocked(int index)
+    {
+        if (_regions == null || _regions.Count == 0)
+            return;
+        index = Math.Clamp(index, 0, _regions.Count - 1);
+        var region = _regions[index];
+        _regionIndex = index;
+        _regionPlayIndex = 1;
+        _regionStartUs = (long)(region.StartSeconds * 1_000_000.0);
+        _regionEndUs = (long)(region.EndSeconds * 1_000_000.0);
+        if (_regionEndUs <= _regionStartUs)
+            _regionEndUs = _regionStartUs + 1;
+    }
+
+    /// <summary>
+    /// Chooses the region that contains <paramref name="timestampUs"/>.
+    /// </summary>
+    private void SyncRegionForPositionUnlocked(long timestampUs)
+    {
+        if (_regions == null || _regions.Count == 0)
+            return;
+        double sec = timestampUs / 1_000_000.0;
+        int found = 0;
+        for (int i = 0; i < _regions.Count; i++)
+        {
+            if (sec + 1e-6 >= _regions[i].StartSeconds)
+                found = i;
+            if (sec < _regions[i].EndSeconds - 1e-6)
+            {
+                found = i;
+                break;
+            }
+        }
+        ApplyRegionUnlocked(found);
+    }
+
+    private bool IsOnLastRegionPlayUnlocked()
+    {
+        if (_regions == null || _regions.Count == 0)
+            return true;
+        if (_regionIndex < _regions.Count - 1)
+            return false;
+        var region = _regions[_regionIndex];
+        if (region.Loop)
+            return false;
+        return _regionPlayIndex >= Math.Max(1, region.PlayCount);
+    }
+
+    /// <summary>
+    /// End of the current region: repeat it, advance to the next, or finish the component play.
+    /// </summary>
+    private void HandleRegionBoundary()
+    {
+        bool seekRegionStart = false;
+        bool completeSegment = false;
+        lock (_lock)
+        {
+            if (IsStopped || _completedEmitted || _isFadingOut)
+                return;
+            if (_regions == null || _regionIndex < 0 || _regionIndex >= _regions.Count)
+            {
+                completeSegment = true;
+            }
+            else
+            {
+                var region = _regions[_regionIndex];
+                bool morePlays = region.Loop || _regionPlayIndex < Math.Max(1, region.PlayCount);
+                if (morePlays)
+                {
+                    _regionPlayIndex++;
+                    _naturalEndFadeArmed = false;
+                    _fillSuspended = true;
+                    seekRegionStart = true;
+                }
+                else if (_regionIndex + 1 < _regions.Count)
+                {
+                    ApplyRegionUnlocked(_regionIndex + 1);
+                    _naturalEndFadeArmed = false;
+                    _fillSuspended = true;
+                    seekRegionStart = true;
+                }
+                else
+                {
+                    completeSegment = true;
+                }
+            }
+        }
+
+        if (seekRegionStart)
+        {
+            RestartAtRegionStart();
+            return;
+        }
+
+        if (completeSegment)
+            HandleSegmentEnd();
+    }
+
+    /// <summary>
+    /// Seeks the decoder to the current region's start and re-primes streams.
+    /// </summary>
+    private void RestartAtRegionStart()
+    {
+        try
+        {
+            if (DeviceStreams != null)
+            {
+                foreach (var stream in DeviceStreams.Values)
+                    SDL.ClearAudioStream(stream);
+            }
+
+            long startUs;
+            lock (_lock)
+                startUs = _regionStartUs;
+            Decoder.Seek(startUs);
+            Decoder.Prefetch(_audioTuning.PrefetchMs);
+            _ratePitch.Reset();
+            _framesDelivered = 0;
+            ArmDeclickRamp();
+            PrefillStreams();
+        }
+        finally
+        {
+            lock (_lock)
+                _fillSuspended = false;
+        }
+    }
+
     private void HandleSegmentEnd()
     {
         bool scheduleComplete = false;
@@ -814,7 +1011,13 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                     foreach (var stream in DeviceStreams.Values)
                         SDL.ClearAudioStream(stream);
                 }
-                Decoder.Seek(_startTimeUs);
+                long loopStartUs;
+                lock (_lock)
+                {
+                    ApplyRegionUnlocked(0);
+                    loopStartUs = _regionStartUs;
+                }
+                Decoder.Seek(loopStartUs);
                 Decoder.Prefetch(_audioTuning.PrefetchMs);
                 _ratePitch.Reset();
                 _framesDelivered = 0;
@@ -856,11 +1059,13 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             // Only the last playcount of a finite cue ends with a fade (infinite loop never auto-fades).
             if (_audioComponent.Loop || _currentPlayCount < EffectivePlayCount)
                 return;
+            if (!IsOnLastRegionPlayUnlocked())
+                return;
             double fadeSec = _audioComponent.FadeOutDuration;
-            if (fadeSec <= 1e-9 || _endTimeUs == long.MaxValue)
+            if (fadeSec <= 1e-9 || _regionEndUs == long.MaxValue)
                 return;
 
-            long remainingUs = _endTimeUs - posUs;
+            long remainingUs = _regionEndUs - posUs;
             // Fade duration is wall-clock; file time advances at PlayRate.
             long fadeUs = (long)(fadeSec * CurrentPlayRate() * 1_000_000.0);
             if (remainingUs > fadeUs)
@@ -895,20 +1100,21 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 _naturalEndFadeArmed = false;
                 return;
             }
-            if (_audioComponent.Loop || _currentPlayCount < EffectivePlayCount)
+            if (_audioComponent.Loop || _currentPlayCount < EffectivePlayCount
+                || !IsOnLastRegionPlayUnlocked())
             {
                 _naturalEndFadeArmed = false;
                 return;
             }
 
             double configured = _audioComponent.FadeOutDuration;
-            if (configured <= 1e-9 || _endTimeUs == long.MaxValue)
+            if (configured <= 1e-9 || _regionEndUs == long.MaxValue)
             {
                 _naturalEndFadeArmed = false;
                 return;
             }
 
-            long remainingUs = Math.Max(0, _endTimeUs - GetPlaybackPositionUs());
+            long remainingUs = Math.Max(0, _regionEndUs - GetPlaybackPositionUs());
             double remainingSec = remainingUs / 1_000_000.0 / CurrentPlayRate();
 
             // Clamp to remaining content so fade completes at the natural end (not after).
@@ -1186,13 +1392,14 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         lock (_lock)
         {
             if (_audioComponent.Loop) return -1.0;
-            double segmentDuration = GetSegmentDurationSecondsUnlocked();
-            double posSec = GetPlaybackPositionUs() / 1_000_000.0;
-            double startSec = _startTimeUs / 1_000_000.0;
-            double elapsedWall = (posSec - startSec) / CurrentPlayRate();
-            double remainingInSegment = Math.Max(0, segmentDuration - elapsedWall);
+            double sequence = GetSequenceDurationSecondsUnlocked();
+            if (sequence < 0)
+                return -1.0;
+            double remainingSequence = GetRemainingInSequenceSecondsUnlocked();
+            if (remainingSequence < 0)
+                return -1.0;
             int remainingCounts = Math.Max(0, EffectivePlayCount - _currentPlayCount);
-            return remainingInSegment + remainingCounts * segmentDuration;
+            return remainingSequence + remainingCounts * sequence;
         }
     }
 
@@ -1206,21 +1413,18 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     {
         lock (_lock)
         {
-            double segmentDuration = GetSegmentDurationSecondsUnlocked();
-            if (segmentDuration <= 1e-12)
-                return 0;
-
-            double posSec = GetPlaybackPositionUs() / 1_000_000.0;
-            double startSec = _startTimeUs / 1_000_000.0;
-            double segmentElapsed = Math.Clamp((posSec - startSec) / CurrentPlayRate(), 0.0, segmentDuration);
+            double sequence = GetSequenceDurationSecondsUnlocked();
+            double elapsedSequence = GetElapsedInSequenceSecondsUnlocked();
+            if (elapsedSequence < 0)
+                elapsedSequence = 0;
 
             // Infinite loop: do not accumulate unboundedly for UI.
-            if (_audioComponent.Loop || EffectivePlayCount >= int.MaxValue / 4)
-                return segmentElapsed;
+            if (_audioComponent.Loop || sequence < 0 || EffectivePlayCount >= int.MaxValue / 4)
+                return elapsedSequence;
 
             int completed = Math.Max(0, _currentPlayCount - 1);
             completed = Math.Min(completed, Math.Max(0, EffectivePlayCount - 1));
-            return completed * segmentDuration + segmentElapsed;
+            return completed * sequence + elapsedSequence;
         }
     }
 
@@ -1233,78 +1437,225 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     {
         if (contentSeconds < 0) contentSeconds = 0;
 
-        double segmentDuration;
+        double sequence;
         int effectiveCount;
         bool isLoop;
         lock (_lock)
         {
-            segmentDuration = GetSegmentDurationSecondsUnlocked();
+            sequence = GetSequenceDurationSecondsUnlocked();
             effectiveCount = EffectivePlayCount;
             isLoop = _audioComponent.Loop;
         }
 
-        if (segmentDuration <= 1e-12)
+        if (sequence <= 1e-12)
         {
             Seek(_startTimeUs);
             return;
         }
 
-        if (isLoop || effectiveCount >= int.MaxValue / 4)
+        if (isLoop || sequence < 0 || effectiveCount >= int.MaxValue / 4)
         {
-            double local = contentSeconds % segmentDuration;
-            if (local < 0) local += segmentDuration;
-            Seek(_startTimeUs + (long)(local * CurrentPlayRate() * 1_000_000.0));
+            SeekIntoSequence(contentSeconds);
             return;
         }
 
-        double total = segmentDuration * Math.Max(1, effectiveCount);
+        double total = sequence * Math.Max(1, effectiveCount);
         contentSeconds = Math.Clamp(contentSeconds, 0.0, total);
 
         int playIndex;
-        double localInSegment;
+        double localInSequence;
         if (contentSeconds >= total - 1e-9)
         {
             playIndex = Math.Max(0, effectiveCount - 1);
-            localInSegment = segmentDuration;
+            localInSequence = sequence;
         }
         else
         {
-            playIndex = (int)Math.Floor(contentSeconds / segmentDuration);
+            playIndex = (int)Math.Floor(contentSeconds / sequence);
             playIndex = Math.Clamp(playIndex, 0, Math.Max(0, effectiveCount - 1));
-            localInSegment = contentSeconds - playIndex * segmentDuration;
-            localInSegment = Math.Clamp(localInSegment, 0.0, segmentDuration);
+            localInSequence = contentSeconds - playIndex * sequence;
+            localInSequence = Math.Clamp(localInSequence, 0.0, sequence);
         }
 
         lock (_lock)
-        {
             _currentPlayCount = playIndex + 1;
+
+        SeekIntoSequence(localInSequence);
+    }
+
+    /// <summary>Wall-clock length of one full pass through all timeline regions, or −1 if a region loops.</summary>
+    private double GetSequenceDurationSecondsUnlocked()
+    {
+        if (_regions == null || _regions.Count == 0)
+            return _audioComponent.Duration > 0 ? _audioComponent.Duration : 0;
+
+        double sum = 0;
+        for (int i = 0; i < _regions.Count; i++)
+        {
+            if (_regions[i].Loop)
+                return -1;
+            sum += RegionWallSeconds(i) * Math.Max(1, _regions[i].PlayCount);
+        }
+        return sum;
+    }
+
+    /// <summary>Wall-clock from the start of the current region play to <paramref name="posSec"/>.</summary>
+    private double ElapsedInRegionPlay(int index, double posSec)
+    {
+        if (_audioComponent == null || _regions == null || index < 0 || index >= _regions.Count)
+            return 0;
+        var region = _regions[index];
+        double clamped = Math.Clamp(posSec, region.StartSeconds, region.EndSeconds);
+        return _audioComponent.IntegrateTimelineWallClock(region.StartSeconds, clamped);
+    }
+
+    private double GetElapsedInSequenceSecondsUnlocked()
+    {
+        if (_regions == null || _regions.Count == 0)
+            return 0;
+        double posSec = GetPlaybackPositionUs() / 1_000_000.0;
+        double elapsed = 0;
+        for (int i = 0; i < _regionIndex && i < _regions.Count; i++)
+        {
+            var prior = _regions[i];
+            if (prior.Loop)
+                return elapsed;
+            elapsed += RegionWallSeconds(i) * Math.Max(1, prior.PlayCount);
         }
 
-        long targetUs = _startTimeUs + (long)(localInSegment * CurrentPlayRate() * 1_000_000.0);
+        int idx = Math.Clamp(_regionIndex, 0, _regions.Count - 1);
+        var region = _regions[idx];
+        double regionLen = RegionWallSeconds(idx);
+        double inPlay = ElapsedInRegionPlay(idx, posSec);
+        if (region.Loop)
+            return elapsed + inPlay;
+
+        int completedPlays = Math.Min(
+            Math.Max(0, _regionPlayIndex - 1),
+            Math.Max(0, region.PlayCount - 1));
+        return elapsed + completedPlays * regionLen + inPlay;
+    }
+
+    private double GetRemainingInSequenceSecondsUnlocked()
+    {
+        if (_regions == null || _regions.Count == 0)
+            return 0;
+        int idx = Math.Clamp(_regionIndex, 0, _regions.Count - 1);
+        var region = _regions[idx];
+        if (region.Loop)
+            return -1;
+
+        double posSec = GetPlaybackPositionUs() / 1_000_000.0;
+        double regionLen = RegionWallSeconds(idx);
+        double inPlay = ElapsedInRegionPlay(idx, posSec);
+        double remainingThisPlay = Math.Max(0, regionLen - inPlay);
+        int remainingPlays = Math.Max(0, Math.Max(1, region.PlayCount) - _regionPlayIndex);
+        double remaining = remainingThisPlay + remainingPlays * regionLen;
+
+        for (int i = _regionIndex + 1; i < _regions.Count; i++)
+        {
+            var later = _regions[i];
+            if (later.Loop)
+                return -1;
+            remaining += RegionWallSeconds(i) * Math.Max(1, later.PlayCount);
+        }
+        return remaining;
+    }
+
+    /// <summary>
+    /// Seeks to a wall-clock offset within one region sequence (0 = start of first region).
+    /// </summary>
+    private void SeekIntoSequence(double localSeconds)
+    {
+        if (localSeconds < 0)
+            localSeconds = 0;
+        long targetUs;
+        lock (_lock)
+        {
+            if (_regions == null || _regions.Count == 0 || _audioComponent == null)
+            {
+                double startSec = _startTimeUs / 1_000_000.0;
+                double endSec = _endTimeUs == long.MaxValue
+                    ? startSec + Math.Max(localSeconds, 0)
+                    : _endTimeUs / 1_000_000.0;
+                double fileTime = _audioComponent != null
+                    ? _audioComponent.FileTimeAtWallOffset(startSec, endSec, localSeconds)
+                    : startSec + localSeconds;
+                targetUs = (long)(fileTime * 1_000_000.0);
+            }
+            else
+            {
+                double remaining = localSeconds;
+                int found = _regions.Count - 1;
+                double localInPlay = 0;
+                int playInRegion = 0;
+                for (int i = 0; i < _regions.Count; i++)
+                {
+                    var region = _regions[i];
+                    double regionLen = RegionWallSeconds(i);
+                    if (regionLen <= 1e-12)
+                        continue;
+                    if (region.Loop)
+                    {
+                        found = i;
+                        localInPlay = remaining % regionLen;
+                        if (localInPlay < 0)
+                            localInPlay += regionLen;
+                        playInRegion = 0;
+                        break;
+                    }
+
+                    double regionTotal = regionLen * Math.Max(1, region.PlayCount);
+                    if (remaining < regionTotal - 1e-9)
+                    {
+                        found = i;
+                        playInRegion = (int)Math.Floor(remaining / regionLen);
+                        playInRegion = Math.Clamp(playInRegion, 0, Math.Max(0, region.PlayCount - 1));
+                        localInPlay = remaining - playInRegion * regionLen;
+                        break;
+                    }
+                    remaining -= regionTotal;
+                    found = i;
+                    playInRegion = Math.Max(0, region.PlayCount - 1);
+                    localInPlay = regionLen;
+                }
+
+                ApplyRegionUnlocked(found);
+                _regionPlayIndex = playInRegion + 1;
+                var chosen = _regions[found];
+                double fileTime = _audioComponent.FileTimeAtWallOffset(
+                    chosen.StartSeconds, chosen.EndSeconds, localInPlay);
+                targetUs = (long)(fileTime * 1_000_000.0);
+                if (targetUs < _regionStartUs)
+                    targetUs = _regionStartUs;
+                if (targetUs > _regionEndUs)
+                    targetUs = _regionEndUs;
+            }
+        }
+
         if (_endTimeUs < long.MaxValue)
             targetUs = Math.Min(targetUs, _endTimeUs);
-        Seek(targetUs);
+        Seek(targetUs, syncRegion: false);
     }
 
-    /// <summary>Single play segment length in wall-clock seconds (StartTime…EndTime / play rate).</summary>
-    private double GetSegmentDurationSecondsUnlocked()
+    /// <summary>Playback speed used by fades and progress (clamped, timeline-automated).</summary>
+    private double CurrentPlayRate() => CurrentTimeline().PlayRate;
+
+    /// <summary>Volume, rate, and pitch at the current decoder position.</summary>
+    private TimelineAutomation CurrentTimeline()
     {
-        if (_endTimeUs == long.MaxValue || _endTimeUs <= _startTimeUs)
+        if (_audioComponent == null)
         {
-            // Fall back to component duration when end is open-ended (already wall-clock).
-            if (_audioComponent.Duration > 0)
-                return _audioComponent.Duration;
-            return 0;
+            return new TimelineAutomation
+            {
+                VolumeLinear = AudioTimelineNode.DefaultVolumeLinear,
+                PlayRate = AudioComponent.DefaultPlayRate,
+                PitchCents = AudioComponent.DefaultPitchCents
+            };
         }
-        return (_endTimeUs - _startTimeUs) / 1_000_000.0 / CurrentPlayRate();
-    }
 
-    /// <summary>Playback speed used by fill, fades, and progress (clamped).</summary>
-    private double CurrentPlayRate()
-    {
-        return _audioComponent != null
-            ? AudioComponent.ClampPlayRate(_audioComponent.PlayRate)
-            : AudioComponent.DefaultPlayRate;
+        double posSec = Decoder != null ? Decoder.PositionUs / 1_000_000.0 : _audioComponent.StartTime;
+        return _audioComponent.EvaluateTimeline(posSec);
     }
 
     public long GetPlaybackTimeMs()
@@ -1345,7 +1696,12 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// run on a worker so scrub does not freeze the UI. PCM-store seeks are still dispatched
     /// to the worker for a uniform completion path.
     /// </summary>
-    public void Seek(long timestampUs)
+    /// <param name="timestampUs">Target media time in microseconds.</param>
+    /// <param name="syncRegion">
+    /// When true, select the timeline region that contains the seek time and reset its play index.
+    /// Pass false when the caller already applied a region (content-sequence seek).
+    /// </param>
+    public void Seek(long timestampUs, bool syncRegion = true)
     {
         try
         {
@@ -1372,6 +1728,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             long clamped = Math.Max(_startTimeUs, timestampUs);
             if (_endTimeUs < long.MaxValue)
                 clamped = Math.Min(clamped, _endTimeUs);
+            if (syncRegion)
+            {
+                lock (_lock)
+                    SyncRegionForPositionUnlocked(clamped);
+            }
 
             _framesDelivered = 0;
             _pausedAtUs = clamped;
@@ -1529,7 +1890,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// Tears down decoder, streams, and fill loop, then signals <see cref="Completed"/>.
     /// Safe to call multiple times; only the first call emits Completed.
     /// </summary>
-    public void Clean()
+    /// <param name="freeImmediately">When true, <see cref="GodotObject.Free"/> runs before return (app quit).</param>
+    public void Clean(bool freeImmediately = false)
     {
         bool alreadyDone;
         lock (_lock)
@@ -1537,6 +1899,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             alreadyDone = _completedEmitted;
             if (IsStopped && Decoder == null && _completedEmitted)
             {
+                if (freeImmediately && IsInstanceValid(this))
+                    Free();
                 return;
             }
             IsStopped = true;
@@ -1600,7 +1964,12 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             // Free after call lock is released. CallDeferred(MethodName.Free) is unreliable
             // on C# GodotObject ("locked" / "Nonexistent function 'free'").
             if (IsInstanceValid(this))
-                Callable.From(FreeDeferred).CallDeferred();
+            {
+                if (freeImmediately)
+                    Free();
+                else
+                    Callable.From(FreeDeferred).CallDeferred();
+            }
         }
     }
 

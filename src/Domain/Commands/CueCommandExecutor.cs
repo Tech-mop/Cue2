@@ -1141,7 +1141,7 @@ public partial class CueCommandExecutor : Node
             try
             {
                 if (GodotObject.IsInstanceValid(activeCue))
-                    activeCue.Cleanup();
+                    activeCue.Cleanup(freeImmediately: true);
             }
             catch (Exception ex)
             {

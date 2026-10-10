@@ -32,6 +32,15 @@ public partial class WaveformDisplay : Control
     /// <summary>Hit height of the fade flag at the bottom of the waveform.</summary>
     public const float FadeTabHitHeight = 16f;
 
+    /// <summary>Drawn size of a timeline node square (pixels).</summary>
+    public const float NodeSquareSize = 10f;
+
+    /// <summary>Extra hit padding around a timeline node square (pixels).</summary>
+    public const float NodeHitPad = 4f;
+
+    /// <summary>Radius of the filled volume point on the automation line (pixels).</summary>
+    public const float VolumeHandleRadius = 6f;
+
     private WaveformPeaks _peaks;
     private float _startNorm;
     private float _endNorm = 1f;
@@ -61,6 +70,54 @@ public partial class WaveformDisplay : Control
     private Color _hoverLineColor = new Color(1f, 1f, 1f, 0.28f);
     private Color _waveBodyBg = new Color(0.02f, 0.03f, 0.035f, 1f);
     private Color _selectionBand = new Color(1f, 1f, 1f, 0.06f);
+    private Color _nodeColor = new Color(0.93f, 0.91f, 0.62f, 1f);
+    private Color _fileEndNodeColor = new Color(0.72f, 0.76f, 0.82f, 1f);
+    private Color _volumeLineColor = new Color(1f, 0.62f, 0.22f, 0.95f);
+    private Color _rateLineColor = new Color(0.22f, 0.86f, 0.88f, 0.9f);
+    private Color _pitchLineColor = new Color(0.72f, 0.42f, 0.98f, 0.9f);
+    private Color _volumeZeroColor = new Color(1f, 1f, 1f, 0.18f);
+    private Color _regionMarkColor = new Color(0.93f, 0.91f, 0.62f, 0.88f);
+
+    /// <summary>Draw payload for one numbered timeline marker.</summary>
+    public readonly struct TimelineNodeDraw
+    {
+        /// <summary>1-based display number in time order.</summary>
+        public int Number { get; init; }
+
+        /// <summary>File-normalized time (0–1).</summary>
+        public float FileNorm { get; init; }
+
+        /// <summary>Relative linear volume at this node.</summary>
+        public float VolumeLinear { get; init; }
+
+        /// <summary>Relative play-rate scale at this node (1 = no change).</summary>
+        public float RateScale { get; init; }
+
+        /// <summary>Relative pitch offset at this node in cents (0 = no change).</summary>
+        public float PitchCents { get; init; }
+
+        /// <summary>When true, the region before this node loops.</summary>
+        public bool Loop { get; init; }
+
+        /// <summary>Plays of the region before this node (ignored when <see cref="Loop"/>).</summary>
+        public int PlayCount { get; init; }
+
+        /// <summary>When true, this node is skipped when deciding loop regions.</summary>
+        public bool ContinueRegion { get; init; }
+
+        /// <summary>When true, this is the locked end-of-file node.</summary>
+        public bool IsFileEnd { get; init; }
+
+        /// <summary>Interpolation from the previous node to this one.</summary>
+        public TimelineVolumeInterpolation Interpolation { get; init; }
+    }
+
+    private readonly List<TimelineNodeDraw> _nodes = new();
+    private readonly List<float> _automationNorms = new(64);
+    private readonly List<Vector2> _rateLinePts = new(64);
+    private readonly List<Vector2> _pitchLinePts = new(64);
+    private readonly List<Vector2> _volumeLinePts = new(64);
+    private int _selectedNodeNumber = -1;
 
     private Font _font;
     private StyleBoxFlat _chipBox;
@@ -280,6 +337,187 @@ public partial class WaveformDisplay : Control
     }
 
     /// <summary>
+    /// Draws numbered slice markers, region playcount/loop marks, and the relative-volume line.
+    /// </summary>
+    /// <param name="nodes">Markers in time order.</param>
+    /// <param name="selectedNumber">1-based display number to highlight, or −1.</param>
+    public void SetNodes(
+        IReadOnlyList<TimelineNodeDraw> nodes,
+        int selectedNumber = -1)
+    {
+        _nodes.Clear();
+        if (nodes != null)
+        {
+            foreach (var node in nodes)
+                _nodes.Add(node);
+        }
+        _selectedNodeNumber = selectedNumber;
+        QueueRedraw();
+    }
+
+    /// <summary>
+    /// Invisible hit target for a timeline node square just below the ruler.
+    /// </summary>
+    /// <param name="handle">Drag control for the node.</param>
+    /// <param name="fileNorm">File-normalized time of the marker.</param>
+    /// <param name="panelWidth">Waveform panel width in pixels.</param>
+    public void PlaceNodeHandle(Control handle, float fileNorm, float panelWidth)
+    {
+        if (handle == null || !GodotObject.IsInstanceValid(handle))
+            return;
+
+        float x = FileNormToX(fileNorm);
+        float hit = NodeSquareSize + NodeHitPad * 2f;
+        float labelW = 16f;
+        bool visible = x >= -hit && x <= panelWidth + hit;
+        handle.Visible = visible;
+        if (!visible)
+            return;
+
+        float top = RulerHeight + 1f;
+        handle.CustomMinimumSize = Vector2.Zero;
+        handle.Position = new Vector2(x - hit * 0.5f, top);
+        handle.Size = new Vector2(hit + labelW, hit);
+    }
+
+    /// <summary>
+    /// Makes a timeline node an invisible hit target (the display draws the slice).
+    /// </summary>
+    /// <param name="handle">Node drag button.</param>
+    public static void StyleNodeHandle(Button handle)
+    {
+        if (handle == null)
+            return;
+
+        var empty = new StyleBoxEmpty();
+        handle.AddThemeStyleboxOverride("normal", empty);
+        handle.AddThemeStyleboxOverride("hover", empty);
+        handle.AddThemeStyleboxOverride("pressed", empty);
+        handle.AddThemeStyleboxOverride("disabled", empty);
+        handle.AddThemeStyleboxOverride("focus", empty);
+        handle.MouseDefaultCursorShape = CursorShape.Hsize;
+        handle.FocusMode = FocusModeEnum.None;
+        handle.MouseFilter = MouseFilterEnum.Stop;
+        handle.Flat = true;
+        handle.CustomMinimumSize = Vector2.Zero;
+        handle.TooltipText = UiLocalizer.T("Timeline node (drag time)");
+    }
+
+    /// <summary>
+    /// Invisible hit target for the volume point on the automation line.
+    /// </summary>
+    /// <param name="handle">Drag control for the volume point.</param>
+    /// <param name="fileNorm">File-normalized time of the marker.</param>
+    /// <param name="volumeLinear">Relative linear volume at the marker.</param>
+    /// <param name="panelWidth">Waveform panel width in pixels.</param>
+    public void PlaceVolumeHandle(Control handle, float fileNorm, float volumeLinear, float panelWidth)
+    {
+        if (handle == null || !GodotObject.IsInstanceValid(handle))
+            return;
+
+        float x = FileNormToX(fileNorm);
+        float y = VolumeLinearToY(volumeLinear, RulerHeight, Size.Y);
+        float hit = VolumeHandleRadius * 2f + NodeHitPad * 2f;
+        bool visible = x >= -hit && x <= panelWidth + hit;
+        handle.Visible = visible;
+        if (!visible)
+            return;
+
+        handle.CustomMinimumSize = Vector2.Zero;
+        handle.Position = new Vector2(x - hit * 0.5f, y - hit * 0.5f);
+        handle.Size = new Vector2(hit, hit);
+    }
+
+    /// <summary>
+    /// Makes a volume-point handle an invisible 2D drag target.
+    /// </summary>
+    /// <param name="handle">Volume drag button.</param>
+    public static void StyleVolumeHandle(Button handle)
+    {
+        if (handle == null)
+            return;
+
+        var empty = new StyleBoxEmpty();
+        handle.AddThemeStyleboxOverride("normal", empty);
+        handle.AddThemeStyleboxOverride("hover", empty);
+        handle.AddThemeStyleboxOverride("pressed", empty);
+        handle.AddThemeStyleboxOverride("disabled", empty);
+        handle.AddThemeStyleboxOverride("focus", empty);
+        handle.MouseDefaultCursorShape = CursorShape.Move;
+        handle.FocusMode = FocusModeEnum.None;
+        handle.MouseFilter = MouseFilterEnum.Stop;
+        handle.Flat = true;
+        handle.CustomMinimumSize = Vector2.Zero;
+        handle.TooltipText = UiLocalizer.T("Drag to set time and volume");
+    }
+
+    /// <summary>
+    /// Makes an end-of-file volume-point handle a vertical-only drag target.
+    /// </summary>
+    /// <param name="handle">Volume drag button.</param>
+    public static void StyleFileEndVolumeHandle(Button handle)
+    {
+        StyleVolumeHandle(handle);
+        if (handle == null)
+            return;
+        handle.MouseDefaultCursorShape = CursorShape.Vsize;
+        handle.TooltipText = UiLocalizer.T("Drag to set volume (end of file is fixed)");
+    }
+
+    /// <summary>
+    /// Creates a styled volume-point drag button.
+    /// </summary>
+    /// <param name="nodeId">Stable node id used as metadata.</param>
+    /// <returns>A button ready to parent under the handle host.</returns>
+    public static Button CreateVolumeHandle(int nodeId)
+    {
+        var handle = new Button
+        {
+            Name = $"TimelineVolumeHandle_{nodeId}",
+            ActionMode = BaseButton.ActionModeEnum.Press,
+            KeepPressedOutside = true
+        };
+        handle.SetMeta("node_id", nodeId);
+        handle.SetMeta("volume_handle", true);
+        StyleVolumeHandle(handle);
+        return handle;
+    }
+
+    /// <summary>
+    /// Converts a panel Y position to relative linear volume (dB map of the waveform body).
+    /// </summary>
+    /// <param name="y">Y in waveform-panel coordinates.</param>
+    /// <returns>Clamped linear relative gain.</returns>
+    public float YToVolumeLinear(float y)
+    {
+        float waveTop = RulerHeight + 2f;
+        float waveBottom = Size.Y - 2f;
+        if (waveBottom <= waveTop + 1e-3f)
+            return AudioTimelineNode.DefaultVolumeLinear;
+        float t = Mathf.Clamp((waveBottom - y) / (waveBottom - waveTop), 0f, 1f);
+        float db = Mathf.Lerp(UiUtilities.MinVolumeDb, UiUtilities.MaxComponentGainDb, t);
+        return AudioTimelineNode.ClampVolumeLinear(UiUtilities.DbToLinear(db));
+    }
+
+    /// <summary>
+    /// Creates a styled timeline-node drag button.
+    /// </summary>
+    /// <param name="nodeId">Stable node id used as metadata.</param>
+    /// <returns>A button ready to parent under the handle host.</returns>
+    public static Button CreateNodeHandle(int nodeId)
+    {
+        var handle = new Button
+        {
+            Name = $"TimelineNodeHandle_{nodeId}",
+            ActionMode = BaseButton.ActionModeEnum.Press,
+            KeepPressedOutside = true
+        };
+        handle.SetMeta("node_id", nodeId);
+        StyleNodeHandle(handle);
+        return handle;
+    }
+
+    /// <summary>
     /// Creates a styled fade-flag button.
     /// </summary>
     /// <param name="isFadeIn">True for fade-in.</param>
@@ -375,6 +613,10 @@ public partial class WaveformDisplay : Control
         DrawTimeMarker(FileNormToX(_endNorm), waveBottom, _endMarkerColor, isStart: false);
         DrawFadeMarkers(width, waveTop, waveBottom, _fadeInEndNorm, _startMarkerColor, isFadeIn: true);
         DrawFadeMarkers(width, waveTop, waveBottom, _fadeOutStartNorm, _endMarkerColor, isFadeIn: false);
+        DrawAutomationLines(width, waveTop, waveBottom);
+        DrawRegionPlayMarks(width, waveTop, waveBottom);
+        DrawTimelineNodes(width, waveTop, waveBottom);
+        DrawVolumePoints(width, waveTop, waveBottom);
         DrawPlayhead(width, height);
     }
 
@@ -663,6 +905,310 @@ public partial class WaveformDisplay : Control
         DrawStyleBox(_chipBox, rect);
     }
 
+    private void DrawAutomationLines(float width, float waveTop, float waveBottom)
+    {
+        if (_nodes.Count == 0 || width < 2f)
+            return;
+
+        float zeroY = VolumeLinearToY(1f, waveTop, waveBottom);
+        DrawLine(new Vector2(0, zeroY), new Vector2(width, zeroY), _volumeZeroColor, 1f);
+
+        float viewStart = _viewStartNorm;
+        float viewEnd = _viewStartNorm + Math.Max(_viewSpanNorm, 1e-7f);
+        _automationNorms.Clear();
+        void AddNorm(float n)
+        {
+            n = Mathf.Clamp(n, 0f, 1f);
+            if (n < viewStart - 1e-6f || n > viewEnd + 1e-6f)
+                return;
+            if (_automationNorms.Count > 0 && Math.Abs(_automationNorms[^1] - n) < 1e-6f)
+                return;
+            _automationNorms.Add(n);
+        }
+
+        AddNorm(viewStart);
+        int samples = Math.Max(8, (int)(width / 2f));
+        for (int i = 1; i < samples; i++)
+            AddNorm(viewStart + (viewEnd - viewStart) * (i / (float)samples));
+        AddNorm(viewEnd);
+        foreach (var node in _nodes)
+        {
+            AddNorm(node.FileNorm);
+            AddNorm(node.FileNorm + 1e-5f);
+        }
+        _automationNorms.Sort();
+
+        _rateLinePts.Clear();
+        _pitchLinePts.Clear();
+        _volumeLinePts.Clear();
+        foreach (var n in _automationNorms)
+        {
+            GetAutomationAtFileNorm(n, out float volume, out float rate, out float pitch);
+            float x = FileNormToX(n);
+            _rateLinePts.Add(new Vector2(x, RateScaleToY(rate, waveTop, waveBottom)));
+            _pitchLinePts.Add(new Vector2(x, PitchCentsToY(pitch, waveTop, waveBottom)));
+            _volumeLinePts.Add(new Vector2(x, VolumeLinearToY(volume, waveTop, waveBottom)));
+        }
+
+        DrawAutomationPolyline(_rateLinePts, _rateLineColor, 1.25f);
+        DrawAutomationPolyline(_pitchLinePts, _pitchLineColor, 1.25f);
+        DrawAutomationPolyline(_volumeLinePts, _volumeLineColor, 1.5f);
+    }
+
+    private void DrawAutomationPolyline(List<Vector2> pts, Color color, float width)
+    {
+        if (pts.Count >= 2)
+            DrawPolyline(pts.ToArray(), color, width, antialiased: true);
+    }
+
+    private void GetAutomationAtFileNorm(float fileNorm, out float volume, out float rate, out float pitch)
+    {
+        volume = AudioTimelineNode.DefaultVolumeLinear;
+        rate = AudioTimelineNode.DefaultRateScale;
+        pitch = AudioTimelineNode.DefaultPitchCents;
+        if (_nodes.Count == 0)
+            return;
+
+        if (fileNorm <= _nodes[0].FileNorm)
+        {
+            volume = _nodes[0].VolumeLinear;
+            rate = _nodes[0].RateScale;
+            pitch = _nodes[0].PitchCents;
+            return;
+        }
+
+        for (int i = 0; i < _nodes.Count - 1; i++)
+        {
+            var next = _nodes[i + 1];
+            if (fileNorm > next.FileNorm)
+                continue;
+            var prev = _nodes[i];
+            float span = next.FileNorm - prev.FileNorm;
+            float t = span <= 1e-8f ? 1f : (fileNorm - prev.FileNorm) / span;
+            var mode = next.Interpolation;
+            volume = TimelineVolume.InterpolateVolumeLinear(mode, prev.VolumeLinear, next.VolumeLinear, t);
+            rate = TimelineVolume.InterpolateRateScale(mode, prev.RateScale, next.RateScale, t);
+            pitch = TimelineVolume.InterpolatePitchCents(mode, prev.PitchCents, next.PitchCents, t);
+            return;
+        }
+
+        var last = _nodes[^1];
+        volume = last.VolumeLinear;
+        rate = last.RateScale;
+        pitch = last.PitchCents;
+    }
+
+    private void DrawRegionPlayMarks(float width, float waveTop, float waveBottom)
+    {
+        if (_nodes.Count == 0 || width < 2f)
+            return;
+
+        var font = _font ?? ThemeDB.FallbackFont;
+        if (font == null)
+            return;
+
+        const int fontSize = 13;
+        const float tickH = 9f;
+        const float hook = 5f;
+        const float inset = 7f;
+        float y = Mathf.Round(waveBottom - FadeTabHitHeight - 6f);
+        float minY = waveTop + NodeSquareSize + 14f;
+        if (y < minY)
+            y = minY;
+        float lineY = SnapPx(y);
+        float capY = SnapPx(y - tickH);
+
+        void DrawHSeg(float from, float to, float atY)
+        {
+            float left = Math.Min(from, to);
+            float w = Math.Abs(to - from);
+            if (w < 1f)
+                return;
+            DrawRect(new Rect2(SnapPx(left), atY, Math.Max(1f, Mathf.Round(w)), 1f), _regionMarkColor, true);
+        }
+
+        float prevNorm = 0f;
+        foreach (var node in _nodes)
+        {
+            if (node.ContinueRegion)
+                continue;
+
+            float x0 = FileNormToX(prevNorm);
+            float x1 = FileNormToX(node.FileNorm);
+            prevNorm = node.FileNorm;
+            if (x1 <= x0 + 2f)
+                continue;
+            if (x1 < -2f || x0 > width + 2f)
+                continue;
+
+            float inner = Math.Min(inset, (x1 - x0) * 0.25f);
+            float xStart = x0 + inner;
+            float xEnd = x1 - inner;
+            if (xEnd <= xStart + 4f)
+            {
+                xStart = x0 + 2f;
+                xEnd = x1 - 2f;
+            }
+
+            float vis0 = Math.Max(xStart, 0f);
+            float vis1 = Math.Min(xEnd, width);
+            if (vis1 - vis0 < 8f)
+                continue;
+
+            string label = node.Loop ? "∞" : $"×{Math.Max(1, node.PlayCount)}";
+            var textSize = font.GetStringSize(label, HorizontalAlignment.Left, -1, fontSize);
+            float cx = (vis0 + vis1) * 0.5f;
+            float tx = cx - textSize.X * 0.5f;
+            float gapPad = 4f;
+            float gap0 = tx - gapPad;
+            float gap1 = tx + textSize.X + gapPad;
+
+            bool startOnScreen = xStart >= -1f && xStart <= width + 1f;
+            bool endOnScreen = xEnd >= -1f && xEnd <= width + 1f;
+            if (startOnScreen)
+            {
+                DrawVBar(SnapPx(xStart), capY, lineY + 1f, _regionMarkColor, 1f);
+                DrawHSeg(xStart, xStart + hook, capY);
+            }
+
+            if (endOnScreen)
+            {
+                DrawVBar(SnapPx(xEnd), capY, lineY + 1f, _regionMarkColor, 1f);
+                DrawHSeg(xEnd - hook, xEnd, capY);
+            }
+
+            if (gap1 - gap0 + 8f < vis1 - vis0)
+            {
+                if (gap0 - vis0 > 2f)
+                    DrawHSeg(vis0, gap0, lineY);
+                if (vis1 - gap1 > 2f)
+                    DrawHSeg(gap1, vis1, lineY);
+            }
+            else if (vis1 - vis0 > 4f)
+            {
+                DrawHSeg(vis0, vis1, lineY);
+            }
+
+            float baseline = lineY + 4f;
+            DrawOutlinedString(font, new Vector2(tx, baseline), label, fontSize, _regionMarkColor);
+        }
+    }
+
+    private void DrawOutlinedString(Font font, Vector2 pos, string text, int fontSize, Color fill)
+    {
+        var outline = new Color(0f, 0f, 0f, 0.92f);
+        for (int ox = -1; ox <= 1; ox++)
+        {
+            for (int oy = -1; oy <= 1; oy++)
+            {
+                if (ox == 0 && oy == 0)
+                    continue;
+                DrawString(font, pos + new Vector2(ox, oy), text,
+                    HorizontalAlignment.Left, -1, fontSize, outline);
+            }
+        }
+
+        DrawString(font, pos, text, HorizontalAlignment.Left, -1, fontSize, fill);
+    }
+
+    private static float VolumeLinearToY(float linear, float waveTop, float waveBottom)
+    {
+        float db = UiUtilities.LinearToDb(linear);
+        float span = UiUtilities.MaxComponentGainDb - UiUtilities.MinVolumeDb;
+        if (span < 1e-3f)
+            return waveBottom;
+        float t = (db - UiUtilities.MinVolumeDb) / span;
+        return Mathf.Lerp(waveBottom - 2f, waveTop + 2f, Mathf.Clamp(t, 0f, 1f));
+    }
+
+    private static float RateScaleToY(float scale, float waveTop, float waveBottom)
+    {
+        double clamped = AudioComponent.ClampPlayRate(scale);
+        double minLog = Math.Log(AudioComponent.MinPlayRate);
+        double maxLog = Math.Log(AudioComponent.MaxPlayRate);
+        double span = maxLog - minLog;
+        if (span < 1e-6)
+            return waveBottom;
+        float t = (float)((Math.Log(clamped) - minLog) / span);
+        return Mathf.Lerp(waveBottom - 2f, waveTop + 2f, Mathf.Clamp(t, 0f, 1f));
+    }
+
+    private static float PitchCentsToY(float cents, float waveTop, float waveBottom)
+    {
+        float clamped = AudioComponent.ClampPitchCents(cents);
+        float span = AudioComponent.MaxPitchCents - AudioComponent.MinPitchCents;
+        if (span < 1e-3f)
+            return waveBottom;
+        float t = (clamped - AudioComponent.MinPitchCents) / span;
+        return Mathf.Lerp(waveBottom - 2f, waveTop + 2f, Mathf.Clamp(t, 0f, 1f));
+    }
+
+    private void DrawTimelineNodes(float width, float waveTop, float waveBottom)
+    {
+        if (_nodes.Count == 0)
+            return;
+
+        var font = _font ?? ThemeDB.FallbackFont;
+        const int fontSize = 10;
+        float size = NodeSquareSize;
+
+        foreach (var node in _nodes)
+        {
+            int number = node.Number;
+            float fileNorm = node.FileNorm;
+            float x = SnapPx(FileNormToX(fileNorm));
+            if (x < -20 || x > width + 20)
+                continue;
+
+            var color = node.IsFileEnd ? _fileEndNodeColor : _nodeColor;
+            bool selected = number == _selectedNodeNumber;
+            bool hoverNear = _hoverNorm >= 0f && Math.Abs(FileNormToX(_hoverNorm) - x) <= 8f;
+            if (selected || hoverNear)
+                color = color.Lightened(0.18f);
+
+            DrawVBar(x, waveTop, waveBottom, color, 1f);
+
+            float sqLeft = Mathf.Round(x - size * 0.5f);
+            float sqTop = Mathf.Round(waveTop + 2f);
+            var square = new Rect2(sqLeft, sqTop, size, size);
+            DrawRect(square, color, true);
+            if (selected)
+                DrawRect(square, Colors.White, false, 1f);
+
+            if (font == null)
+                continue;
+
+            string label = node.IsFileEnd ? "EOF" : number.ToString();
+            var textSize = font.GetStringSize(label, HorizontalAlignment.Left, -1, fontSize);
+            float tx = sqLeft + size + 3f;
+            if (tx + textSize.X > width - 2f)
+                tx = sqLeft - 3f - textSize.X;
+            if (tx < 1f)
+                tx = 1f;
+            DrawString(font, new Vector2(tx, sqTop + size - 1f), label,
+                HorizontalAlignment.Left, -1, fontSize, color);
+        }
+    }
+
+    private void DrawVolumePoints(float width, float waveTop, float waveBottom)
+    {
+        if (_nodes.Count == 0)
+            return;
+
+        float r = VolumeHandleRadius;
+        foreach (var node in _nodes)
+        {
+            float x = SnapPx(FileNormToX(node.FileNorm));
+            if (x < -r || x > width + r)
+                continue;
+            float y = VolumeLinearToY(node.VolumeLinear, waveTop, waveBottom);
+            bool selected = node.Number == _selectedNodeNumber;
+            DrawCircle(new Vector2(x, y), r, _volumeLineColor);
+            if (selected)
+                DrawArc(new Vector2(x, y), r + 1.2f, 0f, MathF.Tau, 24, Colors.White, 1.4f, antialiased: true);
+        }
+    }
+
     private void DrawPlayhead(float width, float height)
     {
         if (_playheadNorm < 0f || !IsInView(_playheadNorm))
@@ -733,5 +1279,13 @@ public partial class WaveformDisplay : Control
         if (points == null) return;
         for (int i = 0; i < points.Length; i++)
             points[i] = new Vector2(Mathf.Round(points[i].X), Mathf.Round(points[i].Y));
+    }
+
+    /// <inheritdoc />
+    public override void _ExitTree()
+    {
+        UiUtilities.DisposeRefCounted(_chipBox);
+        _chipBox = null;
+        base._ExitTree();
     }
 }

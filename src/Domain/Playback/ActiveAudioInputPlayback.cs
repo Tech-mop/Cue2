@@ -151,12 +151,17 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
     }
 
     /// <summary>Stops capture and output and raises <see cref="Completed"/> once.</summary>
-    public void Clean()
+    /// <param name="freeImmediately">When true, <see cref="GodotObject.Free"/> runs before return (app quit).</param>
+    public void Clean(bool freeImmediately = false)
     {
         lock (_lock)
         {
             if (_cleaned)
+            {
+                if (freeImmediately && GodotObject.IsInstanceValid(this))
+                    Free();
                 return;
+            }
             _cleaned = true;
         }
 
@@ -178,6 +183,21 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
         {
             GD.PrintErr($"ActiveAudioInputPlayback:Clean - {ex.Message}");
         }
+
+        if (GodotObject.IsInstanceValid(this))
+        {
+            if (freeImmediately)
+                Free();
+            else
+                Callable.From(FreeDeferred).CallDeferred();
+        }
+    }
+
+    /// <summary>Frees this <see cref="GodotObject"/> after the call stack has unwound.</summary>
+    private void FreeDeferred()
+    {
+        if (GodotObject.IsInstanceValid(this))
+            Free();
     }
 
     /// <inheritdoc />
@@ -305,7 +325,7 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
         }
 
         if (!_cleaned)
-            Callable.From(Clean).CallDeferred();
+            Callable.From(() => Clean()).CallDeferred();
     }
 
     /// <summary>
