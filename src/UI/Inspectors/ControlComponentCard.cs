@@ -27,7 +27,7 @@ namespace Cue2.UI.Inspectors;
 /// User may edit target by id or cue number; the other field and name label update when a match is found.
 /// Hold the pick-target button and release over a shell to assign the target from the cuelist.
 /// Stop/GO cards expose fade times with per-field reset buttons.
-/// Fade cards pick exactly one property (volume, pan, opacity, or a routing-matrix cell).
+/// Fade cards pick exactly one property (volume, play rate, pitch, pan, opacity, or a routing-matrix cell).
 /// Multiple controls on one cue run in list order (reorder with up/down).
 /// </remarks>
 public partial class ControlComponentCard : PanelContainer
@@ -63,6 +63,12 @@ public partial class ControlComponentCard : PanelContainer
     private Control _panFadeRow;
     private HSlider _panFadeSlider;
     private LineEdit _panFadeLineEdit;
+    private Label _rateFadeCaption;
+    private Control _rateFadeRow;
+    private LineEdit _rateFadeLineEdit;
+    private Label _pitchFadeCaption;
+    private Control _pitchFadeRow;
+    private LineEdit _pitchFadeLineEdit;
     private Control _matrixContainer;
     private Label _matrixHint;
     private GridContainer _matrixGrid;
@@ -96,6 +102,8 @@ public partial class ControlComponentCard : PanelContainer
     private bool _audioFadeEditing;
     private bool _opacityFadeEditing;
     private bool _panFadeEditing;
+    private bool _rateFadeEditing;
+    private bool _pitchFadeEditing;
     private bool _isUpdatingPanUi;
     private bool _matrixCellEditing;
     private bool _seekTimeEditing;
@@ -150,6 +158,12 @@ public partial class ControlComponentCard : PanelContainer
         _panFadeRow = GetNodeOrNull<Control>("%PanFadeRow");
         _panFadeSlider = GetNodeOrNull<HSlider>("%PanFadeSlider");
         _panFadeLineEdit = GetNodeOrNull<LineEdit>("%PanFadeLineEdit");
+        _rateFadeCaption = GetNodeOrNull<Label>("%RateFadeCaption");
+        _rateFadeRow = GetNodeOrNull<Control>("%RateFadeRow");
+        _rateFadeLineEdit = GetNodeOrNull<LineEdit>("%RateFadeLineEdit");
+        _pitchFadeCaption = GetNodeOrNull<Label>("%PitchFadeCaption");
+        _pitchFadeRow = GetNodeOrNull<Control>("%PitchFadeRow");
+        _pitchFadeLineEdit = GetNodeOrNull<LineEdit>("%PitchFadeLineEdit");
         _matrixContainer = GetNodeOrNull<Control>("%MatrixContainer");
         _matrixHint = GetNodeOrNull<Label>("%MatrixHint");
         _matrixGrid = GetNodeOrNull<GridContainer>("%MatrixGrid");
@@ -195,6 +209,20 @@ public partial class ControlComponentCard : PanelContainer
             _panFadeLineEdit.TextSubmitted += OnPanFadeSubmitted;
             _panFadeLineEdit.FocusExited += OnPanFadeFocusExited;
             _panFadeLineEdit.TextChanged += _ => _panFadeEditing = true;
+        }
+
+        if (_rateFadeLineEdit != null)
+        {
+            _rateFadeLineEdit.TextSubmitted += OnRateFadeSubmitted;
+            _rateFadeLineEdit.FocusExited += OnRateFadeFocusExited;
+            _rateFadeLineEdit.TextChanged += _ => _rateFadeEditing = true;
+        }
+
+        if (_pitchFadeLineEdit != null)
+        {
+            _pitchFadeLineEdit.TextSubmitted += OnPitchFadeSubmitted;
+            _pitchFadeLineEdit.FocusExited += OnPitchFadeFocusExited;
+            _pitchFadeLineEdit.TextChanged += _ => _pitchFadeEditing = true;
         }
 
         _seekTimeCaption = GetNodeOrNull<Label>("%SeekTimeCaption");
@@ -309,6 +337,8 @@ public partial class ControlComponentCard : PanelContainer
         UiUtilities.WireLineEditEscapeReleasesFocus(_audioFadeLineEdit);
         UiUtilities.WireLineEditEscapeReleasesFocus(_opacityFadeLineEdit);
         UiUtilities.WireLineEditEscapeReleasesFocus(_panFadeLineEdit);
+        UiUtilities.WireLineEditEscapeReleasesFocus(_rateFadeLineEdit);
+        UiUtilities.WireLineEditEscapeReleasesFocus(_pitchFadeLineEdit);
         UiUtilities.WireLineEditEscapeReleasesFocus(_seekTimeLineEdit);
         UiUtilities.WireLineEditEscapeReleasesFocus(_sizeXLineEdit);
         UiUtilities.WireLineEditEscapeReleasesFocus(_sizeYLineEdit);
@@ -662,6 +692,10 @@ public partial class ControlComponentCard : PanelContainer
         if (_opacityFadeRow != null) _opacityFadeRow.Visible = false;
         if (_panFadeCaption != null) _panFadeCaption.Visible = false;
         if (_panFadeRow != null) _panFadeRow.Visible = false;
+        if (_rateFadeCaption != null) _rateFadeCaption.Visible = false;
+        if (_rateFadeRow != null) _rateFadeRow.Visible = false;
+        if (_pitchFadeCaption != null) _pitchFadeCaption.Visible = false;
+        if (_pitchFadeRow != null) _pitchFadeRow.Visible = false;
         if (_matrixContainer != null) _matrixContainer.Visible = false;
     }
 
@@ -733,7 +767,57 @@ public partial class ControlComponentCard : PanelContainer
                     _panFadeRow.Visible = true;
                 SyncPanFadeUiFromComponent();
                 break;
+
+            case ControlFadeProperty.PlayRate:
+                if (_rateFadeCaption != null)
+                {
+                    _rateFadeCaption.Visible = true;
+                    _rateFadeCaption.Text = UiLocalizer.T("Play Rate:");
+                }
+                if (_rateFadeRow != null)
+                    _rateFadeRow.Visible = true;
+                SyncRateFadeLineEdit(relative);
+                break;
+
+            case ControlFadeProperty.Pitch:
+                if (_pitchFadeCaption != null)
+                {
+                    _pitchFadeCaption.Visible = true;
+                    _pitchFadeCaption.Text = UiLocalizer.T("Pitch:");
+                }
+                if (_pitchFadeRow != null)
+                    _pitchFadeRow.Visible = true;
+                SyncPitchFadeLineEdit(relative);
+                break;
         }
+    }
+
+    private void SyncRateFadeLineEdit(bool relative)
+    {
+        if (_rateFadeLineEdit == null || _component == null) return;
+        float rate = _component.FadePlayRate;
+        string text = relative && rate > 0
+            ? $"+{rate:0.###}"
+            : rate.ToString("0.###");
+        _rateFadeLineEdit.Text = text;
+        _rateFadeLineEdit.PlaceholderText = relative ? "±" : "1";
+        _rateFadeLineEdit.TooltipText = relative
+            ? UiLocalizer.T("Relative change in play rate (result clamped to 0.1…8). Active playback only.")
+            : UiLocalizer.T("Absolute play rate (0.1…8). Active playback only.");
+        _rateFadeLineEdit.Editable = true;
+    }
+
+    private void SyncPitchFadeLineEdit(bool relative)
+    {
+        if (_pitchFadeLineEdit == null || _component == null) return;
+        float cents = _component.FadePitchCents;
+        string text = cents > 0 ? $"+{cents:0.#}¢" : $"{cents:0.#}¢";
+        _pitchFadeLineEdit.Text = text;
+        _pitchFadeLineEdit.PlaceholderText = relative ? "±¢" : "0¢";
+        _pitchFadeLineEdit.TooltipText = relative
+            ? UiLocalizer.T("Relative change in cents (result clamped to −2400…+2400). Active playback only.")
+            : UiLocalizer.T("Absolute pitch in cents (−2400…+2400). Active playback only.");
+        _pitchFadeLineEdit.Editable = true;
     }
 
     private void SyncVolumeLevelLineEdit(bool relative)
@@ -1664,6 +1748,12 @@ public partial class ControlComponentCard : PanelContainer
                 case ControlFadeProperty.Pan:
                     // Leave pan as-is (0 = center is a fine absolute default).
                     break;
+                case ControlFadeProperty.PlayRate:
+                    if (Math.Abs(_component.FadePlayRate) < 1e-4f)
+                        _component.FadePlayRate = 1f;
+                    break;
+                case ControlFadeProperty.Pitch:
+                    break;
             }
         }
 
@@ -1764,6 +1854,99 @@ public partial class ControlComponentCard : PanelContainer
     {
         if (_panFadeEditing)
             CommitPanFade(_panFadeLineEdit?.Text ?? string.Empty);
+    }
+
+    private void OnRateFadeSubmitted(string text)
+    {
+        CommitRateFade(text);
+        _rateFadeLineEdit?.ReleaseFocus();
+    }
+
+    private void OnRateFadeFocusExited()
+    {
+        if (_rateFadeEditing)
+            CommitRateFade(_rateFadeLineEdit?.Text ?? string.Empty);
+    }
+
+    private void OnPitchFadeSubmitted(string text)
+    {
+        CommitPitchFade(text);
+        _pitchFadeLineEdit?.ReleaseFocus();
+    }
+
+    private void OnPitchFadeFocusExited()
+    {
+        if (_pitchFadeEditing)
+            CommitPitchFade(_pitchFadeLineEdit?.Text ?? string.Empty);
+    }
+
+    private void CommitRateFade(string text)
+    {
+        if (_isSyncingUi || _component == null) return;
+        if (_component.Action != ControlAction.Fade) return;
+        if (_component.FadeProperty != ControlFadeProperty.PlayRate) return;
+        if (_globalData?.HistoryManager?.IsRestoring == true) return;
+
+        text = (text ?? string.Empty).Trim();
+        if (text.StartsWith('+'))
+            text = text[1..].Trim();
+        if (!float.TryParse(text, out float rate) || (_component.FadeMode == ControlFadeMode.Absolute && rate <= 0))
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "Control card: invalid play rate", (int)LogType.Warning);
+            RefreshFromComponent();
+            return;
+        }
+
+        if (_component.FadeMode == ControlFadeMode.Absolute)
+            rate = (float)AudioComponent.ClampPlayRate(rate);
+
+        if (Math.Abs(_component.FadePlayRate - rate) < 1e-4f)
+        {
+            _rateFadeEditing = false;
+            RefreshFromComponent();
+            return;
+        }
+
+        RecordHistory("Edit control fade play rate");
+        _component.FadePlayRate = rate;
+        _rateFadeEditing = false;
+        RefreshFromComponent();
+    }
+
+    private void CommitPitchFade(string text)
+    {
+        if (_isSyncingUi || _component == null) return;
+        if (_component.Action != ControlAction.Fade) return;
+        if (_component.FadeProperty != ControlFadeProperty.Pitch) return;
+        if (_globalData?.HistoryManager?.IsRestoring == true) return;
+
+        text = (text ?? string.Empty).Replace("¢", "", StringComparison.Ordinal)
+            .Replace("cents", "", StringComparison.OrdinalIgnoreCase).Trim();
+        if (text.StartsWith('+'))
+            text = text[1..].Trim();
+        if (!float.TryParse(text, out float cents))
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "Control card: invalid pitch cents", (int)LogType.Warning);
+            RefreshFromComponent();
+            return;
+        }
+
+        if (_component.FadeMode == ControlFadeMode.Absolute)
+            cents = AudioComponent.ClampPitchCents(cents);
+
+        if (Math.Abs(_component.FadePitchCents - cents) < 1e-3f)
+        {
+            _pitchFadeEditing = false;
+            RefreshFromComponent();
+            return;
+        }
+
+        RecordHistory("Edit control fade pitch");
+        _component.FadePitchCents = cents;
+        _pitchFadeEditing = false;
+        RefreshFromComponent();
     }
 
     private void CommitAudioFade(string text)

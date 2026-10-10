@@ -295,6 +295,33 @@ public partial class ActiveCue : GodotObject
     }
 
     /// <summary>
+    /// After the current pass of the innermost loop (audio timeline region, then component
+    /// Loop / play count, including nested children), do not repeat that loop.
+    /// </summary>
+    public void RequestDevamp()
+    {
+        if (_isCleaned) return;
+
+        foreach (var playback in _activeAudioComponents.Values.ToList())
+        {
+            if (playback != null && IsInstanceValid(playback))
+                playback.RequestDevamp();
+        }
+
+        foreach (var playback in _activeVideoComponents.Values.ToList())
+        {
+            if (playback != null && IsInstanceValid(playback))
+                playback.RequestDevamp();
+        }
+
+        foreach (var child in _childActiveCues.ToList())
+        {
+            if (child != null && IsInstanceValid(child))
+                child.RequestDevamp();
+        }
+    }
+
+    /// <summary>
     /// Starts this cue's content immediately, bypassing continue/follow lead-in and pre-wait.
     /// </summary>
     /// <remarks>

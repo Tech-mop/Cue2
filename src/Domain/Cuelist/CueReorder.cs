@@ -14,6 +14,8 @@ namespace Cue2.Domain.Cuelist;
 /// <summary>
 /// Encapsulates the state machine, mouse tracking, drop target calculation,
 /// and commit/cancel logic for reordering cues (including nesting support).
+/// Edge auto-scroll and wheel-forward reuse <see cref="CueList.AutoScrollCueListFromPointer"/>
+/// / <see cref="CueList.ScrollCueListByWheel"/> (same helpers as control pick-target).
 /// </summary>
 internal sealed class CueReorder(
     CueList owner,
@@ -70,9 +72,15 @@ internal sealed class CueReorder(
         if (@event is InputEventMouseMotion eventMouseMotion)
         {
             var reorderControl = reorderCueControl;
-            reorderControl.GlobalPosition = new Vector2(eventMouseMotion.Position.X, eventMouseMotion.Position.Y);
-            UpdateDropTarget(eventMouseMotion.GlobalPosition.Y);
+            reorderControl.GlobalPosition = eventMouseMotion.GlobalPosition;
+            RefreshHoverAndDrop(eventMouseMotion.GlobalPosition);
+            return;
         }
+
+        // Wheel / trackpad: the drag started on the grabber Button, which captures the
+        // pointer so the ScrollContainer often never sees the wheel. Forward it here.
+        if (TryHandleScrollInput(@event))
+            return;
 
         // Left release = commit.
         if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left && !mb.Pressed)
@@ -91,6 +99,65 @@ internal sealed class CueReorder(
         {
             Cancel();
         }
+    }
+
+    /// <summary>
+    /// Per-frame while dragging: edge auto-scroll (same helper as pick-target) and keep the
+    /// drop indicator aligned as the list slides under a still pointer.
+    /// </summary>
+    /// <param name="delta">Frame delta in seconds.</param>
+    public void Tick(double delta)
+    {
+        if (!IsActive)
+            return;
+
+        var mouse = owner.GetGlobalMousePosition();
+        owner.AutoScrollCueListFromPointer(mouse, delta);
+        if (GodotObject.IsInstanceValid(reorderCueControl))
+            reorderCueControl.GlobalPosition = mouse;
+        RefreshHoverAndDrop(mouse);
+    }
+
+    /// <summary>
+    /// Applies wheel / trackpad pan to the cuelist while a reorder drag is held.
+    /// </summary>
+    /// <param name="event">Viewport input event.</param>
+    /// <returns>True when the event was consumed as a cuelist scroll.</returns>
+    private bool TryHandleScrollInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton wheel &&
+            wheel.Pressed &&
+            (wheel.ButtonIndex == MouseButton.WheelUp || wheel.ButtonIndex == MouseButton.WheelDown))
+        {
+            float steps = wheel.Factor > 0.01f ? wheel.Factor : 1f;
+            float dir = wheel.ButtonIndex == MouseButton.WheelUp ? -1f : 1f;
+            owner.ScrollCueListByWheel(dir * steps);
+            owner.GetViewport()?.SetInputAsHandled();
+            RefreshHoverAndDrop(owner.GetGlobalMousePosition());
+            return true;
+        }
+
+        if (@event is InputEventPanGesture pan && !Mathf.IsZeroApprox(pan.Delta.Y))
+        {
+            owner.ScrollCueListByPixels(pan.Delta.Y);
+            owner.GetViewport()?.SetInputAsHandled();
+            RefreshHoverAndDrop(owner.GetGlobalMousePosition());
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Re-resolves the shell under the pointer (needed after auto-scroll / wheel with no motion)
+    /// and updates the drop indicator.
+    /// </summary>
+    private void RefreshHoverAndDrop(Vector2 globalMouse)
+    {
+        var bar = owner.FindVisibleShellBarAtGlobalY(globalMouse.Y);
+        if (bar != null)
+            MouseOverShellBar = bar;
+        UpdateDropTarget(globalMouse.Y);
     }
 
     private void UpdateDropTarget(float mouseY)

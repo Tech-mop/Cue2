@@ -127,6 +127,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// </summary>
     private float? _runtimeOpacity;
 
+    /// <summary>When true, the next component loop / remaining play count is skipped after this pass.</summary>
+    private bool _devampRequested;
+
     /// <summary>True when <see cref="Routing"/> is a private clone (safe to mutate for control fades).</summary>
     private bool _routingIsPrivate;
     private bool _isFadingOut;
@@ -550,6 +553,15 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     }
 
     /// <summary>
+    /// After the current pass, do not repeat component Loop / remaining play count.
+    /// </summary>
+    public void RequestDevamp()
+    {
+        lock (_lock)
+            _devampRequested = true;
+    }
+
+    /// <summary>
     /// Ensures <see cref="Routing"/> is a private clone, then sets one matrix cell for this playback only.
     /// </summary>
     public bool SetRuntimeMatrixCell(int inputCh, int outputCh, float linear)
@@ -667,7 +679,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             if (IsStopped || _isExiting || _isFadingOut || _completedEmitted || _segmentEndScheduled)
                 return;
 
-            if (_videoComponent.Loop || _currentPlayCount < EffectivePlayCount)
+            bool morePlays = _videoComponent.Loop || _currentPlayCount < EffectivePlayCount;
+            if (morePlays && _devampRequested)
+            {
+                _devampRequested = false;
+                morePlays = false;
+            }
+            if (morePlays)
             {
                 _currentPlayCount++;
                 _naturalEndFadeArmed = false;
@@ -710,7 +728,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             if (IsStopped || IsPaused || _isExiting || _isFadingOut || _isFadingIn
                 || _naturalEndFadeArmed || !_isPlaying)
                 return;
-            if (_videoComponent.Loop || _currentPlayCount < EffectivePlayCount)
+            if ((_videoComponent.Loop || _currentPlayCount < EffectivePlayCount) && !_devampRequested)
                 return;
 
             double configured = _videoComponent.FadeOutDuration;

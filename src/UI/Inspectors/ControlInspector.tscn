@@ -98,11 +98,19 @@ tooltip_text = "Start a waiting cue immediately (skip continue/follow and pre-wa
 focus_mode = 0
 text = "Start Now"
 
+[node name="AddDevampButton" type="Button" parent="ContentRoot/VBox/HeaderBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 28)
+layout_mode = 2
+tooltip_text = "Leave the current loop after this pass (timeline region, then cue play count / Loop)."
+focus_mode = 0
+text = "Devamp"
+
 [node name="AddFadeButton" type="Button" parent="ContentRoot/VBox/HeaderBar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 28)
 layout_mode = 2
-tooltip_text = "Fade audio volume and/or video opacity on a target cue."
+tooltip_text = "Fade a property on a playing target cue (volume, play rate, pitch, pan, opacity, routing)."
 focus_mode = 0
 text = "Fade"
 

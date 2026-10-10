@@ -34,7 +34,7 @@ public enum ControlAction
     StartNow = 4,
 
     /// <summary>
-    /// Fade a single target-cue property over time (volume, pan, opacity, or a routing-matrix cell).
+    /// Fade a single target-cue property over time (volume, play rate, pitch, pan, opacity, or a routing-matrix cell).
     /// </summary>
     Fade = 5,
 
@@ -46,7 +46,12 @@ public enum ControlAction
     /// <summary>
     /// Animate a canvas target layer's size and/or position.
     /// </summary>
-    TranslateLayer = 7
+    TranslateLayer = 7,
+
+    /// <summary>
+    /// Leave the current loop after this pass (timeline region, then component play count / Loop).
+    /// </summary>
+    Devamp = 8
 }
 
 /// <summary>
@@ -77,12 +82,18 @@ public enum ControlFadeProperty
     Pan = 2,
 
     /// <summary>A single routing-matrix crosspoint level (input → output).</summary>
-    RoutingMatrix = 3
+    RoutingMatrix = 3,
+
+    /// <summary>Audio play-rate multiplier (file audio only).</summary>
+    PlayRate = 4,
+
+    /// <summary>Audio pitch shift in cents (file audio only).</summary>
+    Pitch = 5
 }
 
 /// <summary>
 /// Cue component that, when the parent cue fires, applies a transport action
-/// (GO / Pause / Stop / Resume / Start Now) to another cue identified by id or cue number.
+/// (GO / Pause / Stop / Resume / Start Now / Devamp / Fade / Seek) to another cue identified by id or cue number.
 /// </summary>
 /// <remarks>
 /// Target is resolved at execute time via <see cref="TargetCueId"/> first, then
@@ -108,6 +119,7 @@ public class ControlComponent : ICueComponent
             ControlAction.Fade => "Fade",
             ControlAction.Seek => "Seek",
             ControlAction.TranslateLayer => "Translate Layer",
+            ControlAction.Devamp => "Devamp",
             _ => action.ToString()
         };
     }
@@ -305,6 +317,18 @@ public class ControlComponent : ICueComponent
     public float FadePan { get; set; }
 
     /// <summary>
+    /// Play rate for Fade: absolute multiplier (0.1…8) or relative delta when <see cref="FadeMode"/> is Relative.
+    /// </summary>
+    /// <value>Default <c>1</c> (original / no relative change).</value>
+    public float FadePlayRate { get; set; } = 1f;
+
+    /// <summary>
+    /// Pitch for Fade: absolute cents (−2400…+2400) or relative delta when <see cref="FadeMode"/> is Relative.
+    /// </summary>
+    /// <value>Default <c>0</c> (no extra shift / no relative change).</value>
+    public float FadePitchCents { get; set; }
+
+    /// <summary>
     /// Legacy single routing-matrix input index (migrated into <see cref="FadeMatrixCellTargets"/>).
     /// </summary>
     public int FadeMatrixInputIndex { get; set; }
@@ -398,6 +422,8 @@ public class ControlComponent : ICueComponent
             ControlFadeProperty.Opacity => "Opacity",
             ControlFadeProperty.Pan => "Pan",
             ControlFadeProperty.RoutingMatrix => "Routing Matrix",
+            ControlFadeProperty.PlayRate => "Play Rate",
+            ControlFadeProperty.Pitch => "Pitch",
             _ => property.ToString()
         };
     }
@@ -612,8 +638,8 @@ public class ControlComponent : ICueComponent
             }
 
             // A cue controlling itself can recurse (especially GO / Start Now).
-            // Fade on self is allowed (levels on this cue's media are fine).
-            if (Action != ControlAction.Fade &&
+            // Fade / Devamp on self is allowed (levels and loop-escape on this cue's media).
+            if (Action != ControlAction.Fade && Action != ControlAction.Devamp &&
                 sourceCueId >= 0 && TargetCueId == sourceCueId)
             {
                 GD.PrintErr(
@@ -706,6 +732,12 @@ public class ControlComponent : ICueComponent
     }
 
     /// <summary>
+    /// True when the cue has file-audio play rate / pitch (audio input has neither).
+    /// </summary>
+    public static bool CueHasFadablePlayRatePitch(Cue cue) =>
+        cue?.GetAudioComponent() != null;
+
+    /// <summary>
     /// True when the cue has a routing matrix (dedicated audio and/or embedded video audio).
     /// </summary>
     public static bool CueHasFadableRouting(Cue cue)
@@ -736,6 +768,8 @@ public class ControlComponent : ICueComponent
             ControlFadeProperty.Opacity => CueHasFadableOpacity(cue),
             ControlFadeProperty.Pan => CueHasFadablePan(cue),
             ControlFadeProperty.RoutingMatrix => CueHasFadableRouting(cue),
+            ControlFadeProperty.PlayRate => CueHasFadablePlayRatePitch(cue),
+            ControlFadeProperty.Pitch => CueHasFadablePlayRatePitch(cue),
             _ => false
         };
     }
@@ -745,8 +779,13 @@ public class ControlComponent : ICueComponent
     /// </summary>
     public static System.Collections.Generic.List<ControlFadeProperty> GetAvailableFadeProperties(Cue cue)
     {
-        var list = new System.Collections.Generic.List<ControlFadeProperty>(4);
+        var list = new System.Collections.Generic.List<ControlFadeProperty>(6);
         if (CueHasFadableAudio(cue)) list.Add(ControlFadeProperty.Volume);
+        if (CueHasFadablePlayRatePitch(cue))
+        {
+            list.Add(ControlFadeProperty.PlayRate);
+            list.Add(ControlFadeProperty.Pitch);
+        }
         if (CueHasFadablePan(cue)) list.Add(ControlFadeProperty.Pan);
         if (CueHasFadableRouting(cue)) list.Add(ControlFadeProperty.RoutingMatrix);
         if (CueHasFadableOpacity(cue)) list.Add(ControlFadeProperty.Opacity);
@@ -867,6 +906,8 @@ public class ControlComponent : ICueComponent
             { "FadeAudioDb", FadeAudioDb },
             { "FadeOpacityPercent", FadeOpacityPercent },
             { "FadePan", FadePan },
+            { "FadePlayRate", FadePlayRate },
+            { "FadePitchCents", FadePitchCents },
             { "FadeMatrixInputIndex", FadeMatrixInputIndex },
             { "FadeMatrixOutputIndex", FadeMatrixOutputIndex },
             { "FadeMatrixCells", SerializeMatrixCellTargets() },
@@ -968,6 +1009,16 @@ public class ControlComponent : ICueComponent
             FadePan = Mathf.Clamp(fadePanVal.AsSingle(), -2f, 2f); // allow relative beyond ±1
         else
             FadePan = 0f;
+
+        if (data.TryGetValue("FadePlayRate", out var fadeRateVal))
+            FadePlayRate = fadeRateVal.AsSingle();
+        else
+            FadePlayRate = 1f;
+
+        if (data.TryGetValue("FadePitchCents", out var fadePitchVal))
+            FadePitchCents = fadePitchVal.AsSingle();
+        else
+            FadePitchCents = 0f;
 
         if (data.TryGetValue("FadeMatrixInputIndex", out var matInVal))
             FadeMatrixInputIndex = Math.Max(0, matInVal.AsInt32());

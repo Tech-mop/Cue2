@@ -69,6 +69,21 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// </summary>
     private float? _runtimePan;
 
+    /// <summary>
+    /// When set, replaces <see cref="AudioComponent.PlayRate"/> for this playback only (control fades).
+    /// Timeline relative rate still applies.
+    /// </summary>
+    private double? _runtimePlayRate;
+
+    /// <summary>
+    /// When set, replaces <see cref="AudioComponent.PitchCents"/> for this playback only (control fades).
+    /// Timeline relative pitch still applies.
+    /// </summary>
+    private float? _runtimePitchCents;
+
+    /// <summary>When true, the next region or component loop is skipped after the current pass.</summary>
+    private bool _devampRequested;
+
     /// <summary>True when <see cref="Routing"/> is a private clone (safe to mutate for control fades).</summary>
     private bool _routingIsPrivate;
 
@@ -286,6 +301,72 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     {
         lock (_lock)
             _runtimePan = Mathf.Clamp(pan, -1f, 1f);
+    }
+
+    /// <summary>
+    /// Component play rate used as the timeline base (runtime control-fade override or cue component).
+    /// </summary>
+    public double EffectivePlayRate
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_runtimePlayRate.HasValue)
+                    return _runtimePlayRate.Value;
+            }
+            return _audioComponent != null
+                ? AudioComponent.ClampPlayRate(_audioComponent.PlayRate)
+                : AudioComponent.DefaultPlayRate;
+        }
+    }
+
+    /// <summary>
+    /// Component pitch in cents used as the timeline base (runtime control-fade override or cue component).
+    /// </summary>
+    public float EffectivePitchCents
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_runtimePitchCents.HasValue)
+                    return _runtimePitchCents.Value;
+            }
+            return _audioComponent != null
+                ? AudioComponent.ClampPitchCents(_audioComponent.PitchCents)
+                : AudioComponent.DefaultPitchCents;
+        }
+    }
+
+    /// <summary>
+    /// Sets a playback-only play rate (does not mutate the cue component). Timeline relative rate still applies.
+    /// </summary>
+    /// <param name="rate">Play-rate multiplier (0.1…8).</param>
+    public void SetRuntimePlayRate(double rate)
+    {
+        lock (_lock)
+            _runtimePlayRate = AudioComponent.ClampPlayRate(rate);
+    }
+
+    /// <summary>
+    /// Sets a playback-only pitch in cents (does not mutate the cue component). Timeline relative pitch still applies.
+    /// </summary>
+    /// <param name="cents">Pitch offset in cents (−2400…+2400).</param>
+    public void SetRuntimePitchCents(float cents)
+    {
+        lock (_lock)
+            _runtimePitchCents = AudioComponent.ClampPitchCents(cents);
+    }
+
+    /// <summary>
+    /// After the current pass of the innermost loop (region, then component play count / Loop),
+    /// do not repeat that loop.
+    /// </summary>
+    public void RequestDevamp()
+    {
+        lock (_lock)
+            _devampRequested = true;
     }
 
     /// <summary>
@@ -893,9 +974,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         if (_regionIndex < _regions.Count - 1)
             return false;
         var region = _regions[_regionIndex];
-        if (region.Loop)
-            return false;
-        return _regionPlayIndex >= Math.Max(1, region.PlayCount);
+        bool morePlays = region.Loop || _regionPlayIndex < Math.Max(1, region.PlayCount);
+        if (morePlays)
+            return _devampRequested;
+        return true;
     }
 
     /// <summary>
@@ -917,6 +999,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             {
                 var region = _regions[_regionIndex];
                 bool morePlays = region.Loop || _regionPlayIndex < Math.Max(1, region.PlayCount);
+                if (morePlays && _devampRequested)
+                {
+                    _devampRequested = false;
+                    morePlays = false;
+                }
                 if (morePlays)
                 {
                     _regionPlayIndex++;
@@ -986,7 +1073,13 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             // _completedEmitted also covers "already finishing"
             if (IsStopped || _completedEmitted || _isFadingOut) return;
 
-            if (_audioComponent.Loop || _currentPlayCount < EffectivePlayCount)
+            bool morePlays = _audioComponent.Loop || _currentPlayCount < EffectivePlayCount;
+            if (morePlays && _devampRequested)
+            {
+                _devampRequested = false;
+                morePlays = false;
+            }
+            if (morePlays)
             {
                 _currentPlayCount++;
                 _naturalEndFadeArmed = false;
@@ -1056,8 +1149,9 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             if (IsStopped || IsPaused || _isFadingOut || _isFadingIn || _completedEmitted
                 || _naturalEndFadeArmed)
                 return;
-            // Only the last playcount of a finite cue ends with a fade (infinite loop never auto-fades).
-            if (_audioComponent.Loop || _currentPlayCount < EffectivePlayCount)
+            // Only the last playcount of a finite cue ends with a fade (infinite loop never auto-fades
+            // unless Devamp has marked this pass as the last).
+            if ((_audioComponent.Loop || _currentPlayCount < EffectivePlayCount) && !_devampRequested)
                 return;
             if (!IsOnLastRegionPlayUnlocked())
                 return;
@@ -1100,7 +1194,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 _naturalEndFadeArmed = false;
                 return;
             }
-            if (_audioComponent.Loop || _currentPlayCount < EffectivePlayCount
+            if (((_audioComponent.Loop || _currentPlayCount < EffectivePlayCount) && !_devampRequested)
                 || !IsOnLastRegionPlayUnlocked())
             {
                 _naturalEndFadeArmed = false;
@@ -1655,7 +1749,14 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         }
 
         double posSec = Decoder != null ? Decoder.PositionUs / 1_000_000.0 : _audioComponent.StartTime;
-        return _audioComponent.EvaluateTimeline(posSec);
+        double? rateOverride;
+        float? pitchOverride;
+        lock (_lock)
+        {
+            rateOverride = _runtimePlayRate;
+            pitchOverride = _runtimePitchCents;
+        }
+        return _audioComponent.EvaluateTimeline(posSec, rateOverride, pitchOverride);
     }
 
     public long GetPlaybackTimeMs()

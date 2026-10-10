@@ -18,7 +18,7 @@ using Cue2.UI.Utilities;
 namespace Cue2.UI.Inspectors;
 
 /// <summary>
-/// Inspector tab for control components (GO / Pause / Stop / Resume / Start Now targeting other cues).
+/// Inspector tab for control components (GO / Pause / Stop / Resume / Start Now / Devamp / Fade targeting other cues).
 /// </summary>
 /// <remarks>
 /// Header buttons add a component of each type; cards list targets for the focused cue.
@@ -43,6 +43,7 @@ public partial class ControlInspector : Control
     private Button _addStopButton;
     private Button _addResumeButton;
     private Button _addStartNowButton;
+    private Button _addDevampButton;
     private Button _addFadeButton;
     private Button _addSeekButton;
     private Button _addTranslateLayerButton;
@@ -64,6 +65,7 @@ public partial class ControlInspector : Control
         _addStopButton = GetNode<Button>("%AddStopButton");
         _addResumeButton = GetNode<Button>("%AddResumeButton");
         _addStartNowButton = GetNode<Button>("%AddStartNowButton");
+        _addDevampButton = GetNodeOrNull<Button>("%AddDevampButton");
         _addFadeButton = GetNodeOrNull<Button>("%AddFadeButton");
         _addSeekButton = GetNodeOrNull<Button>("%AddSeekButton");
         _addTranslateLayerButton = GetNodeOrNull<Button>("%AddTranslateLayerButton");
@@ -73,6 +75,8 @@ public partial class ControlInspector : Control
         _addStopButton.Pressed += () => AddControlComponent(ControlAction.Stop);
         _addResumeButton.Pressed += () => AddControlComponent(ControlAction.Resume);
         _addStartNowButton.Pressed += () => AddControlComponent(ControlAction.StartNow);
+        if (_addDevampButton != null)
+            _addDevampButton.Pressed += () => AddControlComponent(ControlAction.Devamp);
         if (_addFadeButton != null)
             _addFadeButton.Pressed += () => AddControlComponent(ControlAction.Fade);
         if (_addSeekButton != null)

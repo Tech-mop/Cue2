@@ -305,6 +305,50 @@ placeholder_text = "C"
 alignment = 1
 caret_blink = true
 
+[node name="RateFadeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Audio play rate (file audio)."
+text = "Play Rate:"
+
+[node name="RateFadeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="RateFadeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/RateFadeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Absolute: 0.1–8. Relative: delta multiplier."
+placeholder_text = "1"
+caret_blink = true
+
+[node name="PitchFadeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Audio pitch in cents (file audio)."
+text = "Pitch:"
+
+[node name="PitchFadeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TargetGrid"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="PitchFadeLineEdit" type="LineEdit" parent="MarginContainer/VBoxContainer/TargetGrid/PitchFadeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Absolute: −2400…+2400 ¢. Relative: delta cents."
+placeholder_text = "0¢"
+caret_blink = true
+
 [node name="SeekTimeCaption" type="Label" parent="MarginContainer/VBoxContainer/TargetGrid"]
 unique_name_in_owner = true
 visible = false

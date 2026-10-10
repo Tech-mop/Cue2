@@ -568,6 +568,22 @@ public partial class CueCommandExecutor : Node
                 await ApplyPropertyFadeAsync(control);
                 break;
 
+            case ControlAction.Devamp:
+            {
+                var matches = FindActiveCuesById(targetCueId).ToList();
+                if (matches.Count == 0)
+                {
+                    GD.Print($"CueCommandExecutor:ApplyControlComponentAsync - No playing instance of cue id {targetCueId} to devamp");
+                    _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                        $"Control Devamp: no playing instance of cue id {targetCueId}", (int)LogType.Warning);
+                    return;
+                }
+
+                foreach (var active in matches)
+                    active.RequestDevamp();
+                break;
+            }
+
             case ControlAction.Seek:
             {
                 var matches = FindActiveCuesById(targetCueId).ToList();
@@ -742,6 +758,14 @@ public partial class CueCommandExecutor : Node
                 await FadeRuntimePanAsync(control, audioPlaybacks, videoPlaybacks, duration);
                 break;
 
+            case ControlFadeProperty.PlayRate:
+                await FadeRuntimePlayRateAsync(control, audioPlaybacks, duration);
+                break;
+
+            case ControlFadeProperty.Pitch:
+                await FadeRuntimePitchAsync(control, audioPlaybacks, duration);
+                break;
+
             case ControlFadeProperty.RoutingMatrix:
                 await FadeRuntimeMatrixAsync(control, audioPlaybacks, videoPlaybacks, duration);
                 break;
@@ -905,6 +929,72 @@ public partial class CueCommandExecutor : Node
             {
                 if (pb != null && GodotObject.IsInstanceValid(pb))
                     pb.SetRuntimePan(Mathf.Lerp(start, end, t));
+            }
+        });
+    }
+
+    private static async Task FadeRuntimePlayRateAsync(
+        ControlComponent control,
+        List<ActiveAudioPlayback> audioPlaybacks,
+        double duration)
+    {
+        var targets = new List<(ActiveAudioPlayback pb, float start, float end)>();
+        foreach (var pb in audioPlaybacks)
+        {
+            if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
+            float start = (float)pb.EffectivePlayRate;
+            float end = control.FadeMode == ControlFadeMode.Absolute
+                ? control.FadePlayRate
+                : start + control.FadePlayRate;
+            end = (float)AudioComponent.ClampPlayRate(end);
+            targets.Add((pb, start, end));
+        }
+
+        if (targets.Count == 0)
+        {
+            GD.Print("CueCommandExecutor:FadeRuntimePlayRateAsync - No file-audio playback to fade");
+            return;
+        }
+
+        await RunMultiTargetFadeAsync(duration, t =>
+        {
+            foreach (var (pb, start, end) in targets)
+            {
+                if (pb != null && GodotObject.IsInstanceValid(pb))
+                    pb.SetRuntimePlayRate(Mathf.Lerp(start, end, t));
+            }
+        });
+    }
+
+    private static async Task FadeRuntimePitchAsync(
+        ControlComponent control,
+        List<ActiveAudioPlayback> audioPlaybacks,
+        double duration)
+    {
+        var targets = new List<(ActiveAudioPlayback pb, float start, float end)>();
+        foreach (var pb in audioPlaybacks)
+        {
+            if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
+            float start = pb.EffectivePitchCents;
+            float end = control.FadeMode == ControlFadeMode.Absolute
+                ? control.FadePitchCents
+                : start + control.FadePitchCents;
+            end = AudioComponent.ClampPitchCents(end);
+            targets.Add((pb, start, end));
+        }
+
+        if (targets.Count == 0)
+        {
+            GD.Print("CueCommandExecutor:FadeRuntimePitchAsync - No file-audio playback to fade");
+            return;
+        }
+
+        await RunMultiTargetFadeAsync(duration, t =>
+        {
+            foreach (var (pb, start, end) in targets)
+            {
+                if (pb != null && GodotObject.IsInstanceValid(pb))
+                    pb.SetRuntimePitchCents(Mathf.Lerp(start, end, t));
             }
         });
     }

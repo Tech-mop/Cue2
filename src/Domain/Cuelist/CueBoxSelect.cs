@@ -466,8 +466,8 @@ internal sealed class CueBoxSelect
 
     private void SetOwnerProcess(bool enabled)
     {
-        if (_owner != null && GodotObject.IsInstanceValid(_owner))
-            _owner.SetProcess(enabled);
+        // Centralized with reorder so Cancel() cannot turn off process while a drag is active.
+        _owner?.SyncPointerInputProcessing();
     }
 
     private void HideMarquee()

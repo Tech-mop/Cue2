@@ -370,16 +370,33 @@ public class AudioComponent : ICueComponent
     /// </summary>
     /// <param name="fileSeconds">Position on the audio file, in seconds.</param>
     /// <returns>Clamped mix of component values and the timeline curve.</returns>
-    public TimelineAutomation EvaluateTimeline(double fileSeconds)
+    public TimelineAutomation EvaluateTimeline(double fileSeconds) =>
+        EvaluateTimeline(fileSeconds, playRateOverride: null, pitchCentsOverride: null);
+
+    /// <summary>
+    /// Absolute volume, play rate, and pitch at a file time, with optional component-rate/pitch overrides
+    /// (control fades). Timeline relative scale/offset still apply.
+    /// </summary>
+    /// <param name="fileSeconds">Position on the audio file, in seconds.</param>
+    /// <param name="playRateOverride">When set, used instead of <see cref="PlayRate"/> as the base rate.</param>
+    /// <param name="pitchCentsOverride">When set, used instead of <see cref="PitchCents"/> as the base pitch.</param>
+    /// <returns>Clamped mix of base values and the timeline curve.</returns>
+    public TimelineAutomation EvaluateTimeline(
+        double fileSeconds,
+        double? playRateOverride,
+        float? pitchCentsOverride)
     {
+        double baseRate = playRateOverride ?? PlayRate;
+        float basePitch = pitchCentsOverride ?? PitchCents;
+
         if (!TryGetTimelineNeighbors(fileSeconds, out var prev, out var next, out float t)
             || (prev == null && next == null))
         {
             return new TimelineAutomation
             {
                 VolumeLinear = AudioTimelineNode.DefaultVolumeLinear,
-                PlayRate = ClampPlayRate(PlayRate),
-                PitchCents = ClampPitchCents(PitchCents)
+                PlayRate = ClampPlayRate(baseRate),
+                PitchCents = ClampPitchCents(basePitch)
             };
         }
 
@@ -409,8 +426,8 @@ public class AudioComponent : ICueComponent
         return new TimelineAutomation
         {
             VolumeLinear = volume,
-            PlayRate = ClampPlayRate(PlayRate * rateScale),
-            PitchCents = ClampPitchCents(PitchCents + pitchOffset)
+            PlayRate = ClampPlayRate(baseRate * rateScale),
+            PitchCents = ClampPitchCents(basePitch + pitchOffset)
         };
     }
 

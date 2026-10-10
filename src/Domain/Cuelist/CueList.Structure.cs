@@ -1053,13 +1053,16 @@ public partial class CueList
 	}
 
 	/// <summary>
-	/// Enables <c>_Input</c> only while reorder or box-select is tracking the pointer.
+	/// Enables <c>_Input</c> while reorder or box-select is tracking the pointer.
+	/// Enables <c>_Process</c> for edge auto-scroll while reorder or an active marquee is held.
 	/// </summary>
 	internal void SyncPointerInputProcessing()
 	{
-		bool need = IsReordering
-			|| (_boxSelectController != null && (_boxSelectController.IsPending || _boxSelectController.IsActive));
-		SetProcessInput(need);
+		bool boxTracking = _boxSelectController != null
+			&& (_boxSelectController.IsPending || _boxSelectController.IsActive);
+		bool boxActive = _boxSelectController != null && _boxSelectController.IsActive;
+		SetProcessInput(IsReordering || boxTracking);
+		SetProcess(IsReordering || boxActive);
 	}
 
 	/// <summary>
@@ -1107,6 +1110,8 @@ public partial class CueList
 	/// <inheritdoc />
 	public override void _Process(double delta)
 	{
+		if (IsReordering)
+			_reorderController?.Tick(delta);
 		_boxSelectController?.Tick();
 	}
 
@@ -1152,6 +1157,24 @@ public partial class CueList
 		{
 			var shell = FetchCueFromId(VisibleRowIds[i])?.ShellBar;
 			if (shell != null && IsInstanceValid(shell))
+				return shell;
+		}
+		return null;
+	}
+
+	/// <summary>
+	/// Visible shell whose vertical span contains <paramref name="globalY"/>, or null.
+	/// </summary>
+	/// <param name="globalY">Y in global coordinates.</param>
+	internal ShellBar FindVisibleShellBarAtGlobalY(float globalY)
+	{
+		for (int i = 0; i < VisibleRowIds.Count; i++)
+		{
+			var shell = FetchCueFromId(VisibleRowIds[i])?.ShellBar;
+			if (shell == null || !IsInstanceValid(shell))
+				continue;
+			var rect = shell.GetGlobalRect();
+			if (globalY >= rect.Position.Y && globalY < rect.Position.Y + rect.Size.Y)
 				return shell;
 		}
 		return null;

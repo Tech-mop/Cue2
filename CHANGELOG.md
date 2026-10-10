@@ -15,6 +15,9 @@
 - Audio file cues have a play rate. Rate shortens the cue and raises pitch unless Keep Pitch is on. Pitch (cents) shifts also added.
 - Audio inspector Timeline: click the waveform or use Add node to place numbered markers. Each node is a draggable square with a slice line, and a filled volume circle on the automation line (drag for time and level). Listed with time, relative volume, rate, pitch, interpolation (Linear / Snap / Bezier per node), continue, loop, and play count for the region before it. Loop regions show as a bottom inset bracket ┌── ×n ──┐ (or ∞), one per loop span. Volume, rate, and pitch are relative to the component, including playback. Rate (cyan) and pitch (violet) draw on the waveform; they are edited in the list only.
 - Timeline inspector cue bars show audio region slices at their wall-clock widths (each region’s play count, ∞ for a looping region). Component play count then repeats that whole sequence. Active-cue progress and seek follow the same durations, including play rate along the timeline.
+- Control Fade can target play rate and pitch when the target cue has file audio (shown in the property list only then). Fades apply to the playing instance; timeline relative rate/pitch still apply. Keep Pitch on the target still holds musical pitch when rate changes.
+- Control Devamp: on a playing target, leave the current loop after this pass. A looping timeline region is escaped first; otherwise remaining cue play count / Loop is skipped. Nested children are included. Can target the same cue.
+- Dragging a cue to reorder auto-scrolls the list when the pointer is near the top or bottom, same as the control pick-target tool. The mouse wheel and trackpad also scroll the list while that drag is held.
 
 ### Fixed
 - Closing Cue2 no longer leaves leaked objects from video preview textures, inspector tab icons, and playback objects that only freed on a deferred idle frame.
