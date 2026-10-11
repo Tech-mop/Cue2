@@ -21,7 +21,8 @@ public interface ICueComponent
     /// <value>
     /// A fixed string unique to the concrete component kind (for example
     /// <c>"Audio"</c>, <c>"Video"</c>, <c>"Text"</c>, <c>"Control"</c>,
-    /// <c>"CueLight"</c>, <c>"OscComponent"</c>, <c>"MidiOutput"</c>).
+    /// <c>"CueLight"</c>, <c>"OscComponent"</c>, <c>"MidiOutput"</c>,
+    /// <c>"TimecodeControl"</c>).
     /// Must match the switch arms in <see cref="Cue"/> load paths.
     /// </value>
     string Type { get; }

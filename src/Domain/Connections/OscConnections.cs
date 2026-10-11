@@ -659,7 +659,7 @@ public partial class CueOscConnection : GodotObject
         InitialiseSender();
     }
 
-    public void SendMessage(OscMessage message)
+    public void SendMessage(OscMessage message, bool monitor = true)
     {
         // Prefer main-thread manager; if somehow called off-thread, notifications still marshal.
         var manager = GetManagerMainThread();
@@ -677,8 +677,11 @@ public partial class CueOscConnection : GodotObject
                         throw new InvalidOperationException("TCP not connected");
                     OscTcpTransport.SendPacket(_tcpClient, message);
                 }
-                GD.Print($"CueOscConnection:SendMessage - TCP {message} via {Name}");
-                manager?.NotifyMessageSent(this, message);
+                if (monitor)
+                {
+                    GD.Print($"CueOscConnection:SendMessage - TCP {message} via {Name}");
+                    manager?.NotifyMessageSent(this, message);
+                }
             }
             catch (Exception ex)
             {
@@ -700,8 +703,11 @@ public partial class CueOscConnection : GodotObject
         try
         {
             _sender.Send(message);
-            GD.Print($"CueOscConnection:SendMessage - UDP {message} via {Name}");
-            manager?.NotifyMessageSent(this, message);
+            if (monitor)
+            {
+                GD.Print($"CueOscConnection:SendMessage - UDP {message} via {Name}");
+                manager?.NotifyMessageSent(this, message);
+            }
         }
         catch (Exception ex)
         {

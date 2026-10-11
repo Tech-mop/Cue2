@@ -13,6 +13,7 @@ using Cue2.Domain.Cues;
 using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
+using Cue2.Domain.Timecode;
 using Cue2.Services;
 using Cue2.UI.Controls;
 using Cue2.UI.Utilities;
@@ -99,6 +100,13 @@ public partial class ShellInspector : Control
 	private Button _oscResetButton;
 	private bool _oscAddressEditing;
 
+	// Timecode cue trigger UI
+	private CheckBox _timecodeEnabledCheckBox;
+	private OptionButton _timecodeSourceOption;
+	private LineEdit _timecodeTimeInput;
+	private Button _timecodeResetButton;
+	private TimecodeManager _timecodeManager;
+
 	// Notes UI (under Triggers column)
 	private TextEdit _notesTextEdit;
 	private CheckBox _memoCheckBox;
@@ -160,6 +168,12 @@ public partial class ShellInspector : Control
 		_oscEnabledCheckBox = GetNodeOrNull<CheckBox>("%OscEnabledCheckBox");
 		_oscAddressLineEdit = GetNodeOrNull<LineEdit>("%OscAddressLineEdit");
 		_oscResetButton = GetNodeOrNull<Button>("%OscResetButton");
+
+		_timecodeEnabledCheckBox = GetNodeOrNull<CheckBox>("%TimecodeEnabledCheckBox");
+		_timecodeSourceOption = GetNodeOrNull<OptionButton>("%TimecodeSourceOption");
+		_timecodeTimeInput = GetNodeOrNull<LineEdit>("%TimecodeTimeInput");
+		_timecodeResetButton = GetNodeOrNull<Button>("%TimecodeResetButton");
+		_timecodeManager = GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
 
 		_notesTextEdit = GetNodeOrNull<TextEdit>("%NotesTextEdit");
 		_memoCheckBox = GetNodeOrNull<CheckBox>("%MemoCheckBox");
@@ -277,6 +291,28 @@ public partial class ShellInspector : Control
 			catch { /* icon optional */ }
 		}
 
+		if (_timecodeEnabledCheckBox != null)
+			_timecodeEnabledCheckBox.Toggled += OnTimecodeEnabledToggled;
+		if (_timecodeSourceOption != null)
+			_timecodeSourceOption.ItemSelected += OnTimecodeSourceSelected;
+		if (_timecodeTimeInput != null)
+		{
+			_timecodeTimeInput.TextSubmitted += OnTimecodeTimeSubmitted;
+			_timecodeTimeInput.FocusExited += OnTimecodeTimeFocusExited;
+		}
+		if (_timecodeResetButton != null)
+		{
+			_timecodeResetButton.Pressed += OnTimecodeResetPressed;
+			try
+			{
+				_timecodeResetButton.Icon = GetThemeIcon("Refresh", "AtlasIcons");
+				_timecodeResetButton.ExpandIcon = true;
+			}
+			catch { /* icon optional */ }
+		}
+		if (_timecodeManager != null)
+			_timecodeManager.TimecodeStateChanged += OnTimecodeStateChanged;
+
 		if (_notesTextEdit != null)
 		{
 			_notesTextEdit.TextChanged += OnNotesTextChanged;
@@ -322,6 +358,8 @@ public partial class ShellInspector : Control
 
 		if (_midiManager != null)
 			_midiManager.MidiCaptured -= OnMidiCaptured;
+		if (_timecodeManager != null)
+			_timecodeManager.TimecodeStateChanged -= OnTimecodeStateChanged;
 
 		if (_globalSignals != null)
 		{
@@ -344,6 +382,10 @@ public partial class ShellInspector : Control
 			return;
 		UiLocalizer.LocalizeTree(this);
 		SyncDeleteHotkeyTooltip();
+		if (_isMultiEdit)
+			PopulateTimecodeSourceOptions(-1);
+		else
+			RefreshTimecodeTriggerUi();
 	}
 
 	private void SyncDeleteHotkeyTooltip()
@@ -622,6 +664,21 @@ public partial class ShellInspector : Control
 			if (_midiData2Spin != null)
 				_midiData2Spin.SetValueNoSignal(0);
 
+			if (_timecodeEnabledCheckBox != null)
+				_timecodeEnabledCheckBox.SetPressedNoSignal(false);
+			if (_timecodeSourceOption != null)
+			{
+				PopulateTimecodeSourceOptions(-1);
+				_timecodeSourceOption.Select(-1);
+			}
+			if (_timecodeTimeInput != null)
+			{
+				_timecodeTimeInput.Text = "";
+				_timecodeTimeInput.PlaceholderText = MultiPlaceholder;
+			}
+			if (_timecodeResetButton != null)
+				_timecodeResetButton.Visible = false;
+
 			if (_notesTextEdit != null)
 			{
 				_notesTextEdit.Text = "";
@@ -654,6 +711,8 @@ public partial class ShellInspector : Control
 			_durationValue.PlaceholderText = "";
 		if (_clockTimeInput != null)
 			_clockTimeInput.PlaceholderText = UiLocalizer.T("HH:mm:ss");
+		if (_timecodeTimeInput != null)
+			_timecodeTimeInput.PlaceholderText = UiLocalizer.T("00:00:00:00");
 		if (_notesTextEdit != null)
 			_notesTextEdit.PlaceholderText = UiLocalizer.T("Cue notes…");
 		SyncDeleteHotkeyTooltip();
@@ -827,6 +886,7 @@ public partial class ShellInspector : Control
 			RefreshClockUi();
 			RefreshMidiUi();
 			RefreshOscUi();
+			RefreshTimecodeTriggerUi();
 
 			if (_notesTextEdit != null)
 			{
@@ -2056,6 +2116,300 @@ public partial class ShellInspector : Control
 		}
 		if (!_isMultiEdit)
 			RefreshOscUi();
+	}
+
+	// ── Timecode cue trigger UI ─────────────────────────────────────────────
+
+	private void OnTimecodeStateChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		if (_isMultiEdit)
+		{
+			PopulateTimecodeSourceOptions(-1);
+			return;
+		}
+
+		RefreshTimecodeTriggerUi();
+	}
+
+	private void RefreshTimecodeTriggerUi()
+	{
+		if (_isMultiEdit) return;
+
+		int selectedId = _focusedCue?.TimecodeTriggerEndpointId ?? -1;
+		PopulateTimecodeSourceOptions(selectedId);
+
+		if (_timecodeEnabledCheckBox != null)
+			_timecodeEnabledCheckBox.SetPressedNoSignal(_focusedCue?.TimecodeTriggerEnabled == true);
+
+		if (_timecodeTimeInput != null && !_timecodeTimeInput.HasFocus())
+		{
+			_timecodeTimeInput.Text = _focusedCue != null && _focusedCue.HasTimecodeTrigger
+				? FormatTimecodeTriggerField(_focusedCue)
+				: "";
+		}
+
+		if (_timecodeResetButton != null)
+		{
+			bool nonDefault = _focusedCue != null && _focusedCue.IsTimecodeTriggerNonDefault;
+			_timecodeResetButton.Visible = nonDefault;
+			if (nonDefault)
+				_timecodeResetButton.TooltipText = UiLocalizer.T("Reset to default (no timecode trigger)");
+		}
+	}
+
+	private string FormatTimecodeTriggerField(Cue cue)
+	{
+		if (cue == null || !cue.HasTimecodeTrigger)
+			return string.Empty;
+		var rate = _timecodeManager?.FindEndpoint(cue.TimecodeTriggerEndpointId)?.FrameRate
+		           ?? TimecodeFrameRate.Fps30;
+		return new TimecodeValue(
+			cue.TimecodeTriggerHours,
+			cue.TimecodeTriggerMinutes,
+			cue.TimecodeTriggerSeconds,
+			cue.TimecodeTriggerFrames,
+			rate).ToDisplayString();
+	}
+
+	private void PopulateTimecodeSourceOptions(int selectedEndpointId)
+	{
+		if (_timecodeSourceOption == null)
+			return;
+
+		_timecodeSourceOption.SetBlockSignals(true);
+		_timecodeSourceOption.Clear();
+
+		var inputs = _timecodeManager?.Inputs;
+		var outputs = _timecodeManager?.Outputs;
+		bool any = (inputs != null && inputs.Count > 0) || (outputs != null && outputs.Count > 0);
+		if (!any)
+		{
+			UiLocalizer.AddTranslatedItem(_timecodeSourceOption, "(No timecode I/O)");
+			_timecodeSourceOption.SetItemDisabled(0, true);
+			_timecodeSourceOption.SetItemMetadata(0, -1);
+			_timecodeSourceOption.Select(0);
+			_timecodeSourceOption.SetBlockSignals(false);
+			return;
+		}
+
+		int select = -1;
+		void AddGroup(string header, IReadOnlyList<TimecodeEndpoint> list, string prefix)
+		{
+			if (list == null || list.Count == 0)
+				return;
+			int headerIndex = _timecodeSourceOption.ItemCount;
+			_timecodeSourceOption.AddItem(UiLocalizer.T(header));
+			_timecodeSourceOption.SetItemDisabled(headerIndex, true);
+			_timecodeSourceOption.SetItemMetadata(headerIndex, -1);
+			for (int i = 0; i < list.Count; i++)
+			{
+				var endpoint = list[i];
+				int index = _timecodeSourceOption.ItemCount;
+				_timecodeSourceOption.AddItem($"{prefix} {endpoint.Name} ({endpoint.Kind.GetShortName()})");
+				_timecodeSourceOption.SetItemMetadata(index, endpoint.Id);
+				if (endpoint.Id == selectedEndpointId)
+					select = index;
+			}
+		}
+
+		AddGroup("Inputs", inputs, "In");
+		AddGroup("Outputs", outputs, "Out");
+
+		if (select < 0 && selectedEndpointId >= 0)
+		{
+			select = _timecodeSourceOption.ItemCount;
+			_timecodeSourceOption.AddItem($"Missing #{selectedEndpointId}");
+			_timecodeSourceOption.SetItemMetadata(select, selectedEndpointId);
+		}
+
+		_timecodeSourceOption.Select(select);
+		_timecodeSourceOption.SetBlockSignals(false);
+	}
+
+	private void OnTimecodeEnabledToggled(bool pressed)
+	{
+		if (_isRefreshingUi) return;
+		if (_globalData?.HistoryManager?.IsRestoring == true) return;
+
+		var targets = GetEditTargets();
+		if (targets.Count == 0) return;
+		if (!_isMultiEdit && targets.Count == 1 && targets[0].TimecodeTriggerEnabled == pressed)
+			return;
+
+		RecordHistoryBeforeEdit(
+			pressed ? "Enable cue timecode trigger" : "Disable cue timecode trigger",
+			pressed ? "Multi-edit enable cue timecode" : "Multi-edit disable cue timecode");
+
+		foreach (var cue in targets)
+		{
+			if (cue.TimecodeTriggerEnabled == pressed) continue;
+			cue.TimecodeTriggerEnabled = pressed;
+		}
+
+		if (!_isMultiEdit)
+			RefreshTimecodeTriggerUi();
+		else if (_timecodeResetButton != null)
+			_timecodeResetButton.Visible = targets.Exists(c => c.IsTimecodeTriggerNonDefault);
+	}
+
+	private void OnTimecodeSourceSelected(long index)
+	{
+		if (_isRefreshingUi) return;
+		if (_globalData?.HistoryManager?.IsRestoring == true) return;
+		if (_timecodeSourceOption == null) return;
+		if (index < 0 || index >= _timecodeSourceOption.ItemCount) return;
+		if (_timecodeSourceOption.IsItemDisabled((int)index))
+			return;
+
+		int id = (int)_timecodeSourceOption.GetItemMetadata((int)index);
+		var targets = GetEditTargets();
+		if (targets.Count == 0) return;
+		if (!_isMultiEdit && targets.Count == 1 && targets[0].TimecodeTriggerEndpointId == id)
+			return;
+
+		RecordHistoryBeforeEdit("Set cue timecode trigger clock", "Multi-edit cue timecode clock");
+		foreach (var cue in targets)
+		{
+			if (cue.TimecodeTriggerEndpointId == id) continue;
+			cue.SetTimecodeTriggerEndpoint(id);
+			if (id >= 0 && !cue.TimecodeTriggerEnabled && cue.HasTimecodeTrigger)
+				cue.TimecodeTriggerEnabled = true;
+		}
+
+		if (!_isMultiEdit)
+			RefreshTimecodeTriggerUi();
+		else if (_timecodeResetButton != null)
+			_timecodeResetButton.Visible = targets.Exists(c => c.IsTimecodeTriggerNonDefault);
+	}
+
+	private void OnTimecodeTimeSubmitted(string text)
+	{
+		CommitTimecodeTriggerTime(text);
+		_timecodeTimeInput?.ReleaseFocus();
+	}
+
+	private void OnTimecodeTimeFocusExited()
+	{
+		if (_timecodeTimeInput == null) return;
+		if (_isRefreshingUi) return;
+		CommitTimecodeTriggerTime(_timecodeTimeInput.Text);
+	}
+
+	private void CommitTimecodeTriggerTime(string text)
+	{
+		if (_isRefreshingUi) return;
+		if (_globalData?.HistoryManager?.IsRestoring == true) return;
+
+		var targets = GetEditTargets();
+		if (targets.Count == 0) return;
+
+		string trimmed = (text ?? string.Empty).Trim();
+		if (string.IsNullOrEmpty(trimmed))
+		{
+			if (!_isMultiEdit && targets.Count == 1 && !targets[0].HasTimecodeTrigger)
+			{
+				if (_timecodeTimeInput != null) _timecodeTimeInput.Text = "";
+				return;
+			}
+
+			RecordHistoryBeforeEdit("Clear cue timecode trigger time", "Multi-edit clear cue timecode time");
+			foreach (var cue in targets)
+			{
+				if (!cue.HasTimecodeTrigger) continue;
+				cue.ClearTimecodeTriggerTime();
+			}
+
+			if (_timecodeTimeInput != null) _timecodeTimeInput.Text = "";
+			if (!_isMultiEdit)
+				RefreshTimecodeTriggerUi();
+			else if (_timecodeResetButton != null)
+				_timecodeResetButton.Visible = targets.Exists(c => c.IsTimecodeTriggerNonDefault);
+			return;
+		}
+
+		var rate = ResolveTimecodeTriggerRate(targets);
+		if (!TimecodeValue.TryParseUserInput(trimmed, rate, out var value))
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				$"Invalid timecode: \"{text}\". Use HH:MM:SS:FF, MM:SS:FF, SS:FF, or seconds.", (int)LogType.Warning);
+			if (!_isMultiEdit)
+				RefreshTimecodeTriggerUi();
+			return;
+		}
+
+		if (!_isMultiEdit && targets.Count == 1)
+		{
+			var cue = targets[0];
+			if (cue.HasTimecodeTrigger
+			    && cue.TimecodeTriggerHours == value.Hours
+			    && cue.TimecodeTriggerMinutes == value.Minutes
+			    && cue.TimecodeTriggerSeconds == value.Seconds
+			    && cue.TimecodeTriggerFrames == value.Frames)
+			{
+				if (_timecodeTimeInput != null)
+					_timecodeTimeInput.Text = value.ToDisplayString();
+				return;
+			}
+		}
+
+		RecordHistoryBeforeEdit("Set cue timecode trigger time", "Multi-edit set cue timecode time");
+		foreach (var cue in targets)
+		{
+			cue.SetTimecodeTriggerTime(value.Hours, value.Minutes, value.Seconds, value.Frames);
+			if (!cue.TimecodeTriggerEnabled)
+				cue.TimecodeTriggerEnabled = true;
+		}
+
+		if (_timecodeTimeInput != null)
+			_timecodeTimeInput.Text = value.ToDisplayString();
+		if (_timecodeEnabledCheckBox != null)
+			_timecodeEnabledCheckBox.SetPressedNoSignal(true);
+
+		if (!_isMultiEdit)
+			RefreshTimecodeTriggerUi();
+		else if (_timecodeResetButton != null)
+			_timecodeResetButton.Visible = targets.Exists(c => c.IsTimecodeTriggerNonDefault);
+	}
+
+	private TimecodeFrameRate ResolveTimecodeTriggerRate(List<Cue> targets)
+	{
+		int endpointId = -1;
+		if (_timecodeSourceOption != null && _timecodeSourceOption.Selected >= 0)
+			endpointId = (int)_timecodeSourceOption.GetItemMetadata(_timecodeSourceOption.Selected);
+		else if (targets != null && targets.Count == 1)
+			endpointId = targets[0].TimecodeTriggerEndpointId;
+
+		var endpoint = _timecodeManager?.FindEndpoint(endpointId);
+		return endpoint?.FrameRate ?? TimecodeFrameRate.Fps30;
+	}
+
+	private void OnTimecodeResetPressed()
+	{
+		if (_isRefreshingUi) return;
+		if (_globalData?.HistoryManager?.IsRestoring == true) return;
+
+		var targets = GetEditTargets();
+		if (targets.Count == 0) return;
+		if (!_isMultiEdit && targets.Count == 1 && !targets[0].IsTimecodeTriggerNonDefault)
+			return;
+
+		RecordHistoryBeforeEdit("Reset cue timecode trigger", "Multi-edit reset cue timecode");
+		foreach (var cue in targets)
+			cue.ResetTimecodeTriggerToDefault();
+
+		if (_timecodeEnabledCheckBox != null)
+			_timecodeEnabledCheckBox.SetPressedNoSignal(false);
+		if (_timecodeTimeInput != null)
+			_timecodeTimeInput.Text = "";
+		if (_timecodeResetButton != null)
+			_timecodeResetButton.Visible = false;
+
+		if (!_isMultiEdit)
+			RefreshTimecodeTriggerUi();
+		else
+			PopulateTimecodeSourceOptions(-1);
 	}
 
 	private void OnMidiEnabledToggled(bool pressed)

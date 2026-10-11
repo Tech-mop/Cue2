@@ -293,6 +293,7 @@ public partial class InspectorTabsController : TabContainer
 				case "CueLight":
 				case "OscComponent":
 				case "MidiOutput":
+				case "TimecodeControl":
 					flags.Add("Connection");
 					break;
 			}

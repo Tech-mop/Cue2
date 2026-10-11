@@ -1069,7 +1069,7 @@ public partial class Settings : Node
     /// Clears live show settings for a showfile apply without seeding a playable empty show.
     /// </summary>
     /// <remarks>
-    /// Frees patches and output windows, resets scalars/OSC/MIDI/cue lights. Does <b>not</b>
+    /// Frees patches and output windows, resets scalars/OSC/MIDI/timecode/cue lights. Does <b>not</b>
     /// create a Default Patch or default canvas screen, does <b>not</b> open/close SDL devices,
     /// and does <b>not</b> emit scale/show-mode/displays signals.
     /// <see cref="LoadSettings"/> is the single constructor of the incoming show.
@@ -1085,6 +1085,7 @@ public partial class Settings : Node
         GetNodeOrNull<OscListen>("/root/OscListen")?.ResetToDefaults();
         GetNodeOrNull<OscConnections>("/root/OscConnections")?.ClearAll();
         GetNodeOrNull<MidiManager>("/root/MidiManager")?.ResetToDefaults();
+        GetNodeOrNull<TimecodeManager>("/root/TimecodeManager")?.ResetToDefaults();
         _globalData?.HardwarePluginLoader?.ResetToDefaults();
 
         GD.Print("Settings:ClearForOpen - Settings cleared for showfile apply (no default seed).");
@@ -1096,7 +1097,7 @@ public partial class Settings : Node
     /// <remarks>
     /// Clears audio patches then seeds a <see cref="DefaultAudioPatchName"/> (system playback
     /// device when available). Also resets displays (canvas/layers/screens), cue lights,
-    /// OSC listen/connections, and general scalars. Does <b>not</b> reset Input Map — that
+    /// OSC listen/connections, MIDI, timecode, and general scalars. Does <b>not</b> reset Input Map — that
     /// lives in user preferences. Emits scale/display signals so live UI can resync.
     /// Showfile open uses <see cref="ClearForOpen"/> instead so LoadSettings does not
     /// throw away a just-created Default Patch and virtual screen.
@@ -1128,6 +1129,7 @@ public partial class Settings : Node
         GetNodeOrNull<OscListen>("/root/OscListen")?.ResetToDefaults();
         GetNodeOrNull<OscConnections>("/root/OscConnections")?.ClearAll();
         GetNodeOrNull<MidiManager>("/root/MidiManager")?.ResetToDefaults();
+        GetNodeOrNull<TimecodeManager>("/root/TimecodeManager")?.ResetToDefaults();
         _globalData?.HardwarePluginLoader?.ResetToDefaults();
 
         _globalSignals?.EmitSignal(nameof(GlobalSignals.GoScaleChanged), GoScale);

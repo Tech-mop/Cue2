@@ -1098,6 +1098,128 @@ public partial class AudioDevices : Node
     
 
     /// <summary>
+    /// Opens a playback device and binds a float32 stream matching the device channel count.
+    /// Not tracked as cue playback — callers own the stream lifetime.
+    /// </summary>
+    /// <param name="deviceName">SDL playback device name.</param>
+    /// <param name="device">Opened device, or null on failure.</param>
+    /// <param name="stream">Bound SDL audio stream, or zero on failure.</param>
+    /// <param name="channels">Stream channel count.</param>
+    /// <param name="sampleRate">Stream sample rate.</param>
+    /// <param name="error">Failure detail.</param>
+    /// <returns><see langword="true"/> when the stream is bound.</returns>
+    public bool TryCreateBoundPlaybackStream(
+        string deviceName,
+        out AudioDevice device,
+        out IntPtr stream,
+        out int channels,
+        out int sampleRate,
+        out string error)
+    {
+        device = null;
+        stream = IntPtr.Zero;
+        channels = 0;
+        sampleRate = 0;
+        error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(deviceName))
+        {
+            error = "No playback device selected.";
+            return false;
+        }
+
+        device = OpenAudioDevice(deviceName, out error);
+        if (device == null || device.LogicalId == 0)
+        {
+            if (string.IsNullOrEmpty(error))
+                error = $"Could not open '{deviceName}'.";
+            device = null;
+            return false;
+        }
+
+        channels = device.OutputChannels > 0
+            ? device.OutputChannels
+            : Math.Max(1, device.Channels);
+        sampleRate = device.SampleRate > 0 ? device.SampleRate : 48000;
+
+        var sourceSpec = new SDL.AudioSpec
+        {
+            Freq = sampleRate,
+            Format = SDL.AudioFormat.AudioF32LE,
+            Channels = channels
+        };
+
+        SDL.GetAudioDeviceFormat(device.LogicalId, out var deviceSpec, out _);
+        stream = SDL.CreateAudioStream(sourceSpec, deviceSpec);
+        if (stream == IntPtr.Zero)
+        {
+            error = SDL.GetError();
+            device = null;
+            return false;
+        }
+
+        if (!SDL.BindAudioStream(device.LogicalId, stream))
+        {
+            error = SDL.GetError();
+            SDL.DestroyAudioStream(stream);
+            stream = IntPtr.Zero;
+            device = null;
+            return false;
+        }
+
+        if (SDL.AudioDevicePaused(device.LogicalId) == true)
+            SDL.ResumeAudioDevice(device.LogicalId);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Destroys a recording stream opened by <see cref="TryOpenRecordingStream"/>.
+    /// </summary>
+    /// <param name="stream">Stream handle (no-op when zero).</param>
+    public void CloseRecordingStream(IntPtr stream)
+    {
+        if (stream == IntPtr.Zero)
+            return;
+        try { SDL.DestroyAudioStream(stream); }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"AudioDevices:CloseRecordingStream - {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Unbinds and destroys a stream created by <see cref="TryCreateBoundPlaybackStream"/>.
+    /// Pauses the device when no cue playbacks remain on it.
+    /// </summary>
+    /// <param name="device">Device the stream was bound to (may be null).</param>
+    /// <param name="stream">Stream handle.</param>
+    public void DestroyBoundPlaybackStream(AudioDevice device, IntPtr stream)
+    {
+        if (stream != IntPtr.Zero)
+        {
+            try { SDL.UnbindAudioStream(stream); }
+            catch (Exception ex) { GD.PrintErr($"AudioDevices:DestroyBoundPlaybackStream - unbind: {ex.Message}"); }
+            try { SDL.DestroyAudioStream(stream); }
+            catch (Exception ex) { GD.PrintErr($"AudioDevices:DestroyBoundPlaybackStream - destroy: {ex.Message}"); }
+        }
+
+        if (device == null || device.LogicalId == 0)
+            return;
+
+        lock (_activeAudioPlaybacks)
+        {
+            bool busy = _activeAudioPlaybacks.TryGetValue(device.LogicalId, out var list)
+                        && list != null && list.Count > 0;
+            if (!busy)
+            {
+                try { SDL.PauseAudioDevice(device.LogicalId); }
+                catch { /* device may already be closed */ }
+            }
+        }
+    }
+
+    /// <summary>
     /// Maps an SDL.AudioFormat to its bit depth.
     /// </summary>
     /// <param name="format">The SDL audio format.</param>

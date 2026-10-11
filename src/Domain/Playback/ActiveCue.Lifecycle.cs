@@ -382,7 +382,8 @@ public partial class ActiveCue
             _activeOscComponents.Count > 0 ||
             _activeMidiOutputComponents.Count > 0 ||
             _activeCueLightComponents.Count > 0 ||
-            _activeControlComponents.Count > 0;
+            _activeControlComponents.Count > 0 ||
+            _activeTimecodeControlComponents.Count > 0;
 
         if (!hasActive)
         {
@@ -410,7 +411,7 @@ public partial class ActiveCue
     private async Task TriggerComponents()
     {
         var mediaAndInstant = new List<Task>();
-        var controls = new List<ControlComponent>();
+        var controls = new List<ICueComponent>();
 
         foreach (var comp in _cue.Components)
         {
@@ -442,9 +443,9 @@ public partial class ActiveCue
             {
                 mediaAndInstant.Add(TriggerMidiOutputComponent(midiOutComp));
             }
-            else if (comp is ControlComponent controlComp)
+            else if (comp is ControlComponent or TimecodeControlComponent)
             {
-                controls.Add(controlComp);
+                controls.Add(comp);
             }
         }
 
@@ -479,8 +480,8 @@ public partial class ActiveCue
     /// Runs control components in list order. Transport actions are awaited; Fade / Translate
     /// Layer are started without waiting for their full duration.
     /// </summary>
-    /// <param name="controls">Control components in cue component order.</param>
-    private async Task RunControlComponentsInOrderAsync(List<ControlComponent> controls)
+    /// <param name="controls">Control / timecode-control components in cue component order.</param>
+    private async Task RunControlComponentsInOrderAsync(List<ICueComponent> controls)
     {
         if (controls == null || controls.Count == 0)
             return;
@@ -493,15 +494,27 @@ public partial class ActiveCue
             if (_isCleaned || _suppressContentCompleted)
                 return;
 
-            if (IsLongRunningControlAction(controlComp))
+            if (controlComp is TimecodeControlComponent timecodeControl)
+            {
+                if (timecodeControl.GetContentDurationSeconds() > 1e-9)
+                    _ = TriggerTimecodeControlComponent(timecodeControl);
+                else
+                    await TriggerTimecodeControlComponent(timecodeControl);
+                continue;
+            }
+
+            if (controlComp is not ControlComponent cueControl)
+                continue;
+
+            if (IsLongRunningControlAction(cueControl))
             {
                 // Panel completes when the timed action finishes (see TriggerControlComponent finally).
                 // Fire-and-forget so media / other controls are not gated by long fades.
-                _ = TriggerControlComponent(controlComp);
+                _ = TriggerControlComponent(cueControl);
             }
             else
             {
-                await TriggerControlComponent(controlComp);
+                await TriggerControlComponent(cueControl);
             }
         }
     }
@@ -730,6 +743,41 @@ public partial class ActiveCue
             var panel = _activeMidiOutputComponents.FirstOrDefault(kv => kv.Value == comp).Key;
             if (panel != null)
                 HandleMidiOutputComponentCompleted(panel);
+        }
+    }
+
+    private async Task TriggerTimecodeControlComponent(TimecodeControlComponent comp)
+    {
+        var panel = _activeTimecodeControlComponents.FirstOrDefault(kv => kv.Value == comp).Key;
+        double holdDuration = 0;
+        ulong startMsec = 0;
+        try
+        {
+            holdDuration = comp?.GetContentDurationSeconds() ?? 0;
+            if (panel != null && holdDuration > 1e-9)
+            {
+                startMsec = Time.GetTicksMsec();
+                _controlTimedProgress[panel] = new ControlTimedProgress
+                {
+                    DurationSec = holdDuration,
+                    StartMsec = startMsec,
+                    Started = true
+                };
+            }
+
+            if (comp != null)
+                await comp.ExecuteAsync();
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"ActiveCue:TriggerTimecodeControlComponent - {ex.Message}");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"Timecode control failed in {_cue.Name}: {ex.Message}", 2);
+        }
+        finally
+        {
+            if (panel != null)
+                HandleTimecodeControlComponentCompleted(panel);
         }
     }
 

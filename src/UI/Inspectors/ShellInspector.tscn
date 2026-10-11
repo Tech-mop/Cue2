@@ -415,6 +415,47 @@ focus_mode = 0
 theme_override_constants/icon_max_width = 12
 expand_icon = true
 
+[node name="TimecodeRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TimecodeEnabledCheckBox" type="CheckBox" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers/TimecodeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "When checked, a clock is selected, and a time is set, this cue GO's when that clock reaches the time."
+focus_mode = 0
+text = "Timecode"
+
+[node name="TimecodeSourceOption" type="OptionButton" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers/TimecodeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Session timecode input or output to watch. Inputs and outputs both appear, matching the clocks shown in Settings and the header."
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+fit_to_longest_item = false
+
+[node name="TimecodeTimeInput" type="LineEdit" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers/TimecodeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Trigger time. Type HH:MM:SS:FF, or shorter: 12:20 is 12s 20f, 3:12:20 is 3m 12s 20f, 200 is 200 seconds. Leave empty for none."
+theme_override_font_sizes/font_size = 10
+placeholder_text = "00:00:00:00"
+alignment = 1
+
+[node name="TimecodeResetButton" type="Button" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers/TimecodeRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default (no timecode trigger)"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
 [node name="NotesHeaderRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers"]
 layout_mode = 2
 theme_override_constants/separation = 8

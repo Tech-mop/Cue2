@@ -173,6 +173,11 @@ public partial class MidiManager : Node
     /// <summary>True when the platform native library was found and loaded successfully.</summary>
     public bool IsNativeReady => _nativeReady;
 
+    /// <summary>
+    /// System realtime / SysEx bytes (MTC quarter-frame 0xF1, full-frame SysEx). May run off-thread.
+    /// </summary>
+    public event Action<string, byte[]> MidiSystemBytes;
+
     /// <summary>Fired when device list or enable/monitor state changes (main thread).</summary>
     [Signal]
     public delegate void MidiStateChangedEventHandler();
@@ -1238,6 +1243,55 @@ public partial class MidiManager : Node
     }
 
     /// <summary>
+    /// Opens a MIDI input or output port by name (used by MIDI Timecode).
+    /// Does not add the device to the session list.
+    /// </summary>
+    /// <param name="deviceName">Port name.</param>
+    /// <param name="asInput">True to open as input.</param>
+    /// <returns><see langword="true"/> when the port is open.</returns>
+    public bool EnsureDeviceOpen(string deviceName, bool asInput)
+    {
+        if (string.IsNullOrWhiteSpace(deviceName))
+            return false;
+        return asInput ? OpenInput(deviceName) : OpenOutput(deviceName);
+    }
+
+    /// <summary>
+    /// Sends raw MIDI bytes to an output port, opening it if needed.
+    /// </summary>
+    /// <param name="outputDeviceName">Output port name.</param>
+    /// <param name="bytes">Complete MIDI message.</param>
+    /// <returns><see langword="true"/> when the bytes were written.</returns>
+    public bool SendRaw(string outputDeviceName, byte[] bytes)
+    {
+        if (string.IsNullOrWhiteSpace(outputDeviceName) || bytes == null || bytes.Length == 0)
+            return false;
+
+        if (!_openOutputs.TryGetValue(outputDeviceName, out var device) || device == null)
+        {
+            OpenOutput(outputDeviceName);
+            if (!_openOutputs.TryGetValue(outputDeviceName, out device) || device == null)
+                return false;
+        }
+
+        try
+        {
+            if (!device.TrySend(bytes, out string sendError))
+            {
+                GD.PrintErr($"MidiManager:SendRaw - {outputDeviceName}: {sendError}");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"MidiManager:SendRaw - {outputDeviceName}: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Sends All Notes Off (CC 123) and All Sound Off (CC 120) on all channels for all open outputs.
     /// </summary>
     public void PanicAllOutputs()
@@ -1362,6 +1416,12 @@ public partial class MidiManager : Node
     {
         if (bytes == null || bytes.Length == 0)
             return;
+
+        if (bytes[0] == 0xF1 || bytes[0] == 0xF0)
+        {
+            try { MidiSystemBytes?.Invoke(deviceName ?? "?", bytes); }
+            catch (Exception ex) { GD.PrintErr($"MidiManager:MidiSystemBytes - {ex.Message}"); }
+        }
 
         if (TryParseChannelMessage(deviceName ?? "?", bytes, out MidiInputMessage msg))
         {

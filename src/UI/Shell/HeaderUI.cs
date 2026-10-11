@@ -14,6 +14,7 @@ using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
+using Cue2.UI.Timecode;
 using Cue2.UI.Utilities;
 using Godot;
 using AppSettings = Cue2.Domain.ShowSettings.Settings;
@@ -39,6 +40,12 @@ public partial class HeaderUI : Control
 	private Button _goButton;
 	private LineEdit _standbyCueText;
 	private LineEdit _standbyCueNote;
+	private Control _timecodeHeaderHost;
+	private ScrollContainer _timecodeHeaderScroll;
+	private HBoxContainer _timecodeHeaderList;
+	private TimecodeManager _timecodeManager;
+	private PackedScene _timecodeClockScene;
+	private float _goHeaderHeight = 50f;
 
 	/// <summary>Cue whose Name/CueNum/Notes events we are currently subscribed to (single-select only).</summary>
 	private Cue _trackedStandbyCue;
@@ -54,6 +61,12 @@ public partial class HeaderUI : Control
 		_goButton = GetNode<Button>("%GoButton");
 		_standbyCueText = GetNodeOrNull<LineEdit>("%StandbyCueText");
 		_standbyCueNote = GetNodeOrNull<LineEdit>("%StandbyCueNote");
+		_timecodeHeaderHost = GetNodeOrNull<Control>("%TimecodeHeaderHost");
+		_timecodeHeaderScroll = GetNodeOrNull<ScrollContainer>("%TimecodeHeaderScroll");
+		_timecodeHeaderList = GetNodeOrNull<HBoxContainer>("%TimecodeHeaderList");
+		_timecodeManager = GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
+		_timecodeClockScene = SceneLoader.LoadPackedScene(
+			"res://src/UI/Timecode/TimecodeClockCard.tscn", out _);
 
 		_baseGoSize = _goButton.GetSize().X;
 		if (_baseGoSize <= 0)
@@ -74,12 +87,20 @@ public partial class HeaderUI : Control
 		_globalSignals.ShellFocused += OnShellFocused;
 		_globalSignals.UpdateShellBar += OnUpdateShellBar;
 		_globalSignals.SyncShellInspector += RefreshStandbyDisplay;
+		_globalSignals.NewSession += OnTimecodeHeaderNeedsRebuild;
+		if (_timecodeManager != null)
+			_timecodeManager.TimecodeStateChanged += OnTimecodeHeaderNeedsRebuild;
+		if (_globalData?.HistoryManager != null)
+			_globalData.HistoryManager.HistoryRestored += OnHistoryRestored;
+		if (_timecodeHeaderHost != null)
+			_timecodeHeaderHost.Resized += AlignTimecodeHeaderScroll;
 
 		// Apply saved / current scale (signal may have fired before this node was ready).
 		float initialScale = _globalData?.Settings?.GoScale ?? 1.0f;
 		GoScaleChange(initialScale);
 
 		RefreshStandbyDisplay();
+		RebuildTimecodeHeader();
 		LocalizeTree(this);
 		if (_globalSignals != null)
 			_globalSignals.LocaleChanged += OnLocaleChanged;
@@ -100,8 +121,16 @@ public partial class HeaderUI : Control
 			_globalSignals.ShellFocused -= OnShellFocused;
 			_globalSignals.UpdateShellBar -= OnUpdateShellBar;
 			_globalSignals.SyncShellInspector -= RefreshStandbyDisplay;
+			_globalSignals.NewSession -= OnTimecodeHeaderNeedsRebuild;
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
 		}
+
+		if (_timecodeManager != null)
+			_timecodeManager.TimecodeStateChanged -= OnTimecodeHeaderNeedsRebuild;
+		if (_globalData?.HistoryManager != null)
+			_globalData.HistoryManager.HistoryRestored -= OnHistoryRestored;
+		if (_timecodeHeaderHost != null)
+			_timecodeHeaderHost.Resized -= AlignTimecodeHeaderScroll;
 
 		base._ExitTree();
 	}
@@ -252,7 +281,99 @@ public partial class HeaderUI : Control
 		else
 			headerHeight = 50.0f;
 
+		_goHeaderHeight = headerHeight;
 		SetCustomMinimumSize(new Vector2(GetCustomMinimumSize().X, headerHeight));
+		FitHeaderClocks();
+	}
+
+	private void OnTimecodeHeaderNeedsRebuild()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		RebuildTimecodeHeader();
+	}
+
+	private void OnHistoryRestored(int scope)
+	{
+		if (scope != (int)HistoryManager.HistoryScope.Settings)
+			return;
+		RebuildTimecodeHeader();
+	}
+
+	/// <summary>
+	/// Rebuilds GO-header clock cards for endpoints with ShowInHeader.
+	/// Cards sit on the right half, packed to the right, and clip at centre.
+	/// </summary>
+	private void RebuildTimecodeHeader()
+	{
+		if (_timecodeHeaderList == null)
+			return;
+
+		foreach (Node child in _timecodeHeaderList.GetChildren())
+			child.QueueFree();
+
+		int count = 0;
+		if (_timecodeManager != null && _timecodeClockScene != null)
+		{
+			foreach (var endpoint in _timecodeManager.Inputs)
+			{
+				if (endpoint.ShowInHeader)
+					count += AddHeaderClock(endpoint) ? 1 : 0;
+			}
+
+			foreach (var endpoint in _timecodeManager.Outputs)
+			{
+				if (endpoint.ShowInHeader)
+					count += AddHeaderClock(endpoint) ? 1 : 0;
+			}
+		}
+
+		if (_timecodeHeaderHost != null)
+			_timecodeHeaderHost.Visible = count > 0;
+
+		FitHeaderClocks();
+		CallDeferred(MethodName.AlignTimecodeHeaderScroll);
+	}
+
+	private bool AddHeaderClock(Cue2.Domain.Timecode.TimecodeEndpoint endpoint)
+	{
+		if (_timecodeClockScene.Instantiate() is not TimecodeClockCard clock)
+			return false;
+		clock.EnableTransport = false;
+		clock.ShowStatus = false;
+		clock.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_timecodeHeaderList.AddChild(clock);
+		clock.FitToHeight(_goHeaderHeight);
+		clock.Bind(endpoint.Id);
+		return true;
+	}
+
+	private void FitHeaderClocks()
+	{
+		if (_timecodeHeaderList == null)
+			return;
+		foreach (Node child in _timecodeHeaderList.GetChildren())
+		{
+			if (child is TimecodeClockCard clock)
+				clock.FitToHeight(_goHeaderHeight);
+		}
+	}
+
+	/// <summary>
+	/// Keeps header clocks packed to the right. Overflow clips on the left (centre of the header).
+	/// </summary>
+	private void AlignTimecodeHeaderScroll()
+	{
+		if (_timecodeHeaderScroll == null || _timecodeHeaderList == null)
+			return;
+		if (!GodotObject.IsInstanceValid(_timecodeHeaderScroll))
+			return;
+
+		float view = _timecodeHeaderScroll.Size.X;
+		float content = _timecodeHeaderList.GetCombinedMinimumSize().X;
+		_timecodeHeaderList.CustomMinimumSize = new Vector2(Mathf.Max(view, content), 0);
+		int maxScroll = (int)Mathf.Max(0, content - view);
+		_timecodeHeaderScroll.ScrollHorizontal = maxScroll;
 	}
 
 	private void OnShellFocused(int cueId)

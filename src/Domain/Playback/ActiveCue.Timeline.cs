@@ -78,6 +78,12 @@ public partial class ActiveCue
             UpdateControlComponentUiState(kv.Key, kv.Value);
         }
 
+        foreach (var kv in _activeTimecodeControlComponents.ToList())
+        {
+            if (!IsInstanceValid(kv.Key)) continue;
+            UpdateTimecodeControlComponentUiState(kv.Key, kv.Value);
+        }
+
         UpdateHeadProgressUi();
     }
 
@@ -176,6 +182,7 @@ public partial class ActiveCue
         }
 
         SeekOwnMediaToContentTime(contentTimeSeconds);
+        SeekTimecodeComponentsToContentTime(contentTimeSeconds);
         PropagateTimelineSeekToChildren(contentTimeSeconds);
 
         // Re-spawn children that finished earlier when scrubbing back to the content origin.
@@ -521,6 +528,18 @@ public partial class ActiveCue
             if (local > max) max = local;
         }
 
+        foreach (var kv in _activeTimecodeControlComponents)
+        {
+            var component = kv.Value;
+            if (component == null) continue;
+            if (component.Action != TimecodeControlAction.PlayForDuration) continue;
+            if (!_controlTimedProgress.TryGetValue(kv.Key, out var state) || !state.Started)
+                continue;
+            if (state.IsSeeking) continue;
+            double local = GetTimecodePlayElapsedSeconds(component, state);
+            if (local > max) max = local;
+        }
+
         return max;
     }
 
@@ -567,7 +586,11 @@ public partial class ActiveCue
         if (_headIsSeeking)
             return;
 
-        // Hold only after a committed component seek (mouse-up). During the drag the head
+        // Play Duration scrub previews the parent bar in lockstep; skip live overwrite.
+        if (AnyTimecodeComponentSeeking())
+            return;
+
+        // Hold only after a committed media component seek (mouse-up). During the drag the head
         // must keep tracking live playback; the uncommitted scrub is previewed on the
         // component row only.
         if (AnyComponentDecoderSeeking())

@@ -92,6 +92,10 @@ public partial class Settings
             saveTable.Add("MidiInputMap", midi.GetInputMapBindingsData());
         }
 
+        var timecode = GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
+        if (timecode != null)
+            saveTable.Add(TimecodeManager.HistoryKey, timecode.GetData());
+
         if (_globalData?.HardwarePluginLoader != null)
             saveTable.Add(HardwarePluginLoader.HistoryKey, _globalData.HardwarePluginLoader.GetData());
 
@@ -388,6 +392,15 @@ public partial class Settings
             GD.Print("Settings:LoadSettings - Loading MidiInputMap");
             GetNodeOrNull<MidiManager>("/root/MidiManager")
                 ?.LoadInputMapBindingsData(midiInputMap.AsGodotDictionary());
+        }
+
+        SessionLoadTimer.Current?.Begin("settings.timecode");
+        if (settingsData.TryGetValue(TimecodeManager.HistoryKey, out var timecodeData)
+            && timecodeData.VariantType == Variant.Type.Dictionary)
+        {
+            GD.Print("Settings:LoadSettings - Loading Timecode");
+            GetNodeOrNull<TimecodeManager>("/root/TimecodeManager")
+                ?.LoadFromData(timecodeData.AsGodotDictionary());
         }
 
         if (settingsData.TryGetValue(HardwarePluginLoader.HistoryKey, out var cueNetData)

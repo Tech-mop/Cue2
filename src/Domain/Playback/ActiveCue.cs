@@ -89,6 +89,7 @@ public partial class ActiveCue : GodotObject
     private readonly Dictionary<PanelContainer, OscComponent> _activeOscComponents = new();
     private readonly Dictionary<PanelContainer, MidiOutputComponent> _activeMidiOutputComponents = new();
     private readonly Dictionary<PanelContainer, ControlComponent> _activeControlComponents = new();
+    private readonly Dictionary<PanelContainer, TimecodeControlComponent> _activeTimecodeControlComponents = new();
 
     /// <summary>
     /// Timed control progress (Fade / Translate / Stop fade / GO fade-in) keyed by component panel.
@@ -102,6 +103,8 @@ public partial class ActiveCue : GodotObject
         /// <summary>Engine msec when the control started; 0 = armed but not yet running.</summary>
         public ulong StartMsec;
         public bool Started;
+        /// <summary>True while the user is dragging the progress bar.</summary>
+        public bool IsSeeking;
     }
 
     /// <summary>Keeps handler refs so we can disconnect before freeing UI (avoids disposed-panel callbacks).</summary>

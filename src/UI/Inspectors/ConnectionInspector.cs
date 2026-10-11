@@ -27,9 +27,15 @@ public partial class ConnectionInspector : Control
     private PackedScene _oscComponentCardScene = SceneLoader.LoadPackedScene("uid://cst0ttvboq673", out string _);
     private PackedScene _midiOutputCardScene = SceneLoader.LoadPackedScene(
         "res://src/UI/Inspectors/InspectorMidiOutputCard.tscn", out string _);
+    private PackedScene _timecodeCardScene = SceneLoader.LoadPackedScene(
+        "res://src/UI/Inspectors/InspectorTimecodeControlCard.tscn", out string _);
 
     private Cue _focusedCue;
     private MidiManager _midiManager;
+    private TimecodeManager _timecodeManager;
+
+    /// <summary>Focused cue for child cards recording history.</summary>
+    public Cue FocusedCueForHistory => _focusedCue;
 
     private Label _infoLabel;
 
@@ -47,12 +53,15 @@ public partial class ConnectionInspector : Control
         _globalSignals = GetNode<GlobalSignals>("/root/GlobalSignals");
         _historyManager = _globalData?.HistoryManager;
         _midiManager = GetNodeOrNull<MidiManager>("/root/MidiManager");
+        _timecodeManager = GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
 
         _globalSignals.ShellFocused += ShellSelected;
         if (_historyManager != null)
             _historyManager.HistoryRestored += OnHistoryRestored;
         if (_midiManager != null)
             _midiManager.MidiStateChanged += OnMidiStateChanged;
+        if (_timecodeManager != null)
+            _timecodeManager.TimecodeStateChanged += OnTimecodeStateChanged;
 
         _infoLabel = GetNode<Label>("InfoLabel");
         _infoLabel.AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
@@ -84,6 +93,8 @@ public partial class ConnectionInspector : Control
             _historyManager.HistoryRestored -= OnHistoryRestored;
         if (_midiManager != null)
             _midiManager.MidiStateChanged -= OnMidiStateChanged;
+        if (_timecodeManager != null)
+            _timecodeManager.TimecodeStateChanged -= OnTimecodeStateChanged;
         if (_availableConnectionsButton != null)
             _availableConnectionsButton.ItemSelected -= OnConnectionSelected;
         base._ExitTree();
@@ -128,6 +139,22 @@ public partial class ConnectionInspector : Control
     {
         if (Visible && _connectionCardContainer != null && _connectionCardContainer.Visible)
             LoadConnections();
+    }
+
+    private void OnTimecodeStateChanged()
+    {
+        if (Visible && _connectionCardContainer != null && _connectionCardContainer.Visible)
+            LoadConnections();
+    }
+
+    /// <summary>
+    /// Recalculates shell duration after a timed timecode field changes.
+    /// </summary>
+    public void NotifyCueDurationMaybeChanged()
+    {
+        if (_focusedCue == null) return;
+        try { _focusedCue.CalculateTotalDuration(); } catch { /* best-effort */ }
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.UpdateShellBar), _focusedCue.Id);
     }
 
 
@@ -189,6 +216,18 @@ public partial class ConnectionInspector : Control
                 }
             }
 
+            if (_timecodeManager != null)
+            {
+                foreach (var endpoint in _timecodeManager.Outputs)
+                {
+                    if (endpoint == null) continue;
+                    string label = $"Timecode - {endpoint.Name}";
+                    _availableConnectionsButton.AddItem(label, index);
+                    _availableConnectionsButton.SetItemMetadata(index, "timecode:" + endpoint.Id);
+                    index++;
+                }
+            }
+
             if (index == 1)
             {
                 // Only the placeholder was added.
@@ -211,6 +250,8 @@ public partial class ConnectionInspector : Control
                     LoadOscComponentCard(oscComp);
                 else if (component is MidiOutputComponent midiOut)
                     LoadMidiOutputComponentCard(midiOut);
+                else if (component is TimecodeControlComponent timecodeComp)
+                    LoadTimecodeControlCard(timecodeComp);
             }
         }
         finally
@@ -239,12 +280,26 @@ public partial class ConnectionInspector : Control
         card.SetComponent(component, this);
     }
 
+    private void LoadTimecodeControlCard(TimecodeControlComponent component)
+    {
+        if (_timecodeCardScene == null)
+        {
+            GD.PrintErr("ConnectionInspector:LoadTimecodeControlCard - card scene missing");
+            return;
+        }
+        var card = _timecodeCardScene.Instantiate<InspectorTimecodeControlCard>();
+        _connectionCardContainer.AddChild(card);
+        card.SetComponent(component, this);
+    }
+
     public void RemoveComponent(ICueComponent component)
     {
         if (_focusedCue == null || component == null) return;
         RecordCueHistory("Remove connection component");
         _focusedCue.RemoveICueComponent(component);
-        // Refresh tab content indicators (dot on Connection tab).
+        try { _focusedCue.CalculateTotalDuration(); } catch { /* best-effort */ }
+        LoadConnections();
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.UpdateShellBar), _focusedCue.Id);
         _globalSignals?.EmitSignal(nameof(GlobalSignals.SyncShellInspector));
     }
 
@@ -373,6 +428,22 @@ public partial class ConnectionInspector : Control
         if (selectedMetadata.VariantType == Variant.Type.String)
         {
             string meta = selectedMetadata.AsString();
+            if (meta != null && meta.StartsWith("timecode:", StringComparison.Ordinal))
+            {
+                if (!int.TryParse(meta.Substring("timecode:".Length), out int endpointId))
+                    return;
+                RecordCueHistory("Add timecode control");
+                var tcComp = new TimecodeControlComponent { EndpointId = endpointId };
+                _focusedCue.AddICueComponent(tcComp);
+                try { _focusedCue.CalculateTotalDuration(); } catch { /* best-effort */ }
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"Selected connection: Timecode - {endpointId}", 0);
+                LoadConnections();
+                _globalSignals.EmitSignal(nameof(GlobalSignals.UpdateShellBar), _focusedCue.Id);
+                _globalSignals.EmitSignal(nameof(GlobalSignals.SyncShellInspector));
+                return;
+            }
+
             if (meta != null && meta.StartsWith("midi:", StringComparison.Ordinal))
             {
                 string deviceName = meta.Substring("midi:".Length);

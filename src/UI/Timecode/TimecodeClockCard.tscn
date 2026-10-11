@@ -1,0 +1,98 @@
+[gd_scene format=3 uid="uid://b2tb5py2ompq7"]
+
+[ext_resource type="Script" uid="uid://dbp718o0f7i26" path="res://src/UI/Timecode/TimecodeClockCard.cs" id="1_clock"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lcd"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0, 0, 0, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.12, 0.12, 0.12, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="SystemFont" id="SystemFont_mono"]
+font_names = PackedStringArray("Consolas", "Cascadia Mono", "Cascadia Code", "Menlo", "Monaco", "Courier New", "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "monospace")
+
+[node name="TimecodeClockCard" type="PanelContainer" unique_id=616632607]
+propagate_maximum_size = false
+offset_right = 161.0
+offset_bottom = 71.0
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_lcd")
+script = ExtResource("1_clock")
+
+[node name="VBox" type="VBoxContainer" parent="." unique_id=1006845519]
+propagate_maximum_size = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/separation = 0
+
+[node name="NameLabel" type="Label" parent="VBox" unique_id=138104677]
+unique_name_in_owner = true
+propagate_maximum_size = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Timecode"
+horizontal_alignment = 1
+text_overrun_behavior = 3
+
+[node name="TimeLabel" type="Label" parent="VBox" unique_id=1688974519]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+theme_override_fonts/font = SubResource("SystemFont_mono")
+theme_override_font_sizes/font_size = 24
+text = "00:00:00:00"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="VBox" unique_id=678800705]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 9
+text = "Idle"
+horizontal_alignment = 1
+
+[node name="TransportRow" type="HBoxContainer" parent="VBox" unique_id=1643343019]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="PlayButton" type="Button" parent="VBox/TransportRow" unique_id=401461186]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 22)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Play"
+
+[node name="PauseButton" type="Button" parent="VBox/TransportRow" unique_id=122482136]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 22)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Pause"
+
+[node name="ResetButton" type="Button" parent="VBox/TransportRow" unique_id=2039913708]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 22)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Reset"

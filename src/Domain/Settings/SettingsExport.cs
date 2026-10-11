@@ -110,6 +110,7 @@ public static class SettingsExport
         new(SettingsOscInputMap.MenuKey, SettingsOscInputMap.MenuKey, "OscInputMap"),
         new(SettingsMidi.MenuKey, SettingsMidi.MenuKey, "Midi"),
         new(SettingsMidiInputMap.MenuKey, SettingsMidiInputMap.MenuKey, "MidiInputMap"),
+        new(SettingsTimecode.MenuKey, SettingsTimecode.MenuKey, TimecodeManager.HistoryKey),
         new(SettingsCueNet.MenuKey, SettingsCueNet.MenuKey, HardwarePluginLoader.HistoryKey),
 
         // Settings → Cue Defaults (+ component default children)
@@ -134,6 +135,7 @@ public static class SettingsExport
             ["OscInputMap"] = SettingsOscInputMap.MenuKey,
             ["Midi"] = SettingsMidi.MenuKey,
             ["MidiInputMap"] = SettingsMidiInputMap.MenuKey,
+            ["Timecode"] = SettingsTimecode.MenuKey,
         };
 
     /// <summary>

@@ -968,6 +968,7 @@ public partial class SettingsWindow : Window
 			SettingsOscInputMap.MenuKey => "SettingsOscInputMap",
 			SettingsMidi.MenuKey => "SettingsMidi",
 			SettingsMidiInputMap.MenuKey => "SettingsMidiInputMap",
+			SettingsTimecode.MenuKey => "SettingsTimecode",
 			SettingsCueNet.MenuKey => "SettingsCueNet",
 			SettingsCueDefaults.MenuKey => "SettingsCueDefaults",
 			SettingsAudioDefaults.MenuKey => "SettingsAudioDefaults",
@@ -1036,6 +1037,9 @@ public partial class SettingsWindow : Window
 		TreeItem tiMidiInputMap = _setTree.CreateItem(tiMidi);
 		SetTreeItemText(tiMidiInputMap, 0, SettingsMidiInputMap.MenuKey);
 		SetTreeItemTooltip(tiMidiInputMap, 0, "Assign MIDI controls to app actions (Go, Save, Undo, …)");
+		TreeItem tiTimecode = _setTree.CreateItem(tiConnections);
+		SetTreeItemText(tiTimecode, 0, SettingsTimecode.MenuKey);
+		SetTreeItemTooltip(tiTimecode, 0, "Timecode inputs, outputs, and live clocks");
 		if (FeatureFlags.CueNetEnabled)
 		{
 			TreeItem tiCueNet = _setTree.CreateItem(tiConnections);

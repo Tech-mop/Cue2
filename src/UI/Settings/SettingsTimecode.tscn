@@ -1,0 +1,286 @@
+[gd_scene format=3 uid="uid://dj2orq7p1faty"]
+
+[ext_resource type="Script" uid="uid://cq3bxr5wwk5my" path="res://src/UI/Settings/SettingsTimecode.cs" id="1_tc"]
+
+[node name="SettingsTimecode" type="ScrollContainer" unique_id=1169706614]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_tc")
+
+[node name="RootVBox" type="VBoxContainer" parent="." unique_id=554080174]
+custom_minimum_size = Vector2(360, 440)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="Header" type="Label" parent="RootVBox" unique_id=731021425]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Timecode"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="RootVBox" unique_id=1380440453]
+layout_mode = 2
+
+[node name="VSplit" type="VSplitContainer" parent="RootVBox" unique_id=1387455383]
+layout_mode = 2
+size_flags_vertical = 3
+split_offsets = PackedInt32Array(240)
+split_offset = 240
+
+[node name="SettingsPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=1926994658]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="EnableRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1592946278]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EnableLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=1277913908]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Enable Timecode"
+vertical_alignment = 1
+
+[node name="EnableTimecodeCheck" type="CheckButton" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=940141956]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Run output generators and send Linear Timecode on the chosen audio device channel."
+focus_mode = 0
+
+[node name="StatusLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/EnableRow" unique_id=1391947424]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Timecode off"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="SessionHeader" type="Label" parent="RootVBox/VSplit/SettingsPane" unique_id=218780989]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Session inputs"
+
+[node name="AddRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=946300275]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/AddRow" unique_id=105048389]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Add input:"
+vertical_alignment = 1
+
+[node name="AddInputOption" type="OptionButton" parent="RootVBox/VSplit/SettingsPane/AddRow" unique_id=1982661522]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Add a timecode source (receive or generate)."
+focus_mode = 0
+fit_to_longest_item = false
+
+[node name="RefreshDevicesButton" type="Button" parent="RootVBox/VSplit/SettingsPane/AddRow" unique_id=1511728462]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Refresh"
+
+[node name="InputHeaders" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=516239508]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="InputNameHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1523000587]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Name"
+horizontal_alignment = 1
+
+[node name="InputTypeHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1489589296]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Type"
+horizontal_alignment = 1
+
+[node name="InputRateHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1742419727]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Rate"
+horizontal_alignment = 1
+
+[node name="InputSourceHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1373818426]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Source"
+horizontal_alignment = 1
+
+[node name="InputChannelHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=382196120]
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Ch"
+horizontal_alignment = 1
+
+[node name="InputHeaderCheckHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1304061599]
+custom_minimum_size = Vector2(22, 0)
+layout_mode = 2
+tooltip_text = "Show in GO header"
+theme_override_font_sizes/font_size = 10
+text = "Hdr"
+horizontal_alignment = 1
+
+[node name="InputStatusSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1852315027]
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+
+[node name="InputDeleteSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/InputHeaders" unique_id=1989818690]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+
+[node name="SessionInputsScroll" type="ScrollContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1093207742]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SessionInputsList" type="VBoxContainer" parent="RootVBox/VSplit/SettingsPane/SessionInputsScroll" unique_id=1018268174]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="SessionOutputsHeader" type="Label" parent="RootVBox/VSplit/SettingsPane" unique_id=157344726]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Session outputs"
+
+[node name="AddOutputRow" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1780339525]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddOutputLabel" type="Label" parent="RootVBox/VSplit/SettingsPane/AddOutputRow" unique_id=2047995646]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Add output:"
+vertical_alignment = 1
+
+[node name="AddOutputOption" type="OptionButton" parent="RootVBox/VSplit/SettingsPane/AddOutputRow" unique_id=1441160240]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Add a timecode destination (send)."
+focus_mode = 0
+fit_to_longest_item = false
+
+[node name="OutputHeaders" type="HBoxContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1238226779]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="OutputNameHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=529183094]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Name"
+horizontal_alignment = 1
+
+[node name="OutputTypeHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=1810906631]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Type"
+horizontal_alignment = 1
+
+[node name="OutputRateHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=1177481734]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Rate"
+horizontal_alignment = 1
+
+[node name="OutputSourceHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=521415094]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Destination"
+horizontal_alignment = 1
+
+[node name="OutputChannelHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=2112395139]
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Ch"
+horizontal_alignment = 1
+
+[node name="OutputHeaderCheckHeader" type="Label" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=1981989993]
+custom_minimum_size = Vector2(22, 0)
+layout_mode = 2
+tooltip_text = "Show in GO header"
+theme_override_font_sizes/font_size = 10
+text = "Hdr"
+horizontal_alignment = 1
+
+[node name="OutputStatusSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=1806586716]
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+
+[node name="OutputDeleteSpacer" type="Control" parent="RootVBox/VSplit/SettingsPane/OutputHeaders" unique_id=1447654628]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+
+[node name="SessionOutputsScroll" type="ScrollContainer" parent="RootVBox/VSplit/SettingsPane" unique_id=1617695217]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SessionOutputsList" type="VBoxContainer" parent="RootVBox/VSplit/SettingsPane/SessionOutputsScroll" unique_id=1804986738]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="DisplayPane" type="VBoxContainer" parent="RootVBox/VSplit" unique_id=1072359929]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.04
+theme_override_constants/separation = 4
+
+[node name="DisplayHeaderRow" type="HBoxContainer" parent="RootVBox/VSplit/DisplayPane" unique_id=1557750017]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DisplayHeader" type="Label" parent="RootVBox/VSplit/DisplayPane/DisplayHeaderRow" unique_id=1369012323]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Timecode"
+vertical_alignment = 1
+
+[node name="DisplaySpacer" type="Control" parent="RootVBox/VSplit/DisplayPane/DisplayHeaderRow" unique_id=1248912822]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DisplayScroll" type="ScrollContainer" parent="RootVBox/VSplit/DisplayPane" unique_id=1931731238]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TimecodeDisplayList" type="FlowContainer" parent="RootVBox/VSplit/DisplayPane/DisplayScroll" unique_id=1816282401]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8

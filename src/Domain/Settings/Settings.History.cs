@@ -229,6 +229,13 @@ public partial class Settings
                 ?.LoadInputMapBindingsData(midiInputMapSlice.AsGodotDictionary());
         }
 
+        if (TryGetSettingsValue(settingsData, TimecodeManager.HistoryKey, out var timecodeSlice)
+            && timecodeSlice.VariantType == Variant.Type.Dictionary)
+        {
+            GetNodeOrNull<TimecodeManager>("/root/TimecodeManager")
+                ?.LoadFromData(timecodeSlice.AsGodotDictionary());
+        }
+
         if (TryGetSettingsValue(settingsData, HardwarePluginLoader.HistoryKey, out var cueNetSlice)
             && cueNetSlice.VariantType == Variant.Type.Dictionary)
         {
@@ -363,6 +370,11 @@ public partial class Settings
             {
                 var midi = GetNodeOrNull<MidiManager>("/root/MidiManager");
                 slice[key] = midi != null ? midi.GetInputMapBindingsData() : new Dictionary();
+            }
+            else if (key == TimecodeManager.HistoryKey)
+            {
+                var timecode = GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
+                slice[key] = timecode != null ? timecode.GetData() : new Dictionary();
             }
             else if (key == "OscListen")
             {

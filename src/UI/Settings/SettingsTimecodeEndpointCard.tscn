@@ -1,0 +1,94 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/UI/Settings/SettingsTimecodeEndpointCard.cs" id="1_card"]
+
+[node name="SettingsTimecodeEndpointCard" type="HBoxContainer"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+script = ExtResource("1_card")
+
+[node name="NameLineEdit" type="LineEdit" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Name of this timecode endpoint."
+
+[node name="KindOption" type="OptionButton" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Timecode type."
+fit_to_longest_item = false
+
+[node name="FrameRateOption" type="OptionButton" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Frame rate."
+fit_to_longest_item = false
+
+[node name="SourceOption" type="OptionButton" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+tooltip_text = "Device, address, or destination for this timecode."
+text_overrun_behavior = 1
+fit_to_longest_item = false
+
+[node name="SourceLineEdit" type="LineEdit" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "OSC address or path for this timecode."
+placeholder_text = "/timecode"
+
+[node name="ChannelOption" type="OptionButton" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Audio channel to send or receive Linear Timecode."
+fit_to_longest_item = false
+
+[node name="ConflictWarn" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 0)
+layout_mode = 2
+mouse_filter = 0
+tooltip_text = "This Linear Timecode output uses a playback device that is also used for cue audio."
+theme_override_colors/font_color = Color(1, 0.706, 0.365, 1)
+theme_override_font_sizes/font_size = 14
+text = "⚠"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HeaderCheck" type="CheckBox" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(22, 0)
+layout_mode = 2
+tooltip_text = "Show this timecode on the right side of the GO header."
+focus_mode = 0
+
+[node name="StatusLabel" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Idle"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="DeleteButton" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Remove this timecode endpoint."
+theme_override_constants/icon_max_width = 24
+expand_icon = true

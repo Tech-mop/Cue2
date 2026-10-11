@@ -18,6 +18,14 @@
 - Control Fade can target play rate and pitch when the target cue has file audio (shown in the property list only then). Fades apply to the playing instance; timeline relative rate/pitch still apply. Keep Pitch on the target still holds musical pitch when rate changes.
 - Control Devamp: on a playing target, leave the current loop after this pass. A looping timeline region is escaped first; otherwise remaining cue play count / Loop is skipped. Nested children are included. Can target the same cue.
 - Dragging a cue to reorder auto-scrolls the list when the pointer is near the top or bottom, same as the control pick-target tool. The mouse wheel and trackpad also scroll the list while that drag is held.
+- Settings → Connections → Timecode. Inputs listen to clocks generated elsewhere. Outputs generate on this machine and send as configured. Linear Timecode outputs pick a playback device and channel and mix LTC onto that channel. Registered clocks show as reusable LCD cards with Play / Pause / Reset on generators.
+- Connection inspector: session timecode outputs appear in Select Connection. Choosing one adds a Timecode card (Play, Pause, Set Time, Offset, Play Duration). Times are typed as HH:MM:SS:FF (frames included; offset may be signed). Play Duration progress can be scrubbed.
+- Shell inspector Timecode trigger: pick a session input or output clock and a time. The cue GO's once each time that clock hits the time.
+- Linear Timecode outputs warn in the log and show ⚠ when their playback device is also a cue direct output or in an audio patch (sharing that device with cue audio can stop the timecode stream).
+- Timecode settings Hdr (Header display) checkbox: show that clock on the right half of the GO header.
+- Linear Timecode input: decode SMPTE LTC from a recording device channel. Status shows Locked while a valid stream is present.
+- OSC timecode send/receive on `/timecode` (string plus h/m/s/f).
+- MIDI Timecode (MTC) send and receive (quarter-frame and full-frame).
 
 ### Fixed
 - Closing Cue2 no longer leaves leaked objects from video preview textures, inspector tab icons, and playback objects that only freed on a deferred idle frame.
@@ -31,6 +39,7 @@
 - Native popups follow UI scale (OptionButton lists, colour picker, shell context menu, clock-days). They were opening at 1× because a PopupPanel is its own window.
 
 ### Changed
+- Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.
 - Audio inspector waveform accordion renamed to "timeline"
 - Video inspector no longer shows the unused Scale resolution / Offset row. Expand and stretch size the picture on the layer; those leftover fields were never applied to preview or playback.
 - Audio and video inspector waveforms zoom in seconds (Fit is the whole file; max zoom is 50ms), with Fit, −, +, an always-visible scrollbar, and a visible-window readout. Ctrl+wheel zooms at the cursor; drag pans; double-click fits the start–end region. Hover time and a live playhead sit on the ruler. Start and end flags in the time bar can be dragged. Fade-in and fade-out show as wedges with a thin vertical bar and a flag at the bottom of the waveform.

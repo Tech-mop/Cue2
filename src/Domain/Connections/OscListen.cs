@@ -271,6 +271,11 @@ public partial class OscListen : Node
     [Signal] public delegate void OscMonitorLineEventHandler(string line);
     [Signal] public delegate void OscCapturedEventHandler(string address, string argsDisplay);
 
+    /// <summary>
+    /// Fired on the main thread for every accepted OSC message (after session-prefix strip).
+    /// </summary>
+    public event Action<OscInputMessage> MessageArrived;
+
     public override void _Ready()
     {
         SetProcess(false);
@@ -405,6 +410,9 @@ public partial class OscListen : Node
             SecondFloat = msg.SecondFloat,
             Origin = msg.Origin
         };
+
+        try { MessageArrived?.Invoke(msg); }
+        catch (Exception ex) { GD.PrintErr($"OscListen:MessageArrived - {ex.Message}"); }
 
         if (_monitorEnabled)
             EmitSignal(SignalName.OscMonitorLine, FormatOscInputMessage(msg));

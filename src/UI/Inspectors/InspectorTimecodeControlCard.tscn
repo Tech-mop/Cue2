@@ -1,0 +1,163 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/UI/Inspectors/InspectorTimecodeControlCard.cs" id="1_card"]
+[ext_resource type="PackedScene" path="res://src/UI/Timecode/TimecodeClockCard.tscn" id="2_clock"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tc"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.1, 0.1, 0.1, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.92, 0.44, 0.01, 0.7)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+corner_detail = 5
+
+[node name="InspectorTimecodeControlCard" type="PanelContainer"]
+custom_minimum_size = Vector2(280, 0)
+size_flags_horizontal = 0
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_tc")
+script = ExtResource("1_card")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HeaderRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Timecode"
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/VBoxContainer/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_constants/icon_max_width = 18
+icon_alignment = 1
+expand_icon = true
+
+[node name="ClockCard" parent="MarginContainer/VBoxContainer" instance=ExtResource("2_clock")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="OutputRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="OutputLabel" type="Label" parent="MarginContainer/VBoxContainer/OutputRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.48, 0.55, 1)
+theme_override_font_sizes/font_size = 9
+text = "Output"
+
+[node name="OutputOption" type="OptionButton" parent="MarginContainer/VBoxContainer/OutputRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+fit_to_longest_item = false
+
+[node name="ActionRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ActionLabel" type="Label" parent="MarginContainer/VBoxContainer/ActionRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.48, 0.55, 1)
+theme_override_font_sizes/font_size = 9
+text = "Action"
+
+[node name="ActionOption" type="OptionButton" parent="MarginContainer/VBoxContainer/ActionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+fit_to_longest_item = false
+
+[node name="StartTimeRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="UseStartTimeCheck" type="CheckBox" parent="MarginContainer/VBoxContainer/StartTimeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Set time"
+
+[node name="TimeInput" type="LineEdit" parent="MarginContainer/VBoxContainer/StartTimeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Timecode. Type HH:MM:SS:FF, or shorter: 12:20 is 12s 20f, 3:12:20 is 3m 12s 20f, 200 is 200 seconds."
+theme_override_font_sizes/font_size = 10
+placeholder_text = "00:00:00:00"
+alignment = 1
+
+[node name="OffsetRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="OffsetLabel" type="Label" parent="MarginContainer/VBoxContainer/OffsetRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Offset"
+
+[node name="OffsetInput" type="LineEdit" parent="MarginContainer/VBoxContainer/OffsetRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Signed offset. Type HH:MM:SS:FF, or shorter: -200 is -200 seconds, 12:20 is 12s 20f."
+theme_override_font_sizes/font_size = 10
+placeholder_text = "00:00:10:00"
+alignment = 1
+
+[node name="DurationRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DurationLabel" type="Label" parent="MarginContainer/VBoxContainer/DurationRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Duration"
+
+[node name="DurationInput" type="LineEdit" parent="MarginContainer/VBoxContainer/DurationRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(108, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "How long to play. Type HH:MM:SS:FF, or shorter: 10 is 10 seconds, 12:20 is 12s 20f."
+theme_override_font_sizes/font_size = 10
+placeholder_text = "00:00:10:00"
+alignment = 1

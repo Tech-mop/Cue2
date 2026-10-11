@@ -230,6 +230,8 @@ public partial class ActiveCue
             {
                 HandleOscComponentCompleted(panel);
             }
+            foreach (var panel in _activeTimecodeControlComponents.Keys.ToList())
+                HandleTimecodeControlComponentCompleted(panel);
             foreach (var panel in _activeMidiOutputComponents.Keys.ToList())
             {
                 HandleMidiOutputComponentCompleted(panel);
@@ -382,6 +384,42 @@ public partial class ActiveCue
         RemoveInstantComponent(componentPanel, _activeMidiOutputComponents);
     }
 
+    private void HandleTimecodeControlComponentCompleted(PanelContainer componentPanel)
+    {
+        if (componentPanel != null
+            && _activeTimecodeControlComponents.TryGetValue(componentPanel, out var timecodeComp))
+        {
+            ReleaseTimecodePlayDuration(timecodeComp);
+        }
+
+        if (componentPanel != null)
+            _controlTimedProgress.Remove(componentPanel);
+        RemoveInstantComponent(componentPanel, _activeTimecodeControlComponents);
+    }
+
+    /// <summary>
+    /// Ends a Play Duration window. Pauses the generator only when this cue started it from stopped.
+    /// </summary>
+    private void ReleaseTimecodePlayDuration(TimecodeControlComponent comp)
+    {
+        if (comp == null || comp.Action != TimecodeControlAction.PlayForDuration || comp.EndpointId < 0)
+            return;
+
+        var manager = _activeCueList?.GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
+        if (manager == null)
+        {
+            comp.RuntimeStartedGenerator = false;
+            return;
+        }
+
+        if (comp.RuntimeStartedGenerator)
+            manager.Pause(comp.EndpointId);
+        else
+            manager.ClearPlayUntil(comp.EndpointId);
+
+        comp.RuntimeStartedGenerator = false;
+    }
+
     /// <summary>
     /// Removes a short-lived component row (OSC / MIDI / cue light / control) and checks cue completion.
     /// </summary>
@@ -406,6 +444,7 @@ public partial class ActiveCue
             && _activeTextComponents.Count == 0
             && _activeOscComponents.Count == 0
             && _activeMidiOutputComponents.Count == 0
+            && _activeTimecodeControlComponents.Count == 0
             && _activeCueLightComponents.Count == 0
             && _activeControlComponents.Count == 0)
         {
@@ -565,6 +604,9 @@ public partial class ActiveCue
         _activeMidiOutputComponents.Clear();
         _activeCueLightComponents.Clear();
         _activeControlComponents.Clear();
+        foreach (var kv in _activeTimecodeControlComponents.ToList())
+            ReleaseTimecodePlayDuration(kv.Value);
+        _activeTimecodeControlComponents.Clear();
         _controlTimedProgress.Clear();
 
         HookIncomingWaitUpdate(false);

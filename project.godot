@@ -42,6 +42,7 @@ AudioDevices="*res://src/Services/AudioDevices.cs"
 OscListen="*res://src/Domain/Connections/OscListen.cs"
 OscConnections="*res://src/Domain/Connections/OscConnections.cs"
 MidiManager="*res://src/Services/MidiManager.cs"
+TimecodeManager="*res://src/Services/TimecodeManager.cs"
 
 [debug]
 

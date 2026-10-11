@@ -14,6 +14,7 @@ using Cue2.Domain.Cues;
 using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
+using Cue2.Domain.Timecode;
 using Cue2.Services;
 using Godot.Collections;
 using Array = Godot.Collections.Array;
@@ -510,6 +511,57 @@ public class Cue : ICue
     /// <summary>Raised when OSC trigger enable/address changes.</summary>
     public event Action OscTriggerChanged;
 
+    // ── Cue timecode trigger ────────────────────────────────────────────────
+
+    private bool _timecodeTriggerEnabled;
+
+    /// <summary>
+    /// When true and a time plus clock are set, matching session timecode GO's this cue.
+    /// </summary>
+    public bool TimecodeTriggerEnabled
+    {
+        get => _timecodeTriggerEnabled;
+        set
+        {
+            if (_timecodeTriggerEnabled == value) return;
+            _timecodeTriggerEnabled = value;
+            TimecodeTriggerChanged?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// True when a trigger timecode has been entered (regardless of <see cref="TimecodeTriggerEnabled"/>).
+    /// </summary>
+    public bool HasTimecodeTrigger { get; private set; }
+
+    /// <summary>
+    /// Session timecode input or output id to watch. <c>-1</c> means none.
+    /// </summary>
+    public int TimecodeTriggerEndpointId { get; private set; } = -1;
+
+    /// <summary>Trigger hours 0–23.</summary>
+    public int TimecodeTriggerHours { get; private set; }
+
+    /// <summary>Trigger minutes 0–59.</summary>
+    public int TimecodeTriggerMinutes { get; private set; }
+
+    /// <summary>Trigger seconds 0–59.</summary>
+    public int TimecodeTriggerSeconds { get; private set; }
+
+    /// <summary>Trigger frames 0–(fps − 1) of the source clock.</summary>
+    public int TimecodeTriggerFrames { get; private set; }
+
+    /// <summary>True when the timecode trigger differs from default (off / no clock / no time).</summary>
+    public bool IsTimecodeTriggerNonDefault =>
+        TimecodeTriggerEnabled || HasTimecodeTrigger || TimecodeTriggerEndpointId >= 0;
+
+    /// <summary>True when enabled, time set, a clock is selected, and the cue is armed.</summary>
+    public bool CanFireTimecodeTrigger =>
+        TimecodeTriggerEnabled && HasTimecodeTrigger && TimecodeTriggerEndpointId >= 0 && Armed;
+
+    /// <summary>Raised when timecode trigger enable, clock, or time changes.</summary>
+    public event Action TimecodeTriggerChanged;
+
     // Events
     public event Action<string> NameChanged;
     public event Action<string> CueNumChanged;
@@ -586,6 +638,7 @@ public class Cue : ICue
         LoadClockFromData(data);
         LoadMidiTriggerFromData(data);
         LoadOscTriggerFromData(data);
+        LoadTimecodeTriggerFromData(data);
 
         if (data.ContainsKey("Components"))
         {
@@ -615,6 +668,7 @@ public class Cue : ICue
                     "OscComponent" => new OscComponent(),
                     "Control" => new ControlComponent(),
                     "MidiOutput" => new MidiOutputComponent(),
+                    "TimecodeControl" => new TimecodeControlComponent(),
                     _ => null
                 };
                 if (comp != null)
@@ -932,6 +986,12 @@ public class Cue : ICue
                 double controlDur = control.GetContentDurationSeconds(sessionStop);
                 if (controlDur > contentsDuration)
                     contentsDuration = controlDur;
+            }
+            else if (component is TimecodeControlComponent timecodeControl)
+            {
+                double tcDur = timecodeControl.GetContentDurationSeconds();
+                if (tcDur > contentsDuration)
+                    contentsDuration = tcDur;
             }
         }
 
@@ -1537,6 +1597,170 @@ public class Cue : ICue
             OscTriggerChanged?.Invoke();
     }
 
+    // ── Timecode trigger helpers ────────────────────────────────────────────
+
+    /// <summary>
+    /// Sets the watched clock. Does not change <see cref="TimecodeTriggerEnabled"/>.
+    /// </summary>
+    /// <param name="endpointId">Session input or output id, or <c>-1</c> to clear.</param>
+    public void SetTimecodeTriggerEndpoint(int endpointId)
+    {
+        int next = endpointId < 0 ? -1 : endpointId;
+        if (TimecodeTriggerEndpointId == next) return;
+        TimecodeTriggerEndpointId = next;
+        TimecodeTriggerChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Sets the trigger time. Does not change <see cref="TimecodeTriggerEnabled"/>.
+    /// </summary>
+    /// <param name="hours">Hours 0–23.</param>
+    /// <param name="minutes">Minutes 0–59.</param>
+    /// <param name="seconds">Seconds 0–59.</param>
+    /// <param name="frames">Frames (clamped 0–29).</param>
+    public void SetTimecodeTriggerTime(int hours, int minutes, int seconds, int frames)
+    {
+        hours = ((hours % 24) + 24) % 24;
+        minutes = Math.Clamp(minutes, 0, 59);
+        seconds = Math.Clamp(seconds, 0, 59);
+        frames = Math.Clamp(frames, 0, 29);
+
+        if (HasTimecodeTrigger
+            && TimecodeTriggerHours == hours
+            && TimecodeTriggerMinutes == minutes
+            && TimecodeTriggerSeconds == seconds
+            && TimecodeTriggerFrames == frames)
+            return;
+
+        HasTimecodeTrigger = true;
+        TimecodeTriggerHours = hours;
+        TimecodeTriggerMinutes = minutes;
+        TimecodeTriggerSeconds = seconds;
+        TimecodeTriggerFrames = frames;
+        TimecodeTriggerChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Clears the trigger time. Does not change enable or the selected clock.
+    /// </summary>
+    public void ClearTimecodeTriggerTime()
+    {
+        if (!HasTimecodeTrigger) return;
+        HasTimecodeTrigger = false;
+        TimecodeTriggerHours = 0;
+        TimecodeTriggerMinutes = 0;
+        TimecodeTriggerSeconds = 0;
+        TimecodeTriggerFrames = 0;
+        TimecodeTriggerChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Resets the timecode trigger to factory default: disabled, no clock, no time.
+    /// </summary>
+    public void ResetTimecodeTriggerToDefault()
+    {
+        bool changed = IsTimecodeTriggerNonDefault;
+        _timecodeTriggerEnabled = false;
+        HasTimecodeTrigger = false;
+        TimecodeTriggerEndpointId = -1;
+        TimecodeTriggerHours = 0;
+        TimecodeTriggerMinutes = 0;
+        TimecodeTriggerSeconds = 0;
+        TimecodeTriggerFrames = 0;
+        if (changed)
+            TimecodeTriggerChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Readable <c>HH:MM:SS:FF</c>, or empty when unset.
+    /// </summary>
+    public string GetTimecodeTriggerDisplay()
+    {
+        if (!HasTimecodeTrigger) return string.Empty;
+        return $"{TimecodeTriggerHours:00}:{TimecodeTriggerMinutes:00}:{TimecodeTriggerSeconds:00}:{TimecodeTriggerFrames:00}";
+    }
+
+    /// <summary>
+    /// Target elapsed seconds of this trigger at <paramref name="frameRate"/>.
+    /// </summary>
+    /// <param name="frameRate">Rate of the watched clock.</param>
+    /// <returns>Elapsed seconds, or <c>-1</c> when unset.</returns>
+    public double GetTimecodeTriggerElapsedSeconds(TimecodeFrameRate frameRate)
+    {
+        if (!HasTimecodeTrigger) return -1;
+        return new TimecodeValue(
+            TimecodeTriggerHours,
+            TimecodeTriggerMinutes,
+            TimecodeTriggerSeconds,
+            TimecodeTriggerFrames,
+            frameRate).ToElapsedSeconds();
+    }
+
+    private void WriteTimecodeTriggerToData(Dictionary dict)
+    {
+        dict["TimecodeTriggerEnabled"] = TimecodeTriggerEnabled;
+        dict["HasTimecodeTrigger"] = HasTimecodeTrigger;
+        dict["TimecodeTriggerEndpointId"] = TimecodeTriggerEndpointId;
+        dict["TimecodeTriggerHours"] = TimecodeTriggerHours;
+        dict["TimecodeTriggerMinutes"] = TimecodeTriggerMinutes;
+        dict["TimecodeTriggerSeconds"] = TimecodeTriggerSeconds;
+        dict["TimecodeTriggerFrames"] = TimecodeTriggerFrames;
+    }
+
+    private void LoadTimecodeTriggerFromData(Dictionary data)
+    {
+        if (data == null) return;
+        _timecodeTriggerEnabled = data.TryGetValue("TimecodeTriggerEnabled", out var en) && en.AsBool();
+        HasTimecodeTrigger = data.TryGetValue("HasTimecodeTrigger", out var has) && has.AsBool();
+        TimecodeTriggerEndpointId = data.TryGetValue("TimecodeTriggerEndpointId", out var id)
+            ? id.AsInt32()
+            : -1;
+        if (TimecodeTriggerEndpointId < 0)
+            TimecodeTriggerEndpointId = -1;
+        TimecodeTriggerHours = data.TryGetValue("TimecodeTriggerHours", out var h)
+            ? Math.Clamp(h.AsInt32(), 0, 23)
+            : 0;
+        TimecodeTriggerMinutes = data.TryGetValue("TimecodeTriggerMinutes", out var m)
+            ? Math.Clamp(m.AsInt32(), 0, 59)
+            : 0;
+        TimecodeTriggerSeconds = data.TryGetValue("TimecodeTriggerSeconds", out var s)
+            ? Math.Clamp(s.AsInt32(), 0, 59)
+            : 0;
+        TimecodeTriggerFrames = data.TryGetValue("TimecodeTriggerFrames", out var f)
+            ? Math.Clamp(f.AsInt32(), 0, 29)
+            : 0;
+        if (!HasTimecodeTrigger)
+        {
+            TimecodeTriggerHours = 0;
+            TimecodeTriggerMinutes = 0;
+            TimecodeTriggerSeconds = 0;
+            TimecodeTriggerFrames = 0;
+        }
+    }
+
+    private void ApplyTimecodeTriggerFromData(Dictionary data)
+    {
+        bool prevEn = _timecodeTriggerEnabled;
+        bool prevHas = HasTimecodeTrigger;
+        int prevId = TimecodeTriggerEndpointId;
+        int prevH = TimecodeTriggerHours;
+        int prevM = TimecodeTriggerMinutes;
+        int prevS = TimecodeTriggerSeconds;
+        int prevF = TimecodeTriggerFrames;
+
+        LoadTimecodeTriggerFromData(data);
+
+        bool changed = prevEn != _timecodeTriggerEnabled
+                       || prevHas != HasTimecodeTrigger
+                       || prevId != TimecodeTriggerEndpointId
+                       || prevH != TimecodeTriggerHours
+                       || prevM != TimecodeTriggerMinutes
+                       || prevS != TimecodeTriggerSeconds
+                       || prevF != TimecodeTriggerFrames;
+        if (changed)
+            TimecodeTriggerChanged?.Invoke();
+    }
+
     private void LoadMidiTriggerFromData(Dictionary data)
     {
         _midiTriggerEnabled = data.TryGetValue("MidiTriggerEnabled", out var en) && en.AsBool();
@@ -1609,6 +1833,7 @@ public class Cue : ICue
         WriteClockToData(dict);
         WriteMidiTriggerToData(dict);
         WriteOscTriggerToData(dict);
+        WriteTimecodeTriggerToData(dict);
 
         var compData = new Array();
         foreach (var comp in Components)
@@ -1680,6 +1905,7 @@ public class Cue : ICue
         ApplyClockFromData(data);
         ApplyMidiTriggerFromData(data);
         ApplyOscTriggerFromData(data);
+        ApplyTimecodeTriggerFromData(data);
 
         Components.Clear();
         if (data.ContainsKey("Components"))
@@ -1710,6 +1936,7 @@ public class Cue : ICue
                     "OscComponent" => new OscComponent(),
                     "Control" => new ControlComponent(),
                     "MidiOutput" => new MidiOutputComponent(),
+                    "TimecodeControl" => new TimecodeControlComponent(),
                     _ => null
                 };
                 if (comp == null)

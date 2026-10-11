@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Collections.Generic;
 using Cue2.Domain.Cuelist;
 using Cue2.Domain.Playback;
 using Cue2.Domain.Devices;
@@ -48,6 +49,9 @@ public partial class ControlInspector : Control
     private Button _addSeekButton;
     private Button _addTranslateLayerButton;
 
+    /// <summary>Duplicated theme StyleBoxes with a light outline; disposed on exit.</summary>
+    private readonly List<StyleBoxFlat> _addButtonStyles = new();
+
     /// <inheritdoc />
     public override void _Ready()
     {
@@ -84,6 +88,8 @@ public partial class ControlInspector : Control
         if (_addTranslateLayerButton != null)
             _addTranslateLayerButton.Pressed += () => AddControlComponent(ControlAction.TranslateLayer);
 
+        StyleAddControlButtons();
+
         _globalSignals.ShellFocused += ShellSelected;
         // Undo/redo and shell-prop syncs replace component instances — rebuild cards from live model.
         _globalSignals.SyncShellInspector += OnSyncShellInspector;
@@ -114,6 +120,73 @@ public partial class ControlInspector : Control
         if (_historyManager != null)
             _historyManager.HistoryRestored -= OnHistoryRestored;
         VisibilityChanged -= OnVisibilityChanged;
+
+        foreach (var style in _addButtonStyles)
+            UiUtilities.DisposeRefCounted(style);
+        _addButtonStyles.Clear();
+    }
+
+    /// <summary>
+    /// Adds a 1px light border to the header add-action buttons so they read as buttons
+    /// (theme normal style draws no fill and no outline).
+    /// </summary>
+    private void StyleAddControlButtons()
+    {
+        Button[] buttons =
+        {
+            _addGoButton,
+            _addPauseButton,
+            _addStopButton,
+            _addResumeButton,
+            _addStartNowButton,
+            _addDevampButton,
+            _addFadeButton,
+            _addSeekButton,
+            _addTranslateLayerButton
+        };
+
+        foreach (var button in buttons)
+            ApplyGentleButtonOutline(button);
+    }
+
+    /// <summary>
+    /// Duplicates theme button styles and adds a soft 1px outline (stronger on hover/press).
+    /// </summary>
+    private void ApplyGentleButtonOutline(Button button)
+    {
+        if (button == null)
+            return;
+
+        ApplyOutlinedStyle(button, "normal", new Color(0.78f, 0.84f, 0.88f, 0.28f));
+        ApplyOutlinedStyle(button, "hover", new Color(0.85f, 0.90f, 0.94f, 0.45f));
+        ApplyOutlinedStyle(button, "pressed", new Color(0.90f, 0.94f, 0.97f, 0.55f));
+        ApplyOutlinedStyle(button, "focus", new Color(0.78f, 0.84f, 0.88f, 0.40f));
+        ApplyOutlinedStyle(button, "disabled", new Color(0.55f, 0.58f, 0.62f, 0.18f));
+    }
+
+    private void ApplyOutlinedStyle(Button button, string styleName, Color border)
+    {
+        var existing = button.GetThemeStylebox(styleName);
+        StyleBoxFlat flat;
+        if (existing is StyleBoxFlat source)
+            flat = (StyleBoxFlat)source.Duplicate();
+        else
+        {
+            flat = new StyleBoxFlat
+            {
+                BgColor = new Color(0.1f, 0.1f, 0.1f, 0.35f),
+                ContentMarginLeft = 4,
+                ContentMarginTop = 4,
+                ContentMarginRight = 4,
+                ContentMarginBottom = 4
+            };
+        }
+
+        flat.SetBorderWidthAll(1);
+        flat.BorderColor = border;
+        flat.SetCornerRadiusAll(3);
+        button.AddThemeStyleboxOverride(styleName, flat);
+        _addButtonStyles.Add(flat);
     }
 
     private void OnVisibilityChanged()
@@ -266,7 +339,6 @@ public partial class ControlInspector : Control
         ClearCards();
         if (_focusedCue == null || _controlCardScene == null) return;
 
-        // List order = execution order among control components.
         var controls = new System.Collections.Generic.List<ControlComponent>();
         foreach (var component in _focusedCue.Components)
         {
@@ -274,11 +346,16 @@ public partial class ControlInspector : Control
                 controls.Add(controlComp);
         }
 
-        for (int i = 0; i < controls.Count; i++)
+        int controlIndex = 0;
+        foreach (var component in _focusedCue.Components)
         {
-            var card = _controlCardScene.Instantiate<ControlComponentCard>();
-            _cardContainer.AddChild(card);
-            card.SetComponent(controls[i], this, orderIndex: i, orderCount: controls.Count);
+            if (component is ControlComponent controlComp)
+            {
+                var card = _controlCardScene.Instantiate<ControlComponentCard>();
+                _cardContainer.AddChild(card);
+                card.SetComponent(controlComp, this, orderIndex: controlIndex, orderCount: controls.Count);
+                controlIndex++;
+            }
         }
     }
 

@@ -61,6 +61,10 @@ public partial class ActiveCue
             {
                 tasks.Add(SetupControlComponent(controlComponent));
             }
+            else if (component is TimecodeControlComponent timecodeControl)
+            {
+                tasks.Add(SetupTimecodeControlComponent(timecodeControl));
+            }
         }
         await Task.WhenAll(tasks);
 
@@ -1171,14 +1175,285 @@ public partial class ActiveCue
         return Task.CompletedTask;
     }
 
+    private Task SetupTimecodeControlComponent(TimecodeControlComponent timecodeComponent)
+    {
+        try
+        {
+            if (!IsSetupStillValid())
+                return Task.CompletedTask;
+
+            PanelContainer componentPanel = CreateStyledComponentProgressBar();
+            _componentContainer.AddChild(componentPanel);
+            componentPanel.GetNode<Label>("%ComponentLabel").Text = timecodeComponent.GetDisplaySummary();
+            var typeIcon = componentPanel.GetNode<TextureRect>("%ComponentIcon");
+            componentPanel.GetNode<Button>("%ComponentPause").QueueFree();
+            var stopButton = componentPanel.GetNode<Button>("%ComponentStop");
+            var timeLabel = componentPanel.GetNodeOrNull<Label>("%ComponentTime");
+
+            double timedDur = timecodeComponent.GetContentDurationSeconds();
+            bool timed = timedDur > 1e-9;
+            if (!timed)
+            {
+                timeLabel?.QueueFree();
+            }
+            else if (timeLabel != null)
+            {
+                timeLabel.Text = "0.0";
+                var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
+                if (progressBar != null)
+                    progressBar.Value = 0;
+                _controlTimedProgress[componentPanel] = new ControlTimedProgress
+                {
+                    DurationSec = timedDur,
+                    StartMsec = 0,
+                    Started = false
+                };
+                WireTimecodeProgressSeek(componentPanel, timecodeComponent, progressBar, timeLabel, timedDur);
+            }
+
+            try
+            {
+                typeIcon.Texture = _activeCueBar.GetThemeIcon("Connection", "AtlasIcons");
+            }
+            catch { /* optional */ }
+            stopButton.Icon = _activeCueBar.GetThemeIcon("Stop", "AtlasIcons");
+
+            _activeTimecodeControlComponents.Add(componentPanel, timecodeComponent);
+            _activeComponentCount++;
+            stopButton.Pressed += () => HandleTimecodeControlComponentCompleted(componentPanel);
+        }
+        catch (Exception ex)
+        {
+            GD.Print($"ActiveCue:SetupTimecodeControlComponent - Exception: {ex.Message}");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"Error setting up timecode control for cue {_cue.Name}: {ex.Message}", 2);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Scrubs a Play Duration row: preview on drag, commit generator time on release.
+    /// </summary>
+    private void WireTimecodeProgressSeek(
+        PanelContainer componentPanel,
+        TimecodeControlComponent timecodeComponent,
+        ProgressBar progressBar,
+        Label timeLabel,
+        double durationSec)
+    {
+        if (progressBar == null || timecodeComponent == null || durationSec <= 1e-9)
+            return;
+
+        double pendingSec = 0;
+        progressBar.GuiInput += (@event) =>
+        {
+            if (!_activeTimecodeControlComponents.ContainsKey(componentPanel))
+                return;
+            if (!_controlTimedProgress.TryGetValue(componentPanel, out var state) || !state.Started)
+                return;
+
+            if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
+            {
+                if (mb.Pressed)
+                {
+                    state.IsSeeking = true;
+                    _controlTimedProgress[componentPanel] = state;
+                    var localPos = progressBar.GetLocalMousePosition();
+                    float percent = Mathf.Clamp(localPos.X / Math.Max(1f, progressBar.Size.X), 0f, 1f);
+                    pendingSec = percent * durationSec;
+                    PreviewTimecodeProgressSeek(progressBar, timeLabel, pendingSec, durationSec);
+                }
+                else if (state.IsSeeking)
+                {
+                    ApplyTimecodePlaySeek(
+                        componentPanel, timecodeComponent, pendingSec, durationSec, syncHead: true);
+                }
+            }
+            else if (@event is InputEventMouseMotion motion && state.IsSeeking)
+            {
+                var localPos = progressBar.GetLocalMousePosition();
+                float percent = Mathf.Clamp(localPos.X / Math.Max(1f, progressBar.Size.X), 0f, 1f);
+                pendingSec = percent * durationSec;
+                PreviewTimecodeProgressSeek(progressBar, timeLabel, pendingSec, durationSec);
+                if ((motion.ButtonMask & MouseButtonMask.Left) == 0)
+                {
+                    ApplyTimecodePlaySeek(
+                        componentPanel, timecodeComponent, pendingSec, durationSec, syncHead: true);
+                }
+            }
+        };
+    }
+
+    /// <summary>
+    /// Previews Play Duration on the component row and the parent head bar while dragging.
+    /// </summary>
+    private void PreviewTimecodeProgressSeek(
+        ProgressBar progressBar,
+        Label timeLabel,
+        double pendingSec,
+        double durationSec)
+    {
+        pendingSec = Math.Clamp(pendingSec, 0, durationSec);
+        if (progressBar != null)
+            progressBar.Value = durationSec > 1e-9 ? pendingSec / durationSec * 100.0 : 0;
+        if (timeLabel != null)
+            timeLabel.Text = UiUtilities.FormatTime(pendingSec);
+
+        ApplyHeadProgressDisplay(
+            _preWaitSecondsHonored + pendingSec,
+            GetPlayableTimelineDuration());
+    }
+
+    /// <summary>
+    /// Jumps the generator to origin + <paramref name="pendingSec"/> and rebases the progress clock.
+    /// When <paramref name="syncHead"/> is true, the parent cue bar follows immediately.
+    /// </summary>
+    private void ApplyTimecodePlaySeek(
+        PanelContainer componentPanel,
+        TimecodeControlComponent timecodeComponent,
+        double pendingSec,
+        double durationSec,
+        bool syncHead)
+    {
+        if (!_controlTimedProgress.TryGetValue(componentPanel, out var state))
+            return;
+
+        pendingSec = Math.Clamp(pendingSec, 0, durationSec);
+        var manager = _activeCueList?.GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
+        if (manager != null && timecodeComponent.EndpointId >= 0)
+        {
+            double origin = timecodeComponent.RuntimePlayOriginElapsed;
+            if (origin < 0)
+                origin = 0;
+            manager.SetElapsedSeconds(timecodeComponent.EndpointId, origin + pendingSec);
+            if (pendingSec + 1e-4 >= durationSec)
+                manager.Pause(timecodeComponent.EndpointId);
+        }
+
+        state.IsSeeking = false;
+        state.StartMsec = Time.GetTicksMsec() - (ulong)Math.Max(0, pendingSec * 1000.0);
+        _controlTimedProgress[componentPanel] = state;
+
+        if (syncHead)
+            SyncHeadTimelineFromComponentSeek(pendingSec);
+
+        GD.Print($"ActiveCue:ApplyTimecodePlaySeek - {pendingSec:F3}s / {durationSec:F3}s");
+    }
+
+    /// <summary>
+    /// Content-local elapsed for a running Play Duration row (generator clock, wall-clock fallback).
+    /// </summary>
+    private double GetTimecodePlayElapsedSeconds(
+        TimecodeControlComponent timecodeComponent,
+        ControlTimedProgress state)
+    {
+        if (timecodeComponent == null || state.DurationSec <= 1e-9)
+            return 0;
+        if (!state.Started)
+            return 0;
+
+        double origin = timecodeComponent.RuntimePlayOriginElapsed;
+        if (origin < 0)
+            origin = 0;
+
+        var manager = _activeCueList?.GetNodeOrNull<TimecodeManager>("/root/TimecodeManager");
+        if (manager != null && timecodeComponent.EndpointId >= 0)
+        {
+            var endpoint = manager.FindEndpoint(timecodeComponent.EndpointId);
+            if (endpoint != null)
+                return Math.Clamp(endpoint.ElapsedSeconds - origin, 0, state.DurationSec);
+        }
+
+        double wall = (Time.GetTicksMsec() - state.StartMsec) / 1000.0;
+        return Math.Clamp(wall, 0, state.DurationSec);
+    }
+
+    /// <summary>
+    /// Seeks Play Duration generators to a content-local time (parent head scrub).
+    /// </summary>
+    private void SeekTimecodeComponentsToContentTime(double contentTimeSeconds)
+    {
+        if (contentTimeSeconds < 0)
+            contentTimeSeconds = 0;
+
+        foreach (var kv in _activeTimecodeControlComponents.ToList())
+        {
+            var component = kv.Value;
+            if (component == null)
+                continue;
+            if (component.Action != TimecodeControlAction.PlayForDuration)
+                continue;
+            if (!_controlTimedProgress.TryGetValue(kv.Key, out var state) || !state.Started)
+                continue;
+            if (state.DurationSec <= 1e-9)
+                continue;
+
+            ApplyTimecodePlaySeek(
+                kv.Key,
+                component,
+                Math.Clamp(contentTimeSeconds, 0, state.DurationSec),
+                state.DurationSec,
+                syncHead: false);
+        }
+    }
+
+    /// <summary>
+    /// True while the user is dragging a Play Duration component bar.
+    /// </summary>
+    private bool AnyTimecodeComponentSeeking()
+    {
+        foreach (var state in _controlTimedProgress.Values)
+        {
+            if (state.IsSeeking)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Updates progress bar + elapsed time for a Play Duration timecode row from the generator clock.
+    /// </summary>
+    private void UpdateTimecodeControlComponentUiState(
+        PanelContainer componentPanel,
+        TimecodeControlComponent timecodeComponent)
+    {
+        if (!IsInstanceValid(componentPanel) || timecodeComponent == null) return;
+        if (!_controlTimedProgress.TryGetValue(componentPanel, out var state)) return;
+        if (state.DurationSec <= 1e-9) return;
+        if (state.IsSeeking) return;
+
+        var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
+        var timeLabel = componentPanel.GetNodeOrNull<Label>(ComponentTimePath);
+        if (progressBar == null) return;
+
+        if (!state.Started)
+        {
+            progressBar.Value = 0;
+            if (timeLabel != null)
+                timeLabel.Text = "0.0";
+            return;
+        }
+
+        double elapsed = GetTimecodePlayElapsedSeconds(timecodeComponent, state);
+        float pct = state.DurationSec > 1e-9
+            ? (float)(elapsed / state.DurationSec * 100.0)
+            : 100f;
+        progressBar.Value = Math.Clamp(pct, 0f, 100f);
+        if (timeLabel != null)
+            timeLabel.Text = UiUtilities.FormatTime(elapsed);
+    }
+
     /// <summary>
     /// Updates progress bar + elapsed time for a timed control component (fade / translate / stop fade).
     /// </summary>
     private void UpdateControlComponentUiState(PanelContainer componentPanel, ControlComponent controlComponent)
     {
-        if (!IsInstanceValid(componentPanel) || controlComponent == null) return;
+        if (!IsInstanceValid(componentPanel)) return;
         if (!_controlTimedProgress.TryGetValue(componentPanel, out var state)) return;
         if (state.DurationSec <= 1e-9) return;
+        if (state.IsSeeking) return;
 
         var progressBar = componentPanel.GetNodeOrNull<ProgressBar>(ComponentProgressPath);
         var timeLabel = componentPanel.GetNodeOrNull<Label>(
