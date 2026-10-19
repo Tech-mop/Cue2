@@ -104,8 +104,9 @@ public partial class ShellBar
 	private void UpdateColor(Color color)
 	{
 		// Ancestor rails on descendant rows use this cue's colour — refresh every bound row.
-		if (_globalData?.Cuelist != null)
-			_globalData.Cuelist.RefreshVisibleHierarchyChrome();
+		var list = CueList.FindOwningList(CueId) ?? _globalData?.Cuelist;
+		if (list != null)
+			list.RefreshVisibleHierarchyChrome();
 		else
 		{
 			RebuildColorRail();
@@ -117,8 +118,9 @@ public partial class ShellBar
 	{
 		// Virtual rows are reused; nest chrome (chevron, indent, colour rail) must be re-applied
 		// on this row and every other bound row that may have changed depth.
-		if (_globalData?.Cuelist != null)
-			_globalData.Cuelist.RefreshVisibleHierarchyChrome();
+		var list = CueList.FindOwningList(CueId) ?? _globalData?.Cuelist;
+		if (list != null)
+			list.RefreshVisibleHierarchyChrome();
 		else
 			RefreshHierarchyChrome();
 	}

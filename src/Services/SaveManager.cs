@@ -1410,8 +1410,23 @@ public partial class SaveManager : Node
 		var saveData = new Dictionary();
 		ShowfileFormat.StampCurrentVersion(saveData);
 
-		var cueSaveData = _globalData.Cuelist.GetData();
-		saveData.Add("cues", cueSaveData);
+		var workspace = _globalData.CuelistWorkspace;
+		if (workspace != null)
+		{
+			var doc = workspace.GetDocumentData();
+			if (doc.TryGetValue("Cuelists", out var listsVar))
+				saveData.Add("cuelists", listsVar);
+			var lists = workspace.Lists;
+			if (lists.Count > 0)
+				saveData.Add("cues", lists[0].GetData());
+			else
+				saveData.Add("cues", _globalData.Cuelist?.GetData() ?? new Dictionary());
+		}
+		else
+		{
+			var cueSaveData = _globalData.Cuelist.GetData();
+			saveData.Add("cues", cueSaveData);
+		}
 
 		var settingsData = _globalData.Settings.GetData();
 		saveData.Add("settings", settingsData);
@@ -1949,12 +1964,31 @@ public partial class SaveManager : Node
 				await YieldProcessFrame();
 			}
 
-			if (saveData.ContainsKey("cues") && _globalData.Cuelist != null)
+			var workspace = _globalData.CuelistWorkspace;
+			if (saveData.ContainsKey("cuelists") && workspace != null)
+			{
+				GD.Print("SaveManager:LoadSessionFromData - Loading cuelists");
+				EmitSessionLoadProgress(20f, "Loading cues…", string.Empty, 0, 0);
+				var doc = new Dictionary();
+				doc["Cuelists"] = saveData["cuelists"];
+				workspace.ApplyDocumentData(doc);
+				int cueCount = CueList.CueIndex?.Count ?? 0;
+				OnCueLoadProgress(cueCount, cueCount);
+			}
+			else if (saveData.ContainsKey("cues") && _globalData.Cuelist != null)
 			{
 				GD.Print("SaveManager:LoadSessionFromData - Loading Cues");
 				EmitSessionLoadProgress(20f, "Loading cues…", string.Empty, 0, 0);
 				var cuesData = saveData["cues"].AsGodotDictionary();
-				_globalData.Cuelist.LoadCueModels(cuesData);
+				if (workspace != null)
+				{
+					workspace.ApplyDocumentData(cuesData);
+				}
+				else
+				{
+					_globalData.Cuelist.LoadCueModels(cuesData);
+				}
+
 				int cueCount = _globalData.Cuelist.TotalCueCount;
 				OnCueLoadProgress(cueCount, cueCount);
 			}
@@ -1963,7 +1997,7 @@ public partial class SaveManager : Node
 			MarkPlaybackReady();
 			EmitSessionLoadProgress(100f, "Loading cues…", string.Empty, 1, 1);
 
-			if (saveData.ContainsKey("cues") && _globalData.Cuelist != null)
+			if (workspace == null && saveData.ContainsKey("cues") && _globalData.Cuelist != null)
 				_globalData.Cuelist.BindLoadedViewport();
 
 			return true;

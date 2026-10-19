@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://cd4xfma7ijlpi" path="res://src/UI/Shell/Header.tscn" id="3_7gle1"]
 [ext_resource type="PackedScene" uid="uid://db8fxhod3yfo6" path="res://src/UI/Shell/MainTitleBar.tscn" id="3_7xm62"]
 [ext_resource type="PackedScene" uid="uid://bya2tf86xcdn6" path="res://src/UI/Shell/CueListUi.tscn" id="4_7gle1"]
+[ext_resource type="Script" path="res://src/UI/Shell/CuelistWorkspace.cs" id="4_cuelists"]
 [ext_resource type="PackedScene" uid="uid://c7uaftlqmt1qj" path="res://src/UI/Shell/ActiveCueContainer.tscn" id="6_jn5cm"]
 [ext_resource type="PackedScene" uid="uid://cm5s0bi03612d" path="res://src/UI/Inspectors/ShellInspector.tscn" id="7_7gle1"]
 [ext_resource type="PackedScene" uid="uid://dge4tv6ikfteh" path="res://src/UI/Inspectors/LibraryInspector.tscn" id="7_ht2vi"]
@@ -20,7 +21,7 @@
 [ext_resource type="Script" uid="uid://bpxw1fu0sgxtl" path="res://src/App/MainWindowHandles.cs" id="12_7xm62"]
 [ext_resource type="Script" uid="uid://b6p30ddy04yla" path="res://src/UI/Windows/OpenDialog.cs" id="14_5gc0s"]
 [ext_resource type="Script" uid="uid://dt1xvmnrr6u75" path="res://src/UI/Inspectors/InspectorTabsController.cs" id="15_insp_tabs"]
-[ext_resource type="Script" path="res://src/UI/Shell/SessionLoadOverlay.cs" id="16_sess_load"]
+[ext_resource type="Script" uid="uid://cxpv7i30vol3n" path="res://src/UI/Shell/SessionLoadOverlay.cs" id="16_sess_load"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_e2apv"]
 draw_center = false
@@ -52,8 +53,8 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=822002420]
-clip_contents = true
 custom_minimum_size = Vector2(5, 0)
+clip_contents = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -66,8 +67,8 @@ theme_override_constants/margin_right = 2
 theme_override_constants/margin_bottom = 2
 
 [node name="BoxContainer" type="BoxContainer" parent="MarginContainer" unique_id=1026935193]
-layout_direction = 2
 layout_mode = 2
+layout_direction = 2
 vertical = true
 
 [node name="TitleBarSpacer" type="BoxContainer" parent="MarginContainer/BoxContainer" unique_id=1609597833]
@@ -84,27 +85,29 @@ theme_override_constants/separation = 0
 
 [node name="HSplitContainer" type="HSplitContainer" parent="MarginContainer/BoxContainer/VSplitContainer" unique_id=1775225660]
 clip_contents = true
-layout_direction = 2
 layout_mode = 2
 size_flags_vertical = 3
+layout_direction = 2
 
 [node name="TabContainer" type="TabContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer" unique_id=2144526718]
-clip_contents = true
+unique_name_in_owner = true
 custom_minimum_size = Vector2(50, 0)
+clip_contents = true
 layout_mode = 2
 size_flags_horizontal = 3
 current_tab = 0
-tabs_visible = false
+tabs_position = 1
 drag_to_rearrange_enabled = true
+script = ExtResource("4_cuelists")
 
 [node name="CueListUi" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer/TabContainer" unique_id=2092298391 instance=ExtResource("4_7gle1")]
 unique_name_in_owner = true
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="Passive Cues" type="MarginContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer/TabContainer" unique_id=1392566475]
-visible = false
+[node name="AddCuelistTab" type="Control" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer/TabContainer"]
 layout_mode = 2
+mouse_filter = 2
 metadata/_tab_index = 1
 
 [node name="HSplitContainer" type="HSplitContainer" parent="MarginContainer/BoxContainer/VSplitContainer/HSplitContainer" unique_id=1806784331]
@@ -179,7 +182,7 @@ layout_mode = 2
 [node name="Footer" parent="MarginContainer/BoxContainer" unique_id=149458541 instance=ExtResource("8_jn5cm")]
 layout_mode = 2
 
-[node name="SessionLoadOverlay" type="Control" parent="."]
+[node name="SessionLoadOverlay" type="Control" parent="." unique_id=1497411168]
 unique_name_in_owner = true
 visible = false
 z_index = 20
@@ -190,20 +193,18 @@ anchor_bottom = 1.0
 offset_top = 30.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 script = ExtResource("16_sess_load")
 
-[node name="Dim" type="ColorRect" parent="SessionLoadOverlay"]
+[node name="Dim" type="ColorRect" parent="SessionLoadOverlay" unique_id=211887063]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 color = Color(0.04, 0.05, 0.055, 0.88)
 
-[node name="Center" type="CenterContainer" parent="SessionLoadOverlay"]
+[node name="Center" type="CenterContainer" parent="SessionLoadOverlay" unique_id=1512531130]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -212,42 +213,41 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Card" type="PanelContainer" parent="SessionLoadOverlay/Center"]
+[node name="Card" type="PanelContainer" parent="SessionLoadOverlay/Center" unique_id=1786009956]
 custom_minimum_size = Vector2(380, 0)
 layout_mode = 2
 
-[node name="CardMargin" type="MarginContainer" parent="SessionLoadOverlay/Center/Card"]
+[node name="CardMargin" type="MarginContainer" parent="SessionLoadOverlay/Center/Card" unique_id=956049403]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 16
 
-[node name="VBox" type="VBoxContainer" parent="SessionLoadOverlay/Center/Card/CardMargin"]
+[node name="VBox" type="VBoxContainer" parent="SessionLoadOverlay/Center/Card/CardMargin" unique_id=2121801629]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="TitleLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+[node name="TitleLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox" unique_id=273680842]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Opening show…"
 horizontal_alignment = 1
 
-[node name="ProgressBar" type="ProgressBar" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+[node name="ProgressBar" type="ProgressBar" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox" unique_id=1498744720]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
-max_value = 100.0
 show_percentage = false
 
-[node name="StatusLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+[node name="StatusLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox" unique_id=115390435]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Reading showfile…"
 horizontal_alignment = 1
 
-[node name="DetailLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox"]
+[node name="DetailLabel" type="Label" parent="SessionLoadOverlay/Center/Card/CardMargin/VBox" unique_id=2113022136]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.72, 0.74, 1)

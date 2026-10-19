@@ -28,7 +28,7 @@ namespace Cue2.Services;
 /// <item><see cref="RecordCueChange"/> — single cue property/component edits (no display reload)</item>
 /// <item><see cref="RecordCuelistChange"/> — create/delete/reorder/group (rebuilds shells only)</item>
 /// <item><see cref="RecordSettingsChange"/> — settings slice only (omit Displays unless needed)</item>
-/// <item><see cref="RecordSelectionChange"/> — shell selection / focus only</item>
+/// <item><see cref="RecordSelectionChange"/> — shell selection / focus / visible cuelist tab</item>
 /// </list>
 /// </remarks>
 public partial class HistoryManager : Node
@@ -44,7 +44,7 @@ public partial class HistoryManager : Node
 		Cuelist = 1,
 		/// <summary>Settings keys only (optionally filtered).</summary>
 		Settings = 2,
-		/// <summary>Selected cue ids + focused cue only (no document mutation).</summary>
+		/// <summary>Selected cue ids, focused cue, and visible cuelist tab (no document mutation).</summary>
 		Selection = 3,
 		/// <summary>
 		/// Multiple cues only (id → <see cref="Cue.GetData"/>). Used for multi-edit so undo
@@ -303,7 +303,7 @@ public partial class HistoryManager : Node
 				return;
 			}
 
-			var (selectedIds, focusedId) = CaptureSelectionState();
+			var (selectedIds, focusedId, activeList) = CaptureSelectionState();
 			var entry = new HistoryEntry(
 				description ?? "Edit settings",
 				coalesceKey,
@@ -313,7 +313,8 @@ public partial class HistoryManager : Node
 				null,
 				stored,
 				selectedIds,
-				focusedId);
+				focusedId,
+				activeList);
 
 			PushUndo(entry, coalesceKey);
 		}
@@ -384,10 +385,11 @@ public partial class HistoryManager : Node
 	}
 
 	/// <summary>
-	/// Records a selection/focus checkpoint before a pure selection change (click, range, next/prev).
-	/// Does not capture cue data or settings. Call before mutating <see cref="ShellSelection"/>.
+	/// Records a selection/focus checkpoint before a pure selection change (click, range, next/prev)
+	/// or a cuelist tab switch. Does not capture cue data or settings, and does not mark the show dirty.
+	/// Call before mutating <see cref="ShellSelection"/> or changing the active cuelist tab.
 	/// </summary>
-	/// <param name="description">Readable description (e.g. "Select cue").</param>
+	/// <param name="description">Readable description (e.g. "Select cue", "Switch cuelist").</param>
 	/// <param name="coalesceKey">Optional continuous-session key; usually null for discrete clicks.</param>
 	public void RecordSelectionChange(string description, string coalesceKey = null)
 	{
@@ -689,7 +691,7 @@ public partial class HistoryManager : Node
 		StripWaveformPayloads(data);
 		data = DeepCloneDictionary(data);
 
-		var (selectedIds, focusedId) = CaptureSelectionState();
+		var (selectedIds, focusedId, activeList) = CaptureSelectionState();
 		return new HistoryEntry(
 			description,
 			coalesceKey,
@@ -699,14 +701,33 @@ public partial class HistoryManager : Node
 			null,
 			null,
 			selectedIds,
-			focusedId);
+			focusedId,
+			activeList);
 	}
 
 	private HistoryEntry CaptureCuelistEntry(string description)
 	{
 		// Build live snapshot, strip waveforms on each cue, then structural-clone (P2-09).
-		var live = _globalData.Cuelist.GetData();
-		if (live.TryGetValue("Cues", out var cuesVariant) && cuesVariant.VariantType == Variant.Type.Dictionary)
+		var live = _globalData.CuelistWorkspace != null
+			? _globalData.CuelistWorkspace.GetDocumentData()
+			: _globalData.Cuelist.GetData();
+		if (live.TryGetValue("Cuelists", out var listsVariant) && listsVariant.VariantType == Variant.Type.Array)
+		{
+			foreach (var item in listsVariant.AsGodotArray())
+			{
+				if (item.VariantType != Variant.Type.Dictionary)
+					continue;
+				var listDict = item.AsGodotDictionary();
+				if (!listDict.TryGetValue("Cues", out var nestedCues) || nestedCues.VariantType != Variant.Type.Dictionary)
+					continue;
+				foreach (var kv in (Dictionary)nestedCues)
+				{
+					if (kv.Value.VariantType == Variant.Type.Dictionary)
+						StripWaveformPayloads(kv.Value.AsGodotDictionary());
+				}
+			}
+		}
+		else if (live.TryGetValue("Cues", out var cuesVariant) && cuesVariant.VariantType == Variant.Type.Dictionary)
 		{
 			foreach (var kv in (Dictionary)cuesVariant)
 			{
@@ -717,7 +738,7 @@ public partial class HistoryManager : Node
 
 		var cues = DeepCloneDictionary(live);
 
-		var (selectedIds, focusedId) = CaptureSelectionState();
+		var (selectedIds, focusedId, activeList) = CaptureSelectionState();
 		return new HistoryEntry(
 			description,
 			null,
@@ -727,7 +748,8 @@ public partial class HistoryManager : Node
 			cues,
 			null,
 			selectedIds,
-			focusedId);
+			focusedId,
+			activeList);
 	}
 
 	/// <summary>
@@ -758,7 +780,7 @@ public partial class HistoryManager : Node
 			return null;
 		}
 
-		var (selectedIds, focusedId) = CaptureSelectionState();
+		var (selectedIds, focusedId, activeList) = CaptureSelectionState();
 		return new HistoryEntry(
 			description,
 			coalesceKey,
@@ -768,7 +790,8 @@ public partial class HistoryManager : Node
 			map,
 			null,
 			selectedIds,
-			focusedId);
+			focusedId,
+			activeList);
 	}
 
 	private static IEnumerable<int> EnumerateMultiCueIds(Dictionary multiMap)
@@ -785,7 +808,7 @@ public partial class HistoryManager : Node
 
 	private HistoryEntry CaptureSettingsEntry(string description, Dictionary settingsData)
 	{
-		var (selectedIds, focusedId) = CaptureSelectionState();
+		var (selectedIds, focusedId, activeList) = CaptureSelectionState();
 		return new HistoryEntry(
 			description,
 			null,
@@ -795,12 +818,13 @@ public partial class HistoryManager : Node
 			null,
 			settingsData,
 			selectedIds,
-			focusedId);
+			focusedId,
+			activeList);
 	}
 
 	private HistoryEntry CaptureSelectionEntry(string description, string coalesceKey)
 	{
-		var (selectedIds, focusedId) = CaptureSelectionState();
+		var (selectedIds, focusedId, activeList) = CaptureSelectionState();
 		return new HistoryEntry(
 			description,
 			coalesceKey,
@@ -810,18 +834,20 @@ public partial class HistoryManager : Node
 			null,
 			null,
 			selectedIds,
-			focusedId);
+			focusedId,
+			activeList);
 	}
 
 	/// <summary>
-	/// Snapshots current shell multi-selection (ordered) and focused cue id for history restore.
+	/// Snapshots current shell multi-selection (ordered), focused cue id, and visible cuelist tab.
 	/// </summary>
-	private (int[] SelectedCueIds, int FocusedCueId) CaptureSelectionState()
+	private (int[] SelectedCueIds, int FocusedCueId, int ActiveCuelistIndex) CaptureSelectionState()
 	{
 		int focusedId = _globalData?.FocusedCue ?? -1;
+		int activeList = _globalData?.CuelistWorkspace?.GetActiveListIndex() ?? 0;
 		var selected = ShellSelection.SelectedCues;
 		if (selected == null || selected.Count == 0)
-			return (System.Array.Empty<int>(), focusedId);
+			return (System.Array.Empty<int>(), focusedId, activeList);
 
 		// Preserve list order — last entry is "most recently selected" (paste/duplicate anchor).
 		var ids = new int[selected.Count];
@@ -832,21 +858,23 @@ public partial class HistoryManager : Node
 			ids[n++] = cue.Id;
 		}
 		if (n == ids.Length)
-			return (ids, focusedId);
+			return (ids, focusedId, activeList);
 		if (n == 0)
-			return (System.Array.Empty<int>(), focusedId);
+			return (System.Array.Empty<int>(), focusedId, activeList);
 		var trimmed = new int[n];
 		System.Array.Copy(ids, trimmed, n);
-		return (trimmed, focusedId);
+		return (trimmed, focusedId, activeList);
 	}
 
 	/// <summary>
-	/// Restores shell selection and focus from a history memento after model apply.
-	/// Missing cue ids (deleted / not yet recreated) are skipped.
+	/// Restores the visible cuelist tab, shell selection, and focus from a history memento
+	/// after model apply. Missing cue ids (deleted / not yet recreated) are skipped.
 	/// </summary>
 	private void RestoreSelection(HistoryEntry entry)
 	{
 		if (entry == null) return;
+
+		_globalData?.CuelistWorkspace?.RestoreActiveListIndex(entry.ActiveCuelistIndex);
 
 		// Drop current selection chrome (shells may be freed after cuelist rebuild).
 		foreach (var cue in ShellSelection.SelectedCues.ToList())
@@ -1002,7 +1030,10 @@ public partial class HistoryManager : Node
 					break;
 
 				case HistoryScope.Cuelist:
-					_globalData.Cuelist.ApplyCuelistHistorySnapshot(entry.CuesData);
+					if (_globalData.CuelistWorkspace != null)
+						_globalData.CuelistWorkspace.ApplyDocumentData(entry.CuesData);
+					else
+						_globalData.Cuelist.ApplyCuelistHistorySnapshot(entry.CuesData);
 					break;
 
 				case HistoryScope.MultiCue:
@@ -1127,6 +1158,11 @@ public partial class HistoryManager : Node
 		/// <summary>Focused cue id at capture time, or -1.</summary>
 		public int FocusedCueId { get; }
 
+		/// <summary>
+		/// Visible cuelist tab index into <c>CuelistWorkspace.Lists</c> at capture time, or -1.
+		/// </summary>
+		public int ActiveCuelistIndex { get; }
+
 		public HistoryEntry(
 			string description,
 			string coalesceKey,
@@ -1136,7 +1172,8 @@ public partial class HistoryManager : Node
 			Dictionary cuesData,
 			Dictionary settingsData,
 			int[] selectedCueIds,
-			int focusedCueId)
+			int focusedCueId,
+			int activeCuelistIndex = -1)
 		{
 			Description = description ?? "Edit";
 			CoalesceKey = coalesceKey;
@@ -1147,6 +1184,7 @@ public partial class HistoryManager : Node
 			SettingsData = settingsData;
 			SelectedCueIds = selectedCueIds ?? System.Array.Empty<int>();
 			FocusedCueId = focusedCueId;
+			ActiveCuelistIndex = activeCuelistIndex;
 		}
 	}
 }

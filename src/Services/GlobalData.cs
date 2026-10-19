@@ -65,8 +65,14 @@ public partial class GlobalData : Node
 
 	/// <summary>
 	/// Live show cuelist (document model). Created/replaced by session load and cuelist rebuild paths.
+	/// The active tab when multiple cuelists exist.
 	/// </summary>
 	public CueList Cuelist;
+
+	/// <summary>
+	/// Tab workspace that owns every cuelist. Null until the main window is ready.
+	/// </summary>
+	public Cue2.UI.Shell.CuelistWorkspace CuelistWorkspace;
 
 	/// <summary>
 	/// Selection and focus helpers for shell rows (multi-select, next/previous, GO target).

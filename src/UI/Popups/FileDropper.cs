@@ -424,7 +424,7 @@ public partial class FileDropper : Control
             }
         }
 
-        var cueListUi = cue2Base.GetNodeOrNull("%CueListUi") as Control;
+        var cueListUi = GetNodeOrNull<GlobalData>("/root/GlobalData")?.Cuelist;
         var cueContainer = cueListUi?.GetNodeOrNull<VBoxContainer>("%CueContainer");
 
         if (cueContainer != null)

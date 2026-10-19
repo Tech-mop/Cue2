@@ -53,6 +53,7 @@ public partial class CueList
 	/// </summary>
 	public void CreateCue()
 	{
+		if (!IsActiveList) return;
 		if (BlockIfShowMode("create cues") || BlockIfBulkBusy("create cues")) return;
 		_globalData?.HistoryManager?.RecordCuelistChange("Create cue");
 		var newCue = new Cue();
@@ -100,8 +101,9 @@ public partial class CueList
 	/// </summary>
 	public void GroupSelectedCues()
 	{
+		if (!IsActiveList) return;
 		if (BlockIfShowMode("group cues") || BlockIfBulkBusy("group cues")) return;
-		var selected = ShellSelection.SelectedCues?.ToList() ?? new List<Cue>();
+		var selected = GetSelectedCuesInThisList();
 		if (selected.Count == 0)
 		{
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
@@ -567,9 +569,16 @@ public partial class CueList
 	{
 		int parentId = -1;
 		int insertIndex = RootOrder.Count;
-		if (ShellSelection.SelectedCues.Count > 0)
+		var selectedInList = GetSelectedCuesInThisList();
+		if (selectedInList.Count > 0)
 		{
-			var selectedCue = ShellSelection.SelectedCues.Last();
+			var selectedCue = selectedInList.Last();
+			if (!ContainsCue(selectedCue.Id))
+			{
+				InsertCueInModel(newCue, -1, RootOrder.Count);
+				NotifyVirtualStructureChanged();
+				return;
+			}
 			parentId = selectedCue.ParentId;
 			var siblings = GetSiblingIdList(parentId) ?? RootOrder;
 			int selIdx = siblings.IndexOf(selectedCue.Id);
@@ -597,6 +606,7 @@ public partial class CueList
 	/// </summary>
 	public void DuplicateSelectedCues()
 	{
+		if (!IsActiveList) return;
 		_ = DuplicateSelectedCuesAsync();
 	}
 
@@ -607,6 +617,7 @@ public partial class CueList
 	/// </summary>
 	public void CopySelectedCues()
 	{
+		if (!IsActiveList) return;
 		_ = CopySelectedCuesAsync();
 	}
 
@@ -617,6 +628,7 @@ public partial class CueList
 	/// </summary>
 	public void CutSelectedCues()
 	{
+		if (!IsActiveList) return;
 		_ = CutSelectedCuesAsync();
 	}
 
@@ -628,6 +640,7 @@ public partial class CueList
 	/// </summary>
 	public void PasteCues()
 	{
+		if (!IsActiveList) return;
 		_ = PasteCuesAsync();
 	}
 
@@ -907,6 +920,7 @@ public partial class CueList
 	/// </summary>
 	public void DeleteSelectedCues()
 	{
+		if (!IsActiveList) return;
 		_ = DeleteSelectedCuesAsync();
 	}
 
@@ -1510,6 +1524,12 @@ public partial class CueList
 	/// Handler for the Expand/Collapse All button. Toggles the expanded state of all groups
 	/// (recursively) and updates the button icon.
 	/// </summary>
+	private void OnToggleExpandAllHotkey()
+	{
+		if (!IsActiveList) return;
+		OnExpandAllPressed();
+	}
+
 	private void OnExpandAllPressed()
 	{
 		_allExpanded = !_allExpanded;
@@ -1528,6 +1548,7 @@ public partial class CueList
 	/// </summary>
 	public void ExpandOneLayer()
 	{
+		if (!IsActiveList) return;
 		SetExpandedOneLayer(true);
 	}
 
@@ -1536,6 +1557,7 @@ public partial class CueList
 	/// </summary>
 	public void CollapseOneLayer()
 	{
+		if (!IsActiveList) return;
 		SetExpandedOneLayer(false);
 	}
 
@@ -1556,19 +1578,102 @@ public partial class CueList
 	/// </summary>
 	private void SetExpandedAllGroups(bool expanded)
 	{
-		if (CueIndex == null)
-			return;
-		foreach (var cue in CueIndex.Values)
+		foreach (int id in CollectCueIds())
 		{
+			var cue = FetchCueFromId(id);
 			if (cue != null && cue.ChildCues.Count > 0)
 				cue.Expanded = expanded;
 		}
 		NotifyVirtualStructureChanged();
 	}
-	
+
+	/// <summary>
+	/// True when <paramref name="cueId"/> belongs to this list's tree.
+	/// </summary>
+	public bool ContainsCue(int cueId)
+	{
+		var cue = FetchCueFromId(cueId);
+		if (cue == null)
+			return false;
+		int guard = 0;
+		while (cue.ParentId >= 0 && guard++ < 64)
+		{
+			var parent = FetchCueFromId(cue.ParentId);
+			if (parent == null)
+				break;
+			cue = parent;
+		}
+
+		return RootOrder.Contains(cue.Id);
+	}
+
+	/// <summary>
+	/// Every cue id in this list (roots then descendants).
+	/// </summary>
+	internal List<int> CollectCueIds()
+	{
+		var ids = new List<int>();
+		void Walk(int id)
+		{
+			ids.Add(id);
+			var cue = FetchCueFromId(id);
+			if (cue?.ChildCues == null)
+				return;
+			foreach (int child in cue.ChildCues)
+				Walk(child);
+		}
+
+		foreach (int id in RootOrder)
+			Walk(id);
+		return ids;
+	}
+
+	/// <summary>
+	/// Removes this list's cues from the global index and clears the viewport.
+	/// Does not reset the shared id allocator or other lists.
+	/// </summary>
+	public void ClearListForReload()
+	{
+		var ids = CollectCueIds();
+		ClearVirtualState();
+		if (CueIndex != null)
+		{
+			foreach (int id in ids)
+				CueIndex.Remove(id);
+		}
+
+		NotifyTotalCuesChanged();
+	}
+
+	/// <summary>
+	/// The cuelist that owns <paramref name="cueId"/>, or <see cref="Live"/>.
+	/// </summary>
+	public static CueList FindOwningList(int cueId)
+	{
+		if (Live?.GetParent() is Cue2.UI.Shell.CuelistWorkspace workspace)
+		{
+			foreach (var list in workspace.Lists)
+			{
+				if (list != null && list.ContainsCue(cueId))
+					return list;
+			}
+		}
+
+		return Live;
+	}
+
 	public void ResetCuelist()
 	{
-		ClearVirtualState();
+		var workspace = _globalData?.CuelistWorkspace;
+		if (workspace != null)
+		{
+			workspace.ResetToSingleEmptyList();
+			ShellSelection.SelectedCues = new List<Cue>();
+			NotifyTotalCuesChanged();
+			return;
+		}
+
+		ClearListForReload();
 		CueIndex = new System.Collections.Generic.Dictionary<int, Cue>();
 		ShellSelection.SelectedCues = new List<Cue>();
 		Cue.ResetIdAllocator();

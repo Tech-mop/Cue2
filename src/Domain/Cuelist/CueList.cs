@@ -37,7 +37,10 @@ public partial class CueList : Control
 	public static System.Collections.Generic.Dictionary<int, Cue> CueIndex; // <CueId, Cue>
 
 	/// <summary>The workspace cuelist, or null before <c>_Ready</c> / after teardown.</summary>
-	internal static CueList Live { get; private set; }
+	internal static CueList Live { get; set; }
+
+	/// <summary>Tab title for this list. User data (not translated).</summary>
+	public string ListName { get; set; } = "Cue List";
 
 	/// <summary>
 	/// Total number of cues in the show (all levels, including group children).
@@ -98,11 +101,12 @@ public partial class CueList : Control
 	private bool _isDraggingNumberColumn;
 
 	/// <summary>
-	/// In-app cue clipboard: ordered root original ids and a flat map of original-id → deep-cloned <see cref="Cue.GetData"/>.
-	/// Survives cut (sources deleted) and supports multi-root paste with full child trees.
+	/// In-app cue clipboard shared by every cuelist tab: ordered root original ids and a
+	/// flat map of original-id → deep-cloned <see cref="Cue.GetData"/>.
+	/// Survives cut (sources deleted) and supports paste into another list.
 	/// </summary>
-	private List<int> _clipboardRootIds = new();
-	private Dictionary _clipboardCuesByOldId;
+	private static List<int> _clipboardRootIds = new();
+	private static Dictionary _clipboardCuesByOldId;
 
 	/// <summary>
 	/// True while a frame-sliced bulk structural operation (duplicate/paste/copy/cut/delete) is running.
@@ -137,15 +141,47 @@ public partial class CueList : Control
 	
 	public CueList()
 	{
-		CueIndex = new System.Collections.Generic.Dictionary<int, Cue>();
+		CueIndex ??= new System.Collections.Generic.Dictionary<int, Cue>();
+	}
+
+	/// <summary>True when this list is the active tab.</summary>
+	public bool IsActiveList => Live == this;
+
+	/// <summary>
+	/// Selected cues that belong to this list's tree. Ignores a selection left on another tab.
+	/// </summary>
+	internal List<Cue> GetSelectedCuesInThisList()
+	{
+		var selected = ShellSelection.SelectedCues;
+		if (selected == null || selected.Count == 0)
+			return new List<Cue>();
+		var owned = new List<Cue>();
+		foreach (var cue in selected)
+		{
+			if (cue != null && ContainsCue(cue.Id))
+				owned.Add(cue);
+		}
+
+		return owned;
+	}
+
+	/// <summary>Clears the shared cue clipboard (New Session / Open).</summary>
+	internal static void ClearClipboard()
+	{
+		_clipboardRootIds = new List<int>();
+		_clipboardCuesByOldId = null;
 	}
 
 	public override void _Ready()
 	{
 		_globalData = GetNode<GlobalData>("/root/GlobalData");
-		_globalData.Cuelist = this;
-		Live = this;
 		_globalSignals = GetNode<GlobalSignals>("/root/GlobalSignals");
+		if (Live == null)
+		{
+			Live = this;
+			if (_globalData != null)
+				_globalData.Cuelist = this;
+		}
 
 		// Ui
 		_cueContainer = GetNode<VBoxContainer>("%CueContainer");
@@ -201,7 +237,7 @@ public partial class CueList : Control
 		_globalSignals.GroupSelectedCues += GroupSelectedCues;
 		_globalSignals.CuelistExpandOneLayer += ExpandOneLayer;
 		_globalSignals.CuelistCollapseOneLayer += CollapseOneLayer;
-		_globalSignals.ToggleExpandAll += OnExpandAllPressed;
+		_globalSignals.ToggleExpandAll += OnToggleExpandAllHotkey;
 		_addCueButton.Pressed += CreateCue;
 		_expandAllButton.Pressed += OnExpandAllPressed;
 
@@ -237,6 +273,16 @@ public partial class CueList : Control
 			_globalSignals.CueListScaleChanged -= OnCueListScaleChanged;
 			_globalSignals.NewSession -= OnNewSession;
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
+			_globalSignals.CreateCue -= CreateCue;
+			_globalSignals.DeleteSelectedCues -= DeleteSelectedCues;
+			_globalSignals.DuplicateSelectedCues -= DuplicateSelectedCues;
+			_globalSignals.CutSelectedCues -= CutSelectedCues;
+			_globalSignals.CopySelectedCues -= CopySelectedCues;
+			_globalSignals.PasteCues -= PasteCues;
+			_globalSignals.GroupSelectedCues -= GroupSelectedCues;
+			_globalSignals.CuelistExpandOneLayer -= ExpandOneLayer;
+			_globalSignals.CuelistCollapseOneLayer -= CollapseOneLayer;
+			_globalSignals.ToggleExpandAll -= OnToggleExpandAllHotkey;
 		}
 		if (_virtualScrollWired && _cueListScroll != null && IsInstanceValid(_cueListScroll))
 		{

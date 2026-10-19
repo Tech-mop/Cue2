@@ -1970,7 +1970,7 @@ public class Cue : ICue
     {
         var siblings = ParentId >= 0
             ? CueList.FetchCueFromId(ParentId)?.ChildCues
-            : CueList.Live?.RootOrder;
+            : CueList.FindOwningList(Id)?.RootOrder;
         if (siblings == null)
             return null;
 

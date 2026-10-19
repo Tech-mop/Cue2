@@ -35,12 +35,14 @@ public partial class CueList
 		var saveTable = new Dictionary();
 		var cues = new Dictionary();
 		var cueOrder = GetCueOrder();
+		saveTable.Add("Name", ListName ?? "Cue List");
 		saveTable.Add("CueOrder", cueOrder);
-		foreach (var cue in CueIndex.Values)
+		foreach (int id in CollectCueIds())
 		{
-			var cueData = cue.GetData();
-			
-			cues.Add(cue.Id, cueData);
+			var cue = FetchCueFromId(id);
+			if (cue == null)
+				continue;
+			cues.Add(cue.Id, cue.GetData());
 		}
 		saveTable.Add("Cues", cues);
 		return saveTable;

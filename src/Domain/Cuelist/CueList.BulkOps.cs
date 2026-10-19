@@ -49,7 +49,7 @@ public partial class CueList
 		if (BlockIfShowMode("duplicate cues") || BlockIfBulkBusy("duplicate cues"))
 			return;
 
-		var selected = ShellSelection.SelectedCues?.ToList() ?? new List<Cue>();
+		var selected = GetSelectedCuesInThisList();
 		if (selected.Count == 0)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "No cues selected to duplicate.", (int)LogType.Info);
@@ -339,7 +339,7 @@ public partial class CueList
 
 			_globalData?.HistoryManager?.RecordCuelistChange("Paste cues");
 
-			var selected = ShellSelection.SelectedCues?.ToList() ?? new List<Cue>();
+			var selected = GetSelectedCuesInThisList();
 			Cue anchor = selected.Count > 0 ? selected.Last() : null;
 			VBoxContainer container;
 			int insertIndex;
@@ -527,7 +527,7 @@ public partial class CueList
 		if (BlockIfShowMode("delete cues") || BlockIfBulkBusy("delete cues"))
 			return;
 
-		var selected = ShellSelection.SelectedCues?.ToList() ?? new List<Cue>();
+		var selected = GetSelectedCuesInThisList();
 		if (selected.Count == 0)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "No cues selected to delete.", (int)LogType.Info);
@@ -600,7 +600,7 @@ public partial class CueList
 		sampleName = string.Empty;
 		totalCues = 0;
 
-		var selected = ShellSelection.SelectedCues?.ToList() ?? new List<Cue>();
+		var selected = GetSelectedCuesInThisList();
 		if (selected.Count == 0)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), $"No cues selected to {verb}.", (int)LogType.Info);

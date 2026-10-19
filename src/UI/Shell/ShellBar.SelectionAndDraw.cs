@@ -524,9 +524,10 @@ public partial class ShellBar
 
 		if (IsCueEditingLocked())
 			return;
-		if (_globalData?.Cuelist == null)
+		var list = CueList.FindOwningList(CueId) ?? _globalData?.Cuelist;
+		if (list == null)
 			return;
-		_globalData.Cuelist.StartReorder(this);
+		list.StartReorder(this);
 	}
 
 	/// <summary>
