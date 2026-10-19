@@ -676,6 +676,130 @@ public partial class CueList
 		return true;
 	}
 
+	/// <summary>True when the shared cue clipboard holds at least one root.</summary>
+	internal static bool HasClipboard =>
+		_clipboardRootIds != null && _clipboardRootIds.Count > 0
+		&& _clipboardCuesByOldId != null && _clipboardCuesByOldId.Count > 0;
+
+	/// <summary>Number of top-level cues on the clipboard.</summary>
+	internal static int ClipboardRootCount => _clipboardRootIds?.Count ?? 0;
+
+	/// <summary>
+	/// Captures <paramref name="selected"/> (and descendant trees) into the shared clipboard.
+	/// Selection order is preserved for roots that are not descendants of another selected cue.
+	/// </summary>
+	internal static bool WriteClipboardFromCues(IReadOnlyList<Cue> selected)
+	{
+		if (selected == null || selected.Count == 0)
+			return false;
+
+		var selectedIds = new HashSet<int>(selected.Where(c => c != null).Select(c => c.Id));
+		var roots = selected
+			.Where(c => c != null && (c.ParentId == -1 || !selectedIds.Contains(c.ParentId)))
+			.ToList();
+		if (roots.Count == 0)
+			return false;
+
+		var cuesByOldId = new Dictionary();
+		var seen = new HashSet<int>();
+		void Walk(Cue cue)
+		{
+			if (cue == null || !seen.Add(cue.Id))
+				return;
+			cuesByOldId[cue.Id.ToString()] = DeepCloneDict(cue.GetData());
+			foreach (int childId in cue.ChildCues.ToList())
+				Walk(FetchCueFromId(childId));
+		}
+
+		foreach (var root in roots)
+			Walk(root);
+
+		if (cuesByOldId.Count == 0)
+			return false;
+
+		_clipboardRootIds = roots.Select(r => r.Id).ToList();
+		_clipboardCuesByOldId = cuesByOldId;
+		return true;
+	}
+
+	/// <summary>
+	/// Materializes clipboard cues with new ids, remaps child/control links, and registers them
+	/// in <see cref="CueIndex"/>. Returns the cloned roots in clipboard order (no shells).
+	/// </summary>
+	internal static List<Cue> CloneClipboardAsCues()
+	{
+		var result = new List<Cue>();
+		if (!HasClipboard)
+			return result;
+
+		var oldToNew = new System.Collections.Generic.Dictionary<int, int>();
+		var oldToCue = new System.Collections.Generic.Dictionary<int, Cue>();
+		var oldChildOrder = new System.Collections.Generic.Dictionary<int, List<int>>();
+
+		foreach (var kv in _clipboardCuesByOldId)
+		{
+			if (!int.TryParse(kv.Key.AsString(), out int oldId))
+				continue;
+			if (kv.Value.VariantType != Variant.Type.Dictionary)
+				continue;
+			var data = kv.Value.AsGodotDictionary();
+			var childIds = new List<int>();
+			if (data.TryGetValue("ChildCues", out var childVar))
+			{
+				foreach (var c in childVar.AsGodotArray())
+					childIds.Add(c.AsInt32());
+			}
+
+			oldChildOrder[oldId] = childIds;
+
+			var applyData = DeepCloneDict(data);
+			applyData.Remove("Id");
+			applyData["ParentId"] = "-1";
+			applyData["ChildCues"] = new Godot.Collections.Array();
+
+			var cue = new Cue();
+			cue.ApplyFromData(applyData);
+			cue.ChildCues = new List<int>();
+			cue.ParentId = -1;
+			oldToNew[oldId] = cue.Id;
+			oldToCue[oldId] = cue;
+			CueIndex ??= new System.Collections.Generic.Dictionary<int, Cue>();
+			CueIndex[cue.Id] = cue;
+		}
+
+		foreach (var (oldId, cue) in oldToCue)
+		{
+			var children = oldChildOrder.TryGetValue(oldId, out var list) ? list : new List<int>();
+			cue.ChildCues.Clear();
+			foreach (int childOld in children)
+			{
+				if (!oldToNew.TryGetValue(childOld, out int childNew))
+					continue;
+				cue.ChildCues.Add(childNew);
+				if (oldToCue.TryGetValue(childOld, out var childCue))
+					childCue.ParentId = cue.Id;
+			}
+
+			foreach (var comp in cue.Components)
+			{
+				if (comp is not ControlComponent control || control.TargetCueId < 0)
+					continue;
+				if (oldToNew.TryGetValue(control.TargetCueId, out int newTarget))
+					control.TargetCueId = newTarget;
+			}
+
+			cue.CalculateTotalDuration();
+		}
+
+		foreach (int rootOld in _clipboardRootIds)
+		{
+			if (oldToCue.TryGetValue(rootOld, out var root))
+				result.Add(root);
+		}
+
+		return result;
+	}
+
 	/// <summary>
 	/// Removes root trees; when <paramref name="asyncPath"/> is true, yields every few removals.
 	/// </summary>

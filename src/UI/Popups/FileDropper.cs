@@ -18,6 +18,7 @@ using Cue2.Domain.Commands;
 using Cue2.Services;
 using Cue2.UI.Inspectors;
 using Cue2.UI.Popups;
+using Cue2.UI.Shell;
 
 namespace Cue2.UI.Popups;
 
@@ -30,7 +31,8 @@ public enum FileDropTargetType
     FileUrlAudio,
     FileUrlVideo,
     CueList,
-    ShellBar
+    ShellBar,
+    ButtonBoard
 }
 
 /// <summary>
@@ -67,6 +69,18 @@ public enum MultiFileDropMode
 }
 
 /// <summary>
+/// How a drop onto a button-board cell is applied.
+/// </summary>
+public enum BoardDropAction
+{
+    /// <summary>Create cues in empty cells, starting at the drop cell, in row-major order.</summary>
+    FillNext = 0,
+
+    /// <summary>Replace media on the occupied cell that received the drop (single file).</summary>
+    Replace = 1
+}
+
+/// <summary>
 /// User choices returned from the file drop confirmation popup.
 /// </summary>
 public class FileDropChoices
@@ -79,6 +93,9 @@ public class FileDropChoices
     /// Ignored when only one file is dropped.
     /// </summary>
     public MultiFileDropMode MultiFileMode { get; set; } = MultiFileDropMode.SeparateCues;
+
+    /// <summary>Button-board action when the drop landed on an occupied cell.</summary>
+    public BoardDropAction BoardAction { get; set; } = BoardDropAction.Replace;
 
     /// <summary>
     /// Legacy convenience: true when <see cref="MultiFileMode"/> is <see cref="MultiFileDropMode.WrapInOneGroup"/>.
@@ -140,6 +157,16 @@ public class FileDropChoices
 // 10. Drop with 0 files or only unsupported:
 //     - Log + no action + no popup.
 //
+// 11. Button Board — single valid file on an empty cell:
+//     - AUTO create a media cue in that cell (no popup). Grows empty neighbours.
+//
+// 12. Button Board — single valid file on an occupied cell:
+//     - SHOW popup: Replace this cue's media (default) or place in the next empty cell.
+//
+// 13. Button Board — multiple valid files:
+//     - AUTO fill empty cells in row-major order from the drop cell (skip occupied).
+//     - Grow the grid when empty cells run out. No popup.
+//
 // Notes:
 // - Inspector URL drops stay direct (single file only).
 // - List/shell drops create *new* cues (primary use case).
@@ -190,6 +217,8 @@ public partial class FileDropper : Control
             _activeFileDropPopup.QueueFree();
             _activeFileDropPopup = null;
         }
+
+        ClearPendingBoard();
     }
 
     private void OnFilesDropped(string[] files)
@@ -274,6 +303,12 @@ public partial class FileDropper : Control
         {
             targetDisplay = "Cue List";
         }
+        else if (dropInfo.TargetType == FileDropTargetType.ButtonBoard)
+        {
+            targetDisplay = ButtonBoard.Live?.ListName ?? "Button Board";
+            HandleBoardDrop(validFiles.ToArray(), dropInfo, targetDisplay);
+            return;
+        }
 
         // AUTO-CREATE for the simplest case: single file dropped on the list background (not a specific shell)
         if (dropInfo.TargetType == FileDropTargetType.CueList && validFiles.Count == 1)
@@ -285,6 +320,53 @@ public partial class FileDropper : Control
         }
 
         // All other list/shell cases (multiple files, or drop on specific shell) → show interactive popup
+        ShowDropPopup(validFiles.ToArray(), dropInfo.TargetType, targetDisplay, targetCueId);
+    }
+
+    private void HandleBoardDrop(string[] files, DropTarget dropInfo, string targetDisplay)
+    {
+        var board = ButtonBoard.Live;
+        if (board == null || !GodotObject.IsInstanceValid(board))
+        {
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                "FileDropper: No active Button Board for drop.", (int)LogType.Error);
+            return;
+        }
+
+        int row = dropInfo.BoardRow;
+        int col = dropInfo.BoardCol;
+        bool occupied = dropInfo.TargetCueId >= 0;
+
+        if (files.Length == 1 && !occupied)
+        {
+            GD.Print($"FileDropper: Auto-creating board cue at ({row},{col}) from drop.");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"FileDropper: Creating cue from dropped file: {Path.GetFileName(files[0])}", (int)LogType.Info);
+            board.ImportDroppedFiles(files, row, col, BoardDropAction.FillNext);
+            return;
+        }
+
+        if (files.Length > 1)
+        {
+            GD.Print($"FileDropper: Filling board from ({row},{col}) with {files.Length} file(s).");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"FileDropper: Filling button board with {files.Length} dropped file(s).", (int)LogType.Info);
+            board.ImportDroppedFiles(files, row, col, BoardDropAction.FillNext);
+            return;
+        }
+
+        ShowDropPopup(files, dropInfo.TargetType, targetDisplay, dropInfo.TargetCueId, board, row, col);
+    }
+
+    private void ShowDropPopup(
+        string[] files,
+        FileDropTargetType targetType,
+        string targetDisplay,
+        int targetCueId,
+        ButtonBoard board = null,
+        int boardRow = -1,
+        int boardCol = -1)
+    {
         GD.Print("FileDropper: Showing FileDropPopup for choices.");
         CloseActivePopup();
 
@@ -297,11 +379,13 @@ public partial class FileDropper : Control
         }
 
         _activeFileDropPopup = popup;
-        popup.ConfigureForDrop(validFiles.ToArray(), dropInfo.TargetType, targetDisplay, targetCueId);
+        popup.ConfigureForDrop(files, targetType, targetDisplay, targetCueId);
 
-        // Capture state for callback
-        _pendingDropFiles = validFiles.ToArray();
+        _pendingDropFiles = files;
         _pendingTargetCueId = targetCueId;
+        _pendingBoard = board;
+        _pendingBoardRow = boardRow;
+        _pendingBoardCol = boardCol;
 
         popup.Confirmed += OnPopupConfirmed;
         popup.Cancelled += OnPopupCancelled;
@@ -315,7 +399,14 @@ public partial class FileDropper : Control
         popup.ShowConfigured();
 
         _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-            $"FileDropper: Dropped {validFiles.Count} file(s) on '{dropInfo.TargetType}'. Awaiting user choices.", (int)LogType.Info);
+            $"FileDropper: Dropped {files.Length} file(s) on '{targetType}'. Awaiting user choices.", (int)LogType.Info);
+    }
+
+    private void ClearPendingBoard()
+    {
+        _pendingBoard = null;
+        _pendingBoardRow = -1;
+        _pendingBoardCol = -1;
     }
 
     private void OnPopupConfirmed(FileDropChoices choices)
@@ -324,6 +415,10 @@ public partial class FileDropper : Control
         int targetId = _pendingTargetCueId;
         var mode = choices.InsertMode;
         var multiMode = choices.MultiFileMode;
+        var board = _pendingBoard;
+        int boardRow = _pendingBoardRow;
+        int boardCol = _pendingBoardCol;
+        var boardAction = choices.BoardAction;
 
         if (_activeFileDropPopup != null)
         {
@@ -340,6 +435,13 @@ public partial class FileDropper : Control
         }
 
         GD.Print($"FileDropper: Popup confirmed. mode={mode}, multiMode={multiMode}, target={targetId}, count={files.Length}");
+
+        if (board != null && GodotObject.IsInstanceValid(board))
+        {
+            board.ImportDroppedFiles(files, boardRow, boardCol, boardAction);
+            return;
+        }
+
         CreateCuesFromDrop(files, targetId, mode, multiMode);
     }
 
@@ -348,6 +450,7 @@ public partial class FileDropper : Control
         _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "FileDropper: Drop cancelled by user.", (int)LogType.Info);
         CloseActivePopup();
         _pendingDropFiles = null;
+        ClearPendingBoard();
     }
 
     /// <summary>
@@ -358,6 +461,8 @@ public partial class FileDropper : Control
         public FileDropTargetType TargetType { get; init; }
         public string TargetInfo { get; init; }
         public int TargetCueId { get; init; }
+        public int BoardRow { get; init; }
+        public int BoardCol { get; init; }
     }
 
     /// <summary>
@@ -385,7 +490,8 @@ public partial class FileDropper : Control
         var dropInfo = GetDropTarget(GetGlobalMousePosition());
         bool mediaAlso = FilterValidMediaFiles(files).Count > 0;
         bool openShow = dropInfo.TargetType == FileDropTargetType.None
-                        || (dropInfo.TargetType == FileDropTargetType.CueList && !mediaAlso);
+                        || ((dropInfo.TargetType == FileDropTargetType.CueList
+                             || dropInfo.TargetType == FileDropTargetType.ButtonBoard) && !mediaAlso);
         if (!openShow)
             return false;
 
@@ -424,10 +530,26 @@ public partial class FileDropper : Control
             }
         }
 
-        var cueListUi = GetNodeOrNull<GlobalData>("/root/GlobalData")?.Cuelist;
+        var board = ButtonBoard.Live;
+        if (board != null && GodotObject.IsInstanceValid(board) && board.Visible
+            && board.GetGlobalRect().HasPoint(mousePos))
+        {
+            board.TryGetCellAt(mousePos, out int row, out int col, out int cueId);
+            GD.Print($"FileDropper:GetDropTarget - ButtonBoard cell ({row},{col}) cue={cueId}");
+            return new DropTarget
+            {
+                TargetType = FileDropTargetType.ButtonBoard,
+                TargetInfo = board.ListName ?? "Button Board",
+                TargetCueId = cueId,
+                BoardRow = row,
+                BoardCol = col
+            };
+        }
+
+        var cueListUi = CueList.Live;
         var cueContainer = cueListUi?.GetNodeOrNull<VBoxContainer>("%CueContainer");
 
-        if (cueContainer != null)
+        if (cueContainer != null && cueListUi.Visible)
         {
             var shellBar = FindShellBarInContainer(cueContainer, mousePos);
             if (shellBar != null && IsMouseInVisibleShellBarArea(shellBar, mousePos))
@@ -441,9 +563,9 @@ public partial class FileDropper : Control
             }
         }
 
-        if (cueListUi != null && cueListUi.GetGlobalRect().HasPoint(mousePos))
+        if (cueListUi != null && cueListUi.Visible && cueListUi.GetGlobalRect().HasPoint(mousePos))
         {
-            return new DropTarget { TargetType = FileDropTargetType.CueList, TargetInfo = "CueList", TargetCueId = -1 };
+            return new DropTarget { TargetType = FileDropTargetType.CueList, TargetInfo = "Cue List", TargetCueId = -1 };
         }
 
         return new DropTarget { TargetType = FileDropTargetType.None };
@@ -493,6 +615,9 @@ public partial class FileDropper : Control
     private string[] _pendingDropFiles;
     private int _pendingTargetCueId;
     private DropInsertMode _pendingInsertMode = DropInsertMode.AtEnd;
+    private ButtonBoard _pendingBoard;
+    private int _pendingBoardRow = -1;
+    private int _pendingBoardCol = -1;
 
     /// <summary>
     /// Creates cues from dropped files using the supplied parameters.

@@ -1650,12 +1650,24 @@ public partial class CueList
 	/// </summary>
 	public static CueList FindOwningList(int cueId)
 	{
-		if (Live?.GetParent() is Cue2.UI.Shell.CuelistWorkspace workspace)
+		Cue2.UI.Shell.CuelistWorkspace workspace = null;
+		if (Live?.GetParent() is Cue2.UI.Shell.CuelistWorkspace fromList)
+			workspace = fromList;
+		else if (Cue2.UI.Shell.ButtonBoard.Live?.GetParent() is Cue2.UI.Shell.CuelistWorkspace fromBoard)
+			workspace = fromBoard;
+
+		if (workspace != null)
 		{
 			foreach (var list in workspace.Lists)
 			{
 				if (list != null && list.ContainsCue(cueId))
 					return list;
+			}
+
+			foreach (var board in workspace.Boards)
+			{
+				if (board != null && board.ContainsCue(cueId))
+					return null;
 			}
 		}
 

@@ -39,6 +39,9 @@ public partial class CueList : Control
 	/// <summary>The workspace cuelist, or null before <c>_Ready</c> / after teardown.</summary>
 	internal static CueList Live { get; set; }
 
+	/// <summary>Showfile / history discriminator for this tab kind.</summary>
+	public const string Kind = "Cuelist";
+
 	/// <summary>Tab title for this list. User data (not translated).</summary>
 	public string ListName { get; set; } = "Cue List";
 

@@ -3,7 +3,8 @@
 ## [Unreleased]
 
 ### Added
-- Multiple cuelists as tabs. The **+** tab creates another list. Double-click a tab to rename it. Extra lists can be closed with the tab close button. Saved with the show; older showfiles open as one list. Switching tabs is undoable (Ctrl+Z); it does not mark the show dirty. Dragging a cue over another list’s tab switches to that list (hold ~⅓ s); dropping on the tab moves the cues to the end of that list.
+- Multiple cuelists as tabs. The **+** tab opens a menu to add a Cuelist or a Button Board. Double-click a tab to rename it. Extra tabs can be closed with the tab close button (the last cuelist stays). Dragging a cue over another list or Button Board tab switches to that page (hold ~⅓ s); dropping moves cues between cuelists and boards.
+- Button Board cuelist type added
 - Settings → Audio → Audio Input. Create named input patches, collapse them, and add channels. Each channel is labelled device: and ch: and is assigned one recording input.
 - Channel trim uses the usual dB field. Its meter is the device level before trim. Beside the patch name, a submaster trim applies to every channel, and a second meter shows the loudest channel after both trims. Meters run while the Audio Input page is open.
 - Input patches are saved with the show, included in undo, and included in Settings Store / Recall.

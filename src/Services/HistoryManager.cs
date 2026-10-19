@@ -889,9 +889,10 @@ public partial class HistoryManager : Node
 			foreach (int id in entry.SelectedCueIds)
 			{
 				var cue = CueList.FetchCueFromId(id);
-				if (cue?.ShellBar == null || !IsInstanceValid(cue.ShellBar))
+				if (cue == null)
 					continue;
-				cue.ShellBar.Select();
+				if (cue.ShellBar != null && IsInstanceValid(cue.ShellBar))
+					cue.ShellBar.Select();
 				ShellSelection.SelectedCues.Add(cue);
 			}
 		}

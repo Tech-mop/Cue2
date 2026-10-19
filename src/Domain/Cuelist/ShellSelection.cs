@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Cue2.Domain.Cues;
 using Cue2.Services;
+using Cue2.UI.Shell;
 using Godot;
 
 namespace Cue2.Domain.Cuelist;
@@ -307,6 +308,9 @@ public partial class ShellSelection : Node
     /// </summary>
     public List<Cue> GetAllCuesInOrder()
     {
+        var board = ButtonBoard.Live;
+        if (board != null && GodotObject.IsInstanceValid(board))
+            return board.GetOccupiedCuesInOrder();
         return _globalData?.Cuelist?.GetVisibleCues() ?? new List<Cue>();
     }
 

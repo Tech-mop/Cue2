@@ -35,6 +35,7 @@ public partial class CueList
 		var saveTable = new Dictionary();
 		var cues = new Dictionary();
 		var cueOrder = GetCueOrder();
+		saveTable.Add("Kind", Kind);
 		saveTable.Add("Name", ListName ?? "Cue List");
 		saveTable.Add("CueOrder", cueOrder);
 		foreach (int id in CollectCueIds())

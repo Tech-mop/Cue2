@@ -14,13 +14,16 @@ using Array = Godot.Collections.Array;
 namespace Cue2.UI.Shell;
 
 /// <summary>
-/// Owns the cuelist <see cref="TabContainer"/>: one tab per list plus a trailing
-/// <c>+</c> tab that creates another list.
+/// Owns the workspace <see cref="TabContainer"/>: one tab per cuelist or button board
+/// plus a trailing <c>+</c> tab that offers Cuelist / Button Board.
 /// </summary>
 public partial class CuelistWorkspace : TabContainer
 {
     private const string PlusTabName = "AddCuelistTab";
     private const string DefaultListName = "Cue List";
+    private const string DefaultBoardName = "Button Board";
+    private const int AddTypeCuelistId = 0;
+    private const int AddTypeButtonBoardId = 1;
 
     private GlobalData _globalData;
     private GlobalSignals _globalSignals;
@@ -30,33 +33,56 @@ public partial class CuelistWorkspace : TabContainer
     private bool _syncingTabs;
     private PopupPanel _renamePopup;
     private LineEdit _renameEdit;
-    private CueList _renameTarget;
+    private Control _renameTarget;
     private TabBar _tabBar;
     private Texture2D _closeIcon;
     private readonly System.Collections.Generic.Dictionary<CueList, List<int>> _stashedSelection = new();
+    private readonly System.Collections.Generic.Dictionary<ButtonBoard, List<int>> _stashedBoardSelection = new();
+    private Control _lastPage;
+    private OptionButton _addTypeButton;
+    private bool _addTypePicked;
+    private CueMovePreview _movePreview;
+
+    /// <summary>Shared floating card for cuelist reorder and button-board drag.</summary>
+    internal CueMovePreview MovePreview => _movePreview;
 
     /// <summary>Live cuelist tabs in display order (excludes the + tab).</summary>
     public IReadOnlyList<CueList> Lists => CollectLists();
 
+    /// <summary>Button board tabs in display order.</summary>
+    public IReadOnlyList<ButtonBoard> Boards => CollectBoards();
+
     /// <summary>
-    /// Index of the visible list in <see cref="Lists"/>, or -1 when none.
+    /// Index of the visible page (cuelist or button board) in tab order, or -1 when none.
     /// </summary>
     public int GetActiveListIndex()
     {
-        var lists = CollectLists();
-        for (int i = 0; i < lists.Count; i++)
+        var pages = CollectPages();
+        Control current = ControlAtTab(CurrentTab);
+        if (current == _plusTab)
+            current = _lastPage;
+        for (int i = 0; i < pages.Count; i++)
         {
-            if (lists[i] == CueList.Live)
+            if (pages[i] == current)
                 return i;
         }
 
-        return lists.Count > 0 ? 0 : -1;
+        return pages.Count > 0 ? 0 : -1;
     }
 
     /// <summary>
     /// Cuelist whose tab contains <paramref name="globalPos"/>, or null for a miss / the + tab.
     /// </summary>
     public CueList GetListTabAtGlobalPoint(Vector2 globalPos)
+    {
+        return GetPageTabAtGlobalPoint(globalPos) as CueList;
+    }
+
+    /// <summary>
+    /// Workspace page (cuelist or button board) whose tab contains <paramref name="globalPos"/>,
+    /// or null for a miss / the + tab.
+    /// </summary>
+    public Control GetPageTabAtGlobalPoint(Vector2 globalPos)
     {
         if (_tabBar == null || !GodotObject.IsInstanceValid(_tabBar))
             return null;
@@ -65,7 +91,10 @@ public partial class CuelistWorkspace : TabContainer
 
         Vector2 local = _tabBar.GetGlobalTransformWithCanvas().AffineInverse() * globalPos;
         int idx = _tabBar.GetTabIdxAtPoint(local);
-        return ControlAtTab(idx) as CueList;
+        var page = ControlAtTab(idx);
+        if (page == null || page == _plusTab)
+            return null;
+        return page;
     }
 
     /// <summary>True when <paramref name="globalPos"/> is over the cuelist tab bar.</summary>
@@ -82,16 +111,36 @@ public partial class CuelistWorkspace : TabContainer
     /// </summary>
     public void HoverActivateListDuringReorder(CueList list)
     {
-        if (list == null || !GodotObject.IsInstanceValid(list) || CueList.Live == list)
+        HoverActivatePageDuringReorder(list);
+    }
+
+    /// <summary>
+    /// Shows a cuelist or button-board tab during a reorder drag. Does not record history
+    /// and keeps the dragged selection until drop.
+    /// </summary>
+    public void HoverActivatePageDuringReorder(Control page)
+    {
+        if (page == null || !GodotObject.IsInstanceValid(page) || page == _plusTab)
             return;
 
         bool wasSyncing = _syncingTabs;
         _syncingTabs = true;
         try
         {
-            SelectListTab(list);
-            ActivateList(list, preserveSelection: true);
-            list.SyncVirtualViewport();
+            SelectPage(page);
+            if (page is CueList list)
+            {
+                if (CueList.Live == list)
+                    return;
+                ActivateList(list, preserveSelection: true);
+                list.SyncVirtualViewport();
+            }
+            else if (page is ButtonBoard board)
+            {
+                if (ButtonBoard.Live == board)
+                    return;
+                ActivateBoard(board, preserveSelection: true);
+            }
         }
         finally
         {
@@ -100,25 +149,29 @@ public partial class CuelistWorkspace : TabContainer
     }
 
     /// <summary>
-    /// Switches the visible cuelist tab during undo/redo. Does not record history.
+    /// Switches the visible workspace tab during undo/redo. Does not record history.
     /// </summary>
-    /// <param name="activeIndex">Index into <see cref="Lists"/> captured at record time.</param>
+    /// <param name="activeIndex">Index of the workspace page captured at record time.</param>
     public void RestoreActiveListIndex(int activeIndex)
     {
-        var lists = CollectLists();
-        if (lists.Count == 0 || activeIndex < 0 || activeIndex >= lists.Count)
+        var pages = CollectPages();
+        if (pages.Count == 0 || activeIndex < 0 || activeIndex >= pages.Count)
             return;
 
-        var list = lists[activeIndex];
-        if (list == null || !GodotObject.IsInstanceValid(list) || CueList.Live == list)
+        var page = pages[activeIndex];
+        if (page == null || !GodotObject.IsInstanceValid(page))
+            return;
+        if (page is CueList list && CueList.Live == list)
+            return;
+        if (page == ControlAtTab(CurrentTab) && page is not CueList)
             return;
 
         bool wasSyncing = _syncingTabs;
         _syncingTabs = true;
         try
         {
-            SelectListTab(list);
-            ActivateList(list);
+            SelectPage(page);
+            ActivatePage(page);
         }
         finally
         {
@@ -162,10 +215,20 @@ public partial class CuelistWorkspace : TabContainer
             CreateList(recordHistory: false, select: true);
 
         RefreshTabChrome();
-        ActivateCurrentList();
+        ActivateCurrentPage();
+        _movePreview = new CueMovePreview();
+        CallDeferred(nameof(AttachMovePreview));
         UiLocalizer.LocalizeTree(this);
         if (_globalSignals != null)
             _globalSignals.LocaleChanged += OnLocaleChanged;
+    }
+
+    private void AttachMovePreview()
+    {
+        if (_movePreview == null || !IsInsideTree())
+            return;
+        Node host = GetNodeOrNull("/root/Cue2Base") ?? GetTree()?.Root;
+        _movePreview.Attach(host);
     }
 
     public override void _ExitTree()
@@ -181,6 +244,8 @@ public partial class CuelistWorkspace : TabContainer
             _tabBar.RemoveThemeIconOverride("close");
         }
 
+        TearDownAddTypeButton();
+
         if (_renameEdit != null)
         {
             _renameEdit.TextSubmitted -= OnRenameSubmitted;
@@ -193,6 +258,8 @@ public partial class CuelistWorkspace : TabContainer
             _closeIcon = null;
         }
 
+        _movePreview?.DisposeResources();
+        _movePreview = null;
         if (_globalData != null && _globalData.CuelistWorkspace == this)
             _globalData.CuelistWorkspace = null;
         base._ExitTree();
@@ -201,25 +268,28 @@ public partial class CuelistWorkspace : TabContainer
     private void OnLocaleChanged(string locale)
     {
         RefreshTabChrome();
+        if (_addTypeButton != null && GodotObject.IsInstanceValid(_addTypeButton))
+            UiLocalizer.RelocalizeOptionButton(_addTypeButton);
     }
 
     /// <summary>
-    /// Serializes every cuelist for the showfile / undo snapshot.
+    /// Serializes every workspace page (cuelist or button board) for the showfile / undo snapshot.
     /// </summary>
     public Dictionary GetDocumentData()
     {
         var root = new Dictionary();
         var lists = new Array();
-        var collected = CollectLists();
+        var collected = CollectPages();
         for (int i = 0; i < collected.Count; i++)
         {
-            var data = collected[i].GetData();
-            data["Name"] = collected[i].ListName ?? DefaultListName;
-            lists.Add(data);
+            var data = GetPageData(collected[i]);
+            if (data != null)
+                lists.Add(data);
         }
 
         root["Cuelists"] = lists;
-        root["ActiveIndex"] = Math.Max(0, collected.IndexOf(CueList.Live));
+        int active = GetActiveListIndex();
+        root["ActiveIndex"] = Math.Max(0, active);
         return root;
     }
 
@@ -266,8 +336,9 @@ public partial class CuelistWorkspace : TabContainer
             CueList.CueIndex = new System.Collections.Generic.Dictionary<int, Cue>();
             CueList.ClearClipboard();
             _stashedSelection.Clear();
+            _stashedBoardSelection.Clear();
 
-            var existing = CollectLists();
+            var existing = CollectPages();
             while (existing.Count > slices.Count)
             {
                 var extra = existing[^1];
@@ -276,26 +347,34 @@ public partial class CuelistWorkspace : TabContainer
                 extra.QueueFree();
             }
 
-            existing = CollectLists();
             for (int i = 0; i < slices.Count; i++)
             {
-                CueList list;
-                if (i < existing.Count)
-                    list = existing[i];
-                else
-                    list = InstantiateList();
-
-                if (slices[i].TryGetValue("Name", out var nameVar))
+                existing = CollectPages();
+                string kind = ReadPageKind(slices[i]);
+                Control page = i < existing.Count ? existing[i] : null;
+                bool wantBoard = kind == ButtonBoard.Kind;
+                bool pageOk = wantBoard ? page is ButtonBoard : page is CueList;
+                if (!pageOk)
                 {
-                    string name = nameVar.AsString();
-                    if (!string.IsNullOrWhiteSpace(name))
-                        list.ListName = name;
+                    if (page != null)
+                    {
+                        int childIdx = page.GetIndex();
+                        RemoveChild(page);
+                        page.QueueFree();
+                        page = wantBoard ? CreateBoardNode() : CreateListNode();
+                        if (page != null)
+                        {
+                            AddChild(page);
+                            MoveChild(page, childIdx);
+                        }
+                    }
+                    else
+                    {
+                        page = wantBoard ? InstantiateBoard() : InstantiateList();
+                    }
                 }
-                else if (string.IsNullOrWhiteSpace(list.ListName))
-                    list.ListName = i == 0 ? DefaultListName : $"{DefaultListName} {i + 1}";
 
-                list.ClearListForReload();
-                list.LoadCueModels(slices[i]);
+                ApplyPageSlice(page, slices[i], i);
             }
 
             foreach (var list in CollectLists())
@@ -303,9 +382,12 @@ public partial class CuelistWorkspace : TabContainer
 
             EnsurePlusTabLast();
             RefreshTabChrome();
-            var lists = CollectLists();
-            SelectListTab(lists[Math.Clamp(activeIndex, 0, lists.Count - 1)]);
-            ActivateCurrentList();
+            var pages = CollectPages();
+            if (pages.Count > 0)
+            {
+                SelectPage(pages[Math.Clamp(activeIndex, 0, pages.Count - 1)]);
+                ActivateCurrentPage();
+            }
         }
         finally
         {
@@ -321,18 +403,30 @@ public partial class CuelistWorkspace : TabContainer
         _syncingTabs = true;
         try
         {
-            var existing = CollectLists();
-            CueList keep = existing.Count > 0 ? existing[0] : null;
-            for (int i = 1; i < existing.Count; i++)
+            var pages = CollectPages();
+            CueList keep = null;
+            foreach (var page in pages)
             {
-                RemoveChild(existing[i]);
-                existing[i].QueueFree();
+                if (page is CueList list)
+                {
+                    keep = list;
+                    break;
+                }
+            }
+
+            foreach (var page in pages)
+            {
+                if (page == keep)
+                    continue;
+                RemoveChild(page);
+                page.QueueFree();
             }
 
             CueList.CueIndex = new System.Collections.Generic.Dictionary<int, Cue>();
             Cue.ResetIdAllocator();
             CueList.ClearClipboard();
             _stashedSelection.Clear();
+            _stashedBoardSelection.Clear();
             if (keep == null)
                 keep = InstantiateList();
             keep.ListName = DefaultListName;
@@ -350,7 +444,7 @@ public partial class CuelistWorkspace : TabContainer
     }
 
     /// <summary>
-    /// Creates a new empty cuelist tab (the + control).
+    /// Creates a new empty cuelist tab.
     /// </summary>
     public CueList CreateList(bool recordHistory = true, bool select = true)
     {
@@ -360,34 +454,106 @@ public partial class CuelistWorkspace : TabContainer
             _historyManager?.RecordCuelistChange("Add cuelist");
 
         var list = InstantiateList();
-        list.ListName = NextDefaultName();
+        list.ListName = NextDefaultListName();
         EnsurePlusTabLast();
         RefreshTabChrome();
         if (select)
         {
-            SelectListTab(list);
-            ActivateList(list);
+            bool wasSyncing = _syncingTabs;
+            _syncingTabs = true;
+            try
+            {
+                SelectListTab(list);
+                ActivateList(list);
+            }
+            finally
+            {
+                _syncingTabs = wasSyncing;
+            }
         }
 
         GD.Print($"CuelistWorkspace:CreateList - '{list.ListName}'");
         return list;
     }
 
-    private CueList InstantiateList()
+    /// <summary>
+    /// Creates a new button-board tab (placeholder UI).
+    /// </summary>
+    public ButtonBoard CreateButtonBoard(bool recordHistory = true, bool select = true)
     {
+        if (recordHistory)
+            _historyManager?.RecordCuelistChange("Add button board");
+
+        var board = InstantiateBoard();
+        board.ListName = NextDefaultBoardName();
+        EnsurePlusTabLast();
+        RefreshTabChrome();
+        if (select)
+        {
+            bool wasSyncing = _syncingTabs;
+            _syncingTabs = true;
+            try
+            {
+                SelectPage(board);
+                ActivateBoard(board);
+            }
+            finally
+            {
+                _syncingTabs = wasSyncing;
+            }
+        }
+
+        GD.Print($"CuelistWorkspace:CreateButtonBoard - '{board.ListName}'");
+        return board;
+    }
+
+    private CueList CreateListNode()
+    {
+        if (_listScene == null)
+            return null;
         if (_listScene.Instantiate() is not CueList list)
         {
-            GD.PrintErr("CuelistWorkspace:InstantiateList - CueListUi root is not CueList.");
+            GD.PrintErr("CuelistWorkspace:CreateListNode - CueListUi root is not CueList.");
             return null;
         }
 
         list.Name = $"CueList_{GetChildCount()}";
+        return list;
+    }
+
+    private ButtonBoard CreateBoardNode()
+    {
+        return new ButtonBoard
+        {
+            Name = $"ButtonBoard_{GetChildCount()}",
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsVertical = SizeFlags.ExpandFill
+        };
+    }
+
+    private CueList InstantiateList()
+    {
+        var list = CreateListNode();
+        if (list == null)
+            return null;
+        InsertPageBeforePlus(list);
+        return list;
+    }
+
+    private ButtonBoard InstantiateBoard()
+    {
+        var board = CreateBoardNode();
+        InsertPageBeforePlus(board);
+        return board;
+    }
+
+    private void InsertPageBeforePlus(Control page)
+    {
         int plusIndex = _plusTab != null && _plusTab.GetParent() == this
             ? _plusTab.GetIndex()
             : GetChildCount();
-        AddChild(list);
-        MoveChild(list, plusIndex);
-        return list;
+        AddChild(page);
+        MoveChild(page, plusIndex);
     }
 
     private void EnsurePlusTab()
@@ -418,25 +584,20 @@ public partial class CuelistWorkspace : TabContainer
             return;
         SetTabTitle(plusTab, "+");
         SetTabHidden(plusTab, false);
-        SetTabTooltip(plusTab, UiLocalizer.T("Add cuelist"));
+        SetTabTooltip(plusTab, UiLocalizer.T("Add"));
     }
 
     private void RefreshTabChrome()
     {
         EnsurePlusTabLast();
-        var lists = CollectLists();
-        for (int i = 0; i < lists.Count; i++)
-        {
-            string title = string.IsNullOrWhiteSpace(lists[i].ListName)
-                ? DefaultListName
-                : lists[i].ListName;
-            SetControlTabTitle(lists[i], title);
-        }
+        var pages = CollectPages();
+        for (int i = 0; i < pages.Count; i++)
+            SetControlTabTitle(pages[i], GetPageName(pages[i]));
 
         SetControlTabTitle(_plusTab, "+");
         if (_tabBar != null)
         {
-            _tabBar.TabCloseDisplayPolicy = lists.Count > 1
+            _tabBar.TabCloseDisplayPolicy = pages.Count > 1
                 ? TabBar.CloseButtonDisplayPolicy.ShowActiveOnly
                 : TabBar.CloseButtonDisplayPolicy.ShowNever;
         }
@@ -454,6 +615,32 @@ public partial class CuelistWorkspace : TabContainer
         return lists;
     }
 
+    private List<Control> CollectPages()
+    {
+        var pages = new List<Control>();
+        foreach (Node child in GetChildren())
+        {
+            if (child is CueList list && GodotObject.IsInstanceValid(list))
+                pages.Add(list);
+            else if (child is ButtonBoard board && GodotObject.IsInstanceValid(board))
+                pages.Add(board);
+        }
+
+        return pages;
+    }
+
+    private List<ButtonBoard> CollectBoards()
+    {
+        var boards = new List<ButtonBoard>();
+        foreach (Node child in GetChildren())
+        {
+            if (child is ButtonBoard board && GodotObject.IsInstanceValid(board))
+                boards.Add(board);
+        }
+
+        return boards;
+    }
+
     private void OnTabChanged(long tab)
     {
         if (_syncingTabs)
@@ -464,24 +651,35 @@ public partial class CuelistWorkspace : TabContainer
             return;
         if (child == _plusTab)
         {
-            _syncingTabs = true;
-            var created = CreateList(recordHistory: true, select: true);
-            _syncingTabs = false;
-            if (created == null)
-            {
-                var lists = CollectLists();
-                if (lists.Count > 0)
-                    SelectListTab(lists[^1]);
-            }
-
+            RevertFromPlusTab();
+            ShowAddTypePicker();
             return;
         }
 
-        if (child is CueList list)
+        bool switching = _lastPage != null && _lastPage != child;
+        if (switching && CollectPages().Count > 1)
+            _historyManager?.RecordSelectionChange("Switch cuelist");
+        ActivatePage(child);
+    }
+
+    private void RevertFromPlusTab()
+    {
+        _syncingTabs = true;
+        try
         {
-            if (CueList.Live != null && CueList.Live != list && CollectLists().Count > 1)
-                _historyManager?.RecordSelectionChange("Switch cuelist");
-            ActivateList(list);
+            Control fallback = _lastPage;
+            if (fallback == null || !GodotObject.IsInstanceValid(fallback) || fallback.GetParent() != this)
+            {
+                var pages = CollectPages();
+                fallback = pages.Count > 0 ? pages[^1] : null;
+            }
+
+            if (fallback != null)
+                SelectPage(fallback);
+        }
+        finally
+        {
+            _syncingTabs = false;
         }
     }
 
@@ -489,7 +687,7 @@ public partial class CuelistWorkspace : TabContainer
     {
         EnsurePlusTabLast();
         RefreshTabChrome();
-        ActivateCurrentList();
+        ActivateCurrentPage();
     }
 
     private void OnTabClosePressed(long tab)
@@ -497,43 +695,72 @@ public partial class CuelistWorkspace : TabContainer
         var child = ControlAtTab((int)tab);
         if (child == null || child == _plusTab)
             return;
-        if (child is not CueList list)
-            return;
-        var lists = CollectLists();
-        if (lists.Count <= 1)
-            return;
 
-        _historyManager?.RecordCuelistChange("Remove cuelist");
-        bool wasActive = CueList.Live == list;
-        _stashedSelection.Remove(list);
-        list.ClearListForReload();
-        RemoveChild(list);
-        list.QueueFree();
-        AfterListRemoved(wasActive);
+        if (child is CueList list)
+        {
+            if (CollectLists().Count <= 1)
+                return;
+            _historyManager?.RecordCuelistChange("Remove cuelist");
+            bool wasVisible = child == ControlAtTab(CurrentTab);
+            _stashedSelection.Remove(list);
+            list.ClearListForReload();
+            RemoveChild(list);
+            list.QueueFree();
+            AfterPageRemoved(wasVisible);
+            return;
+        }
+
+        if (child is ButtonBoard board)
+        {
+            _historyManager?.RecordCuelistChange("Remove button board");
+            bool wasVisible = child == ControlAtTab(CurrentTab);
+            _stashedBoardSelection.Remove(board);
+            board.ClearBoardForReload();
+            RemoveChild(board);
+            board.QueueFree();
+            AfterPageRemoved(wasVisible);
+        }
     }
 
-    private void AfterListRemoved(bool activateFallback)
+    private void AfterPageRemoved(bool activateFallback)
     {
         EnsurePlusTabLast();
         RefreshTabChrome();
-        var lists = CollectLists();
-        if (lists.Count == 0)
+        if (CollectLists().Count == 0)
         {
             CreateList(recordHistory: false, select: true);
             return;
         }
 
-        if (activateFallback || CueList.Live == null || !GodotObject.IsInstanceValid(CueList.Live))
+        var pages = CollectPages();
+        if (pages.Count == 0)
+            return;
+
+        Control current = ControlAtTab(CurrentTab);
+        if (activateFallback || current == null || current == _plusTab)
         {
-            SelectListTab(lists[0]);
-            ActivateList(lists[0]);
+            SelectPage(pages[0]);
+            ActivatePage(pages[0]);
+        }
+        else
+        {
+            ActivatePage(current);
         }
     }
 
-    private void ActivateCurrentList()
+    private void ActivateCurrentPage()
     {
-        if (ControlAtTab(CurrentTab) is CueList list)
+        var child = ControlAtTab(CurrentTab);
+        if (child != null && child != _plusTab)
+            ActivatePage(child);
+    }
+
+    private void ActivatePage(Control page)
+    {
+        if (page is CueList list)
             ActivateList(list);
+        else if (page is ButtonBoard board)
+            ActivateBoard(board);
     }
 
     private void ActivateList(CueList list, bool preserveSelection = false)
@@ -546,20 +773,70 @@ public partial class CuelistWorkspace : TabContainer
         if (!preserveSelection && !restoring && previous != null && previous != list && GodotObject.IsInstanceValid(previous))
             StashSelection(previous);
 
+        var previousBoard = ButtonBoard.Live;
+        if (!preserveSelection && !restoring && previousBoard != null && GodotObject.IsInstanceValid(previousBoard))
+            StashBoardSelection(previousBoard);
+
         CueList.Live = list;
+        ButtonBoard.Live = null;
         if (_globalData != null)
             _globalData.Cuelist = list;
+        _lastPage = list;
 
         if (!preserveSelection && !restoring && previous != list)
             RestoreSelection(list);
     }
 
-    private string NextDefaultName()
+    private void ActivateBoard(ButtonBoard board, bool preserveSelection = false)
+    {
+        if (board == null || !GodotObject.IsInstanceValid(board))
+            return;
+
+        var previous = CueList.Live;
+        var previousBoard = ButtonBoard.Live;
+        bool restoring = _historyManager?.IsRestoring == true;
+        if (!preserveSelection && !restoring && previous != null && GodotObject.IsInstanceValid(previous))
+            StashSelection(previous);
+        if (!preserveSelection && !restoring && previousBoard != null && previousBoard != board && GodotObject.IsInstanceValid(previousBoard))
+            StashBoardSelection(previousBoard);
+
+        CueList.Live = null;
+        ButtonBoard.Live = board;
+        _lastPage = board;
+
+        if (!preserveSelection && !restoring)
+        {
+            if (_globalData?.Settings?.IsCueEditingLocked == true)
+            {
+                _globalData.ShellSelection?.ClearSelection(recordHistory: false);
+                board.RefreshSelectionChrome();
+            }
+            else
+                RestoreBoardSelection(board);
+        }
+    }
+
+    private string NextDefaultListName()
     {
         int n = CollectLists().Count + 1;
         if (n <= 1)
             return DefaultListName;
         return $"{DefaultListName} {n}";
+    }
+
+    private string NextDefaultBoardName()
+    {
+        int n = 0;
+        foreach (var page in CollectPages())
+        {
+            if (page is ButtonBoard)
+                n++;
+        }
+
+        n++;
+        if (n <= 1)
+            return DefaultBoardName;
+        return $"{DefaultBoardName} {n}";
     }
 
     private void OnTabBarGuiInput(InputEvent @event)
@@ -572,16 +849,17 @@ public partial class CuelistWorkspace : TabContainer
             return;
 
         int tab = _tabBar.GetTabIdxAtPoint(mb.Position);
-        if (ControlAtTab(tab) is not CueList list)
+        var page = ControlAtTab(tab);
+        if (page is not CueList && page is not ButtonBoard)
             return;
 
-        BeginRename(list);
+        BeginRename(page);
         _tabBar.AcceptEvent();
     }
 
-    private void BeginRename(CueList list)
+    private void BeginRename(Control page)
     {
-        _renameTarget = list;
+        _renameTarget = page;
         if (_renamePopup == null)
         {
             _renamePopup = new PopupPanel();
@@ -604,7 +882,7 @@ public partial class CuelistWorkspace : TabContainer
             host.AddChild(_renamePopup);
         }
 
-        _renameEdit.Text = list.ListName ?? DefaultListName;
+        _renameEdit.Text = GetPageName(page);
         UiUtilities.PopupScaledAtMouse(_renamePopup, this);
         _renameEdit.GrabFocus();
         _renameEdit.SelectAll();
@@ -624,16 +902,17 @@ public partial class CuelistWorkspace : TabContainer
             return;
         string next = (text ?? string.Empty).Trim();
         if (string.IsNullOrEmpty(next))
-            next = DefaultListName;
-        if (string.Equals(_renameTarget.ListName, next, StringComparison.Ordinal))
+            next = _renameTarget is ButtonBoard ? DefaultBoardName : DefaultListName;
+        if (string.Equals(GetPageName(_renameTarget), next, StringComparison.Ordinal))
         {
             _renamePopup?.Hide();
             _renameTarget = null;
             return;
         }
 
-        _historyManager?.RecordCuelistChange("Rename cuelist");
-        _renameTarget.ListName = next;
+        string historyLabel = _renameTarget is ButtonBoard ? "Rename button board" : "Rename cuelist";
+        _historyManager?.RecordCuelistChange(historyLabel);
+        SetPageName(_renameTarget, next);
         RefreshTabChrome();
         _renamePopup?.Hide();
         _renameTarget = null;
@@ -661,9 +940,11 @@ public partial class CuelistWorkspace : TabContainer
         SetTabTitle(idx, title);
     }
 
-    private void SelectListTab(CueList list)
+    private void SelectListTab(CueList list) => SelectPage(list);
+
+    private void SelectPage(Control page)
     {
-        int idx = TabIndexOf(list);
+        int idx = TabIndexOf(page);
         if (idx >= 0)
             CurrentTab = idx;
     }
@@ -703,6 +984,219 @@ public partial class CuelistWorkspace : TabContainer
         }
 
         _globalData?.ShellSelection?.SetSelection(cues, recordHistory: false, emitFocus: true);
+    }
+
+    private void StashBoardSelection(ButtonBoard board)
+    {
+        if (board == null || !GodotObject.IsInstanceValid(board))
+            return;
+        var ids = new List<int>();
+        var selected = ShellSelection.SelectedCues;
+        if (selected != null)
+        {
+            foreach (var cue in selected)
+            {
+                if (cue != null && board.ContainsCue(cue.Id))
+                    ids.Add(cue.Id);
+            }
+        }
+
+        _stashedBoardSelection[board] = ids;
+    }
+
+    private void RestoreBoardSelection(ButtonBoard board)
+    {
+        if (board == null || !GodotObject.IsInstanceValid(board))
+            return;
+
+        var cues = new List<Cue>();
+        if (_stashedBoardSelection.TryGetValue(board, out var ids) && ids != null)
+        {
+            foreach (int id in ids)
+            {
+                var cue = CueList.FetchCueFromId(id);
+                if (cue != null && board.ContainsCue(id))
+                    cues.Add(cue);
+            }
+        }
+
+        _globalData?.ShellSelection?.SetSelection(cues, recordHistory: false, emitFocus: true);
+    }
+
+    private void ShowAddTypePicker()
+    {
+        EnsureAddTypeButton();
+        if (_addTypeButton == null)
+            return;
+
+        _addTypePicked = false;
+        _addTypeButton.Select(-1);
+        PlaceAddTypeButtonOnPlusTab();
+        _addTypeButton.Visible = true;
+        _addTypeButton.ShowPopup();
+    }
+
+    private void EnsureAddTypeButton()
+    {
+        if (_addTypeButton != null && GodotObject.IsInstanceValid(_addTypeButton))
+            return;
+
+        Control host = GetNodeOrNull<Control>("/root/Cue2Base");
+        if (host == null)
+        {
+            GD.PrintErr("CuelistWorkspace:EnsureAddTypeButton - Cue2Base host missing; picker skipped.");
+            return;
+        }
+
+        _addTypeButton = new OptionButton
+        {
+            Name = "CuelistAddTypeButton",
+            Flat = true,
+            FocusMode = FocusModeEnum.None,
+            MouseFilter = MouseFilterEnum.Ignore,
+            AllowReselect = true,
+            Visible = false,
+            Modulate = Colors.Transparent
+        };
+        UiLocalizer.AddTranslatedItem(_addTypeButton, "Cuelist", AddTypeCuelistId);
+        UiLocalizer.AddTranslatedItem(_addTypeButton, "Button Board", AddTypeButtonBoardId);
+        _addTypeButton.Select(-1);
+        _addTypeButton.ItemSelected += OnAddTypePicked;
+        PopupMenu popup = _addTypeButton.GetPopup();
+        if (popup != null)
+            popup.PopupHide += OnAddTypePopupHide;
+        host.AddChild(_addTypeButton);
+    }
+
+    private void PlaceAddTypeButtonOnPlusTab()
+    {
+        if (_addTypeButton == null || _tabBar == null || !GodotObject.IsInstanceValid(_tabBar))
+            return;
+        int plusTab = TabIndexOf(_plusTab);
+        if (plusTab < 0)
+            return;
+
+        Rect2 tabRect = _tabBar.GetTabRect(plusTab);
+        Vector2 global = _tabBar.GetGlobalTransformWithCanvas() * tabRect.Position;
+        if (_addTypeButton.GetParent() is not Control host)
+            return;
+
+        Vector2 local = host.GetGlobalTransformWithCanvas().AffineInverse() * global;
+        _addTypeButton.Position = local;
+        _addTypeButton.Size = tabRect.Size;
+    }
+
+    private void OnAddTypePicked(long index)
+    {
+        _addTypePicked = true;
+        int id = _addTypeButton != null
+            ? _addTypeButton.GetItemId((int)index)
+            : AddTypeCuelistId;
+        HideAddTypePicker();
+        if (id == AddTypeButtonBoardId)
+            CreateButtonBoard(recordHistory: true, select: true);
+        else
+            CreateList(recordHistory: true, select: true);
+    }
+
+    private void OnAddTypePopupHide()
+    {
+        if (_addTypePicked)
+            return;
+        HideAddTypePicker();
+    }
+
+    private void HideAddTypePicker()
+    {
+        if (_addTypeButton == null || !GodotObject.IsInstanceValid(_addTypeButton))
+            return;
+        _addTypeButton.Visible = false;
+        _addTypeButton.Select(-1);
+    }
+
+    private void TearDownAddTypeButton()
+    {
+        if (_addTypeButton == null)
+            return;
+        if (GodotObject.IsInstanceValid(_addTypeButton))
+        {
+            _addTypeButton.ItemSelected -= OnAddTypePicked;
+            PopupMenu popup = _addTypeButton.GetPopup();
+            if (popup != null && GodotObject.IsInstanceValid(popup))
+                popup.PopupHide -= OnAddTypePopupHide;
+            _addTypeButton.QueueFree();
+        }
+
+        _addTypeButton = null;
+    }
+
+    private static string ReadPageKind(Dictionary data)
+    {
+        if (data != null && data.TryGetValue("Kind", out var kindVar))
+        {
+            string kind = kindVar.AsString();
+            if (kind == ButtonBoard.Kind)
+                return ButtonBoard.Kind;
+        }
+
+        return CueList.Kind;
+    }
+
+    private static Dictionary GetPageData(Control page)
+    {
+        if (page is CueList list)
+        {
+            var data = list.GetData();
+            data["Name"] = list.ListName ?? DefaultListName;
+            return data;
+        }
+
+        if (page is ButtonBoard board)
+            return board.GetData();
+        return null;
+    }
+
+    private static void ApplyPageSlice(Control page, Dictionary slice, int index)
+    {
+        if (page is CueList list)
+        {
+            if (slice.TryGetValue("Name", out var nameVar))
+            {
+                string name = nameVar.AsString();
+                if (!string.IsNullOrWhiteSpace(name))
+                    list.ListName = name;
+            }
+            else if (string.IsNullOrWhiteSpace(list.ListName))
+                list.ListName = index == 0 ? DefaultListName : $"{DefaultListName} {index + 1}";
+
+            list.ClearListForReload();
+            list.LoadCueModels(slice);
+            return;
+        }
+
+        if (page is ButtonBoard board)
+        {
+            board.ApplyFromData(slice);
+            if (string.IsNullOrWhiteSpace(board.ListName))
+                board.ListName = index == 0 ? DefaultBoardName : $"{DefaultBoardName} {index + 1}";
+        }
+    }
+
+    private static string GetPageName(Control page)
+    {
+        if (page is CueList list)
+            return string.IsNullOrWhiteSpace(list.ListName) ? DefaultListName : list.ListName;
+        if (page is ButtonBoard board)
+            return string.IsNullOrWhiteSpace(board.ListName) ? DefaultBoardName : board.ListName;
+        return string.Empty;
+    }
+
+    private static void SetPageName(Control page, string name)
+    {
+        if (page is CueList list)
+            list.ListName = name;
+        else if (page is ButtonBoard board)
+            board.ListName = name;
     }
 
     /// <summary>

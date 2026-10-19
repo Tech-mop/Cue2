@@ -34,6 +34,7 @@ public partial class FileDropPopup : Window
 
 	private DropInsertMode _chosenInsertMode = DropInsertMode.Below;
 	private MultiFileDropMode _chosenMultiFileMode = MultiFileDropMode.SeparateCues;
+	private BoardDropAction _chosenBoardAction = BoardDropAction.Replace;
 
 	/// <summary>
 	/// Applies Linux native-window policy before the scene window enters the tree.
@@ -99,6 +100,7 @@ public partial class FileDropPopup : Window
 
 		_chosenInsertMode = DropInsertMode.Below;
 		_chosenMultiFileMode = MultiFileDropMode.SeparateCues;
+		_chosenBoardAction = BoardDropAction.Replace;
 
 		PopulateOptions();
 	}
@@ -145,6 +147,17 @@ public partial class FileDropPopup : Window
 		container.MoveChild(headerSep, 1);
 		container.MoveChild(dropTargetLabel, 2);
 
+		if (_targetType == FileDropTargetType.ButtonBoard)
+		{
+			PopulateBoardOptions(container);
+			if (_createButton != null)
+				_createButton.Text = UiLocalizer.T("Apply");
+			return;
+		}
+
+		if (_createButton != null)
+			_createButton.Text = UiLocalizer.T("Create Cues");
+
 		// Position options (only meaningful for ShellBar target)
 		if (_targetType == FileDropTargetType.ShellBar && _targetCueId >= 0)
 		{
@@ -184,6 +197,22 @@ public partial class FileDropPopup : Window
 		}
 	}
 
+	private void PopulateBoardOptions(VBoxContainer container)
+	{
+		container.AddChild(CreateWrappingLabel(UiLocalizer.T("This cell already has a cue:")));
+
+		var actionContainer = new VBoxContainer();
+		actionContainer.AddThemeConstantOverride("separation", 2);
+		actionContainer.AddChild(CreateBoardActionChoice(
+			UiLocalizer.T("Replace this cue's media"),
+			BoardDropAction.Replace,
+			isDefault: true));
+		actionContainer.AddChild(CreateBoardActionChoice(
+			UiLocalizer.T("Place in the next available cell"),
+			BoardDropAction.FillNext));
+		container.AddChild(actionContainer);
+	}
+
 	/// <summary>
 	/// Builds the drop-target summary line: cue number + name for shell drops, or list fallback.
 	/// </summary>
@@ -204,6 +233,25 @@ public partial class FileDropPopup : Window
 
 		if (_targetType == FileDropTargetType.CueList)
 			return UiLocalizer.T("Drop Location: Cue List");
+
+		if (_targetType == FileDropTargetType.ButtonBoard)
+		{
+			if (_targetCueId >= 0)
+			{
+				Cue cue = CueList.FetchCueFromId(_targetCueId);
+				if (cue != null)
+				{
+					string cueNum = string.IsNullOrWhiteSpace(cue.CueNum)
+						? cue.Id.ToString()
+						: cue.CueNum.Trim();
+					string cueName = cue.Name ?? string.Empty;
+					return UiLocalizer.Tf("Drop Location: Button Board — Cue Number: {0} - Name: {1}", cueNum, cueName);
+				}
+			}
+
+			return UiLocalizer.Tf("Drop Location: {0}",
+				string.IsNullOrWhiteSpace(_targetDisplayName) ? "Button Board" : _targetDisplayName);
+		}
 
 		return string.IsNullOrWhiteSpace(_targetDisplayName)
 			? UiLocalizer.T("Drop Location: —")
@@ -229,6 +277,33 @@ public partial class FileDropPopup : Window
 			if (!pressed) return;
 
 			_chosenMultiFileMode = mode;
+			var parent = cb.GetParent();
+			if (parent == null) return;
+			foreach (Node sibling in parent.GetChildren())
+			{
+				if (sibling is CheckBox other && other != cb)
+					other.ButtonPressed = false;
+			}
+		};
+
+		return cb;
+	}
+
+	private CheckBox CreateBoardActionChoice(string text, BoardDropAction action, bool isDefault = false)
+	{
+		var cb = new CheckBox
+		{
+			Text = text,
+			ButtonPressed = isDefault || _chosenBoardAction == action
+		};
+		EnableButtonWrap(cb);
+
+		if (isDefault) _chosenBoardAction = action;
+
+		cb.Toggled += pressed =>
+		{
+			if (!pressed) return;
+			_chosenBoardAction = action;
 			var parent = cb.GetParent();
 			if (parent == null) return;
 			foreach (Node sibling in parent.GetChildren())
@@ -278,7 +353,8 @@ public partial class FileDropPopup : Window
 		var choices = new FileDropChoices
 		{
 			InsertMode = _chosenInsertMode,
-			MultiFileMode = _chosenMultiFileMode
+			MultiFileMode = _chosenMultiFileMode,
+			BoardAction = _chosenBoardAction
 		};
 
 		Confirmed?.Invoke(choices);

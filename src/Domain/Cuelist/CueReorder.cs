@@ -36,9 +36,10 @@ internal sealed class CueReorder(
 
     private const double TabHoverSwitchSeconds = 0.35;
 
-    private CueList _hoverTabTarget;
+    private Control _hoverTabTarget;
     private double _hoverTabElapsed;
     private Node _overlayHome;
+    private ButtonBoard _boardDropTarget;
 
     private CueList DropList
     {
@@ -52,6 +53,29 @@ internal sealed class CueReorder(
     }
 
     private CuelistWorkspace Workspace => owner.GetParent() as CuelistWorkspace;
+
+    private CueMovePreview Preview => Workspace?.MovePreview;
+
+    private void SetPreview(string location, bool lineVisible = false, Vector2 linePos = default, Vector2 lineSize = default)
+    {
+        var preview = Preview;
+        if (preview != null)
+        {
+            preview.SetLocation(location);
+            preview.SetDropLine(lineVisible, linePos, lineSize);
+            return;
+        }
+
+        if (reorderLocationLabel != null)
+            reorderLocationLabel.Text = location ?? string.Empty;
+        if (reorderIndicatorPanel == null)
+            return;
+        reorderIndicatorPanel.Visible = lineVisible;
+        if (!lineVisible)
+            return;
+        reorderIndicatorPanel.GlobalPosition = linePos;
+        reorderIndicatorPanel.Size = new Vector2(Mathf.Max(2f, lineSize.X), Mathf.Max(1f, lineSize.Y));
+    }
 
     public void Start(ShellBar shellbar)
     {
@@ -71,13 +95,8 @@ internal sealed class CueReorder(
             }
         }
 
-        PrepareReorderPreviewLabels();
-
-        reorderCueControl.Visible = true;
-        // Floating preview must not steal mouse from list/grabbers (Ignore = 2 in scene;
-        // enforce here in case the packed scene was edited).
-        reorderCueControl.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AttachFloatingOverlay();
+        reorderCueControl.Visible = false;
+        Workspace?.MovePreview?.Begin(ShellSelection.SelectedCues);
         IsActive = true;
         DraggedCueId = shellbar.CueId;
         ResetDropFlags();
@@ -94,8 +113,7 @@ internal sealed class CueReorder(
 
         if (@event is InputEventMouseMotion eventMouseMotion)
         {
-            var reorderControl = reorderCueControl;
-            reorderControl.GlobalPosition = eventMouseMotion.GlobalPosition;
+            Workspace?.MovePreview?.Follow(eventMouseMotion.GlobalPosition);
             RefreshHoverAndDrop(eventMouseMotion.GlobalPosition);
             return;
         }
@@ -135,13 +153,16 @@ internal sealed class CueReorder(
             return;
 
         var mouse = owner.GetGlobalMousePosition();
-        TryHoverSwitchCuelistTab(delta, mouse);
+        TryHoverSwitchPageTab(delta, mouse);
         var workspace = Workspace;
-        var dropList = DropList;
         if (workspace == null || !workspace.IsGlobalPointOnTabBar(mouse))
-            dropList.AutoScrollCueListFromPointer(mouse, delta);
-        if (GodotObject.IsInstanceValid(reorderCueControl))
-            reorderCueControl.GlobalPosition = mouse;
+        {
+            if (ButtonBoard.Live != null)
+                ButtonBoard.Live.AutoScrollBoardFromPointer(mouse, delta);
+            else
+                DropList.AutoScrollCueListFromPointer(mouse, delta);
+        }
+        Workspace?.MovePreview?.Follow(mouse);
         RefreshHoverAndDrop(mouse);
     }
 
@@ -158,7 +179,8 @@ internal sealed class CueReorder(
         {
             float steps = wheel.Factor > 0.01f ? wheel.Factor : 1f;
             float dir = wheel.ButtonIndex == MouseButton.WheelUp ? -1f : 1f;
-            DropList.ScrollCueListByWheel(dir * steps);
+            if (ButtonBoard.Live == null)
+                DropList.ScrollCueListByWheel(dir * steps);
             owner.GetViewport()?.SetInputAsHandled();
             RefreshHoverAndDrop(owner.GetGlobalMousePosition());
             return true;
@@ -166,7 +188,8 @@ internal sealed class CueReorder(
 
         if (@event is InputEventPanGesture pan && !Mathf.IsZeroApprox(pan.Delta.Y))
         {
-            DropList.ScrollCueListByPixels(pan.Delta.Y);
+            if (ButtonBoard.Live == null)
+                DropList.ScrollCueListByPixels(pan.Delta.Y);
             owner.GetViewport()?.SetInputAsHandled();
             RefreshHoverAndDrop(owner.GetGlobalMousePosition());
             return true;
@@ -184,11 +207,21 @@ internal sealed class CueReorder(
         var workspace = Workspace;
         if (workspace != null)
         {
-            var tabList = workspace.GetListTabAtGlobalPoint(globalMouse);
-            if (tabList != null)
+            var tabPage = workspace.GetPageTabAtGlobalPoint(globalMouse);
+            if (tabPage is CueList tabList)
             {
-                reorderLocationLabel.Text = UiLocalizer.Tf("Move to: {0}", tabList.ListName ?? "Cue List");
-                reorderIndicatorPanel.Visible = false;
+                ClearBoardDropHighlight();
+                SetPreview(UiLocalizer.Tf("Move to: {0}", tabList.ListName ?? "Cue List"));
+                MouseOverShellBar = null;
+                ResetDropFlags();
+                DropAtEndAsTopLevel = true;
+                return;
+            }
+
+            if (tabPage is ButtonBoard tabBoard)
+            {
+                ClearBoardDropHighlight();
+                SetPreview(UiLocalizer.Tf("Move to: {0}", tabBoard.ListName ?? "Button Board"));
                 MouseOverShellBar = null;
                 ResetDropFlags();
                 DropAtEndAsTopLevel = true;
@@ -197,36 +230,46 @@ internal sealed class CueReorder(
 
             if (workspace.IsGlobalPointOnTabBar(globalMouse))
             {
-                reorderLocationLabel.Text = UiLocalizer.T("Cannot reorder here");
-                reorderIndicatorPanel.Visible = false;
+                ClearBoardDropHighlight();
+                SetPreview(UiLocalizer.T("Cannot reorder here"));
                 MouseOverShellBar = null;
                 ResetDropFlags();
                 return;
             }
         }
 
+        if (ButtonBoard.Live != null && GodotObject.IsInstanceValid(ButtonBoard.Live))
+        {
+            RefreshBoardDrop(ButtonBoard.Live, globalMouse);
+            return;
+        }
+
+        ClearBoardDropHighlight();
         var dropList = DropList;
         MouseOverShellBar = dropList.FindVisibleShellBarAtGlobalY(globalMouse.Y);
         UpdateDropTarget(dropList, globalMouse);
     }
 
-    private void TryHoverSwitchCuelistTab(double delta, Vector2 mouse)
+    private void TryHoverSwitchPageTab(double delta, Vector2 mouse)
     {
         var workspace = Workspace;
         if (workspace == null)
             return;
 
-        var list = workspace.GetListTabAtGlobalPoint(mouse);
-        if (list == null || list == CueList.Live)
+        var page = workspace.GetPageTabAtGlobalPoint(mouse);
+        bool alreadyVisible = page != null
+            && ((page is CueList list && CueList.Live == list)
+                || (page is ButtonBoard board && ButtonBoard.Live == board));
+        if (page == null || alreadyVisible)
         {
             _hoverTabTarget = null;
             _hoverTabElapsed = 0;
             return;
         }
 
-        if (!ReferenceEquals(list, _hoverTabTarget))
+        if (!ReferenceEquals(page, _hoverTabTarget))
         {
-            _hoverTabTarget = list;
+            _hoverTabTarget = page;
             _hoverTabElapsed = 0;
             return;
         }
@@ -236,9 +279,35 @@ internal sealed class CueReorder(
             return;
 
         _hoverTabElapsed = 0;
-        workspace.HoverActivateListDuringReorder(list);
+        workspace.HoverActivatePageDuringReorder(page);
         MouseOverShellBar = null;
         ResetDropFlags();
+        ClearBoardDropHighlight();
+    }
+
+    private void RefreshBoardDrop(ButtonBoard board, Vector2 globalMouse)
+    {
+        MouseOverShellBar = null;
+        ResetDropFlags();
+        var cell = board.FindCellAtGlobal(globalMouse);
+        board.SetExternalDropTarget(cell);
+        _boardDropTarget = board;
+        if (cell == null)
+            SetPreview(UiLocalizer.Tf("Move to: {0}", board.ListName ?? "Button Board"));
+        else if (cell.IsOccupied)
+        {
+            var cue = CueList.FetchCueFromId(cell.CueId);
+            string name = string.IsNullOrWhiteSpace(cue?.Name) ? (cue?.CueNum ?? "?") : cue.Name;
+            SetPreview(UiLocalizer.Tf("Swap with: {0}", name));
+        }
+        else
+            SetPreview(UiLocalizer.T("Move to empty cell"));
+    }
+
+    private void ClearBoardDropHighlight()
+    {
+        _boardDropTarget?.ClearExternalDropTarget();
+        _boardDropTarget = null;
     }
 
     private void UpdateDropTarget(CueList dropList, Vector2 globalMouse)
@@ -260,11 +329,11 @@ internal sealed class CueReorder(
             InsertBelow = true;
             InsertMakeChild = false;
             DropAtEndAsTopLevel = true;
-            reorderLocationLabel.Text = UiLocalizer.T("Reorder at end (top level)");
-            var emptyIndicator = reorderIndicatorPanel;
-            emptyIndicator.GlobalPosition = dropContainer.GetGlobalPosition();
-            emptyIndicator.Size = new Vector2(Mathf.Max(2f, dropContainer.Size.X), 2);
-            emptyIndicator.Visible = true;
+            SetPreview(
+                UiLocalizer.T("Reorder at end (top level)"),
+                true,
+                dropContainer.GetGlobalPosition(),
+                new Vector2(Mathf.Max(2f, dropContainer.Size.X), 2));
             handledAsEnd = true;
             check = true;
         }
@@ -278,11 +347,11 @@ internal sealed class CueReorder(
                 InsertMakeChild = false;
                 DropAtEndAsTopLevel = true;
 
-                reorderLocationLabel.Text = UiLocalizer.T("Reorder at end (top level)");
-                var indicator = reorderIndicatorPanel;
-                indicator.GlobalPosition = new Vector2(dropContainer.GetGlobalPosition().X, lastBottom);
-                indicator.Size = new Vector2(Mathf.Max(2f, dropContainer.Size.X), 2);
-                indicator.Visible = true;
+                SetPreview(
+                    UiLocalizer.T("Reorder at end (top level)"),
+                    true,
+                    new Vector2(dropContainer.GetGlobalPosition().X, lastBottom),
+                    new Vector2(Mathf.Max(2f, dropContainer.Size.X), 2));
 
                 handledAsEnd = true;
                 check = true;
@@ -313,39 +382,36 @@ internal sealed class CueReorder(
                     parentName = p?.Name ?? "?";
                 }
 
-                var label = reorderLocationLabel;
-                var indicator = reorderIndicatorPanel;
-
                 if (InsertBelow)
                 {
-                    label.Text = InsertMakeChild
+                    string text = InsertMakeChild
                         ? $"Reorder below: {targetName} and child of: {parentName}"
                         : $"Reorder below: {targetName}";
-                    indicator.GlobalPosition = new Vector2(MouseOverShellBar.GetGlobalPosition().X, MouseOverShellBar.GetGlobalPosition().Y + MouseOverShellBar.Size.Y);
-                    indicator.Size = new Vector2(MouseOverShellBar.Size.X, 1);
-                    indicator.Visible = true;
+                    SetPreview(
+                        text,
+                        true,
+                        new Vector2(MouseOverShellBar.GetGlobalPosition().X, MouseOverShellBar.GetGlobalPosition().Y + MouseOverShellBar.Size.Y),
+                        new Vector2(MouseOverShellBar.Size.X, 2));
                 }
                 else if (InsertAbove)
                 {
-                    label.Text = InsertMakeChild
+                    string text = InsertMakeChild
                         ? $"Reorder above: {targetName} and child of: {parentName}"
                         : $"Reorder above: {targetName}";
-                    indicator.GlobalPosition = MouseOverShellBar.GetGlobalPosition();
-                    indicator.Size = new Vector2(MouseOverShellBar.Size.X, 1);
-                    indicator.Visible = true;
+                    SetPreview(text, true, MouseOverShellBar.GetGlobalPosition(), new Vector2(MouseOverShellBar.Size.X, 2));
                 }
                 else
                 {
-                    label.Text = UiLocalizer.Tf("Make child of: {0}", targetName);
-                    indicator.GlobalPosition = MouseOverShellBar.GetGlobalPosition();
-                    indicator.Size = MouseOverShellBar.Size;
-                    indicator.Visible = true;
+                    SetPreview(
+                        UiLocalizer.Tf("Make child of: {0}", targetName),
+                        true,
+                        MouseOverShellBar.GetGlobalPosition(),
+                        new Vector2(MouseOverShellBar.Size.X, 2));
                 }
             }
             else
             {
-                reorderLocationLabel.Text = UiLocalizer.T("Cannot reorder here");
-                reorderIndicatorPanel.Visible = false;
+                SetPreview(UiLocalizer.T("Cannot reorder here"));
             }
         }
     }
@@ -364,7 +430,21 @@ internal sealed class CueReorder(
 
         var mouse = owner.GetGlobalMousePosition();
         var workspace = Workspace;
-        var tabList = workspace?.GetListTabAtGlobalPoint(mouse);
+        var tabPage = workspace?.GetPageTabAtGlobalPoint(mouse);
+        if (tabPage is ButtonBoard tabBoard)
+        {
+            CommitToBoard(tabBoard, mouse, tabDrop: true);
+            return;
+        }
+
+        if (ButtonBoard.Live != null && GodotObject.IsInstanceValid(ButtonBoard.Live)
+            && tabPage is not CueList)
+        {
+            CommitToBoard(ButtonBoard.Live, mouse, tabDrop: false);
+            return;
+        }
+
+        var tabList = tabPage as CueList;
         var dest = tabList ?? DropList;
         bool tabDrop = tabList != null;
         bool isEndDrop = DropAtEndAsTopLevel || tabDrop;
@@ -479,6 +559,54 @@ internal sealed class CueReorder(
         Cleanup(keepChanges: true);
     }
 
+    private void CommitToBoard(ButtonBoard dest, Vector2 mouse, bool tabDrop)
+    {
+        if (dest == null || !GodotObject.IsInstanceValid(dest))
+        {
+            Cancel();
+            return;
+        }
+
+        var toMove = CollectMovedRoots();
+        if (toMove.Count == 0)
+        {
+            Cancel();
+            return;
+        }
+
+        int row = -1;
+        int col = -1;
+        if (!tabDrop)
+            dest.TryGetCellAt(mouse, out row, out col, out _);
+
+        owner.RecordHistory("Move cues");
+        foreach (var cue in toMove)
+            owner.DetachCueFromModel(cue);
+
+        dest.AcceptMovedCues(toMove, row, col, owner);
+        Cleanup(keepChanges: true);
+    }
+
+    private List<Cue> CollectMovedRoots()
+    {
+        var selectedIds = new HashSet<int>(ShellSelection.SelectedCues.Select(c => c.Id));
+        var visual = owner.GetModelVisualOrder(includeCollapsed: true);
+        var toMove = new List<Cue>();
+        foreach (int id in visual)
+        {
+            if (!selectedIds.Contains(id))
+                continue;
+            var cue = CueList.FetchCueFromId(id);
+            if (cue == null)
+                continue;
+            if (cue.ParentId != -1 && selectedIds.Contains(cue.ParentId))
+                continue;
+            toMove.Add(cue);
+        }
+
+        return toMove;
+    }
+
     public void Cancel()
     {
         Cleanup(keepChanges: false);
@@ -495,6 +623,7 @@ internal sealed class CueReorder(
 
         IsActive = false;
         RestoreFloatingOverlay();
+        Preview?.End();
         reorderCueControl.Visible = false;
         MouseOverShellBar = null;
         ResetDropFlags();
@@ -507,8 +636,10 @@ internal sealed class CueReorder(
         {
             var workspace = Workspace;
             if (workspace != null && CueList.Live != owner && GodotObject.IsInstanceValid(owner))
-                workspace.HoverActivateListDuringReorder(owner);
+                workspace.HoverActivatePageDuringReorder(owner);
         }
+
+        ClearBoardDropHighlight();
 
         // Drop any hover wash that thrash-accumulated during the drag.
         owner.ClearAllShellHoverChrome();
