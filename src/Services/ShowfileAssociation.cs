@@ -14,7 +14,8 @@ namespace Cue2.Services;
 
 /// <summary>
 /// Registers <c>.c2</c> showfiles so the OS shows the Cue2 icon and opens them with this build.
-/// macOS uses the exported Info.plist (no runtime register). Editor builds do nothing.
+/// Exported builds re-apply the per-user association on every launch (no installer).
+/// Editor builds do nothing so <c>.c2</c> is never pointed at Godot.
 /// </summary>
 public static class ShowfileAssociation
 {
@@ -23,6 +24,12 @@ public static class ShowfileAssociation
 
 	/// <summary>Linux/macOS MIME type.</summary>
 	public const string MimeType = "application/x-cue2";
+
+	/// <summary>macOS bundle identifier (export preset <c>application/bundle_identifier</c>).</summary>
+	public const string MacBundleId = "live.cue2";
+
+	/// <summary>macOS Uniform Type Identifier for Cue2 showfiles.</summary>
+	public const string MacUti = "live.cue2.show";
 
 	/// <summary>Linux desktop file id (without path).</summary>
 	public const string DesktopFileId = "live.cue2.desktop";
@@ -34,25 +41,19 @@ public static class ShowfileAssociation
 	public static string HostExecutablePath => OS.GetExecutablePath();
 
 	/// <summary>
-	/// Registers this exported build as the handler for <c>.c2</c> when no other app owns the type,
-	/// or when we already own it but the exe path changed (portable move / updater).
+	/// Ensures this exported build is the handler for <c>.c2</c>.
+	/// Re-writes the association when the exe path changed (portable move / updater)
+	/// or when another app had claimed the type.
 	/// </summary>
 	public static void MaybeRegisterOnFirstLaunch()
 	{
 		if (IsEditorBuild)
-			return;
-		if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			return;
 
 		try
 		{
 			if (IsRegisteredToThisBuild())
 				return;
-			if (HasForeignHandler())
-			{
-				GD.Print("ShowfileAssociation:MaybeRegisterOnFirstLaunch - .c2 already owned by another app.");
-				return;
-			}
 
 			if (TryRegister(out string error))
 				GD.Print("ShowfileAssociation:MaybeRegisterOnFirstLaunch - registered .c2 with this build.");
@@ -72,22 +73,22 @@ public static class ShowfileAssociation
 	{
 		if (IsEditorBuild)
 			return false;
-		if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-			return true;
 
 		string exe = HostExecutablePath;
 		if (string.IsNullOrEmpty(exe))
 			return false;
 
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			return WindowsCommandPointsAt(exe);
+			return WindowsCommandPointsAt(exe) && !WindowsUserChoiceIsForeign();
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-			return LinuxDesktopPointsAt(exe);
+			return LinuxDesktopPointsAt(exe) && LinuxDefaultIsCue2();
+		if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+			return MacDefaultIsCue2();
 		return false;
 	}
 
 	/// <summary>
-	/// True when <c>.c2</c> is associated with a different application (do not steal on first launch).
+	/// True when <c>.c2</c> is associated with a different application.
 	/// </summary>
 	public static bool HasForeignHandler()
 	{
@@ -107,6 +108,14 @@ public static class ShowfileAssociation
 				return false;
 			return !handler.Contains("live.cue2", StringComparison.OrdinalIgnoreCase)
 			       && !handler.Contains("Cue2", StringComparison.OrdinalIgnoreCase);
+		}
+
+		if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+		{
+			string handler = CopyMacDefaultHandler(MacUti);
+			if (string.IsNullOrEmpty(handler))
+				return false;
+			return !string.Equals(handler, MacBundleId, StringComparison.OrdinalIgnoreCase);
 		}
 
 		return false;
@@ -148,8 +157,8 @@ public static class ShowfileAssociation
 
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
-				error = "macOS registers .c2 from the Cue2.app Info.plist. Reinstall or rebuild the app bundle.";
-				return false;
+				RegisterMac(exe);
+				return true;
 			}
 
 			error = "This operating system does not support in-app .c2 registration.";
@@ -169,6 +178,8 @@ public static class ShowfileAssociation
 		{
 			ext?.SetValue("", WindowsProgId);
 			ext?.SetValue("Content Type", MimeType);
+			using RegistryKey openWith = ext?.CreateSubKey("OpenWithProgids");
+			openWith?.SetValue(WindowsProgId, Array.Empty<byte>(), RegistryValueKind.None);
 		}
 
 		using (RegistryKey prog = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + WindowsProgId))
@@ -180,6 +191,34 @@ public static class ShowfileAssociation
 			cmd?.SetValue("", $"\"{exe}\" \"%1\"");
 		}
 
+		string exeName = Path.GetFileName(exe);
+		if (!string.IsNullOrEmpty(exeName))
+		{
+			using RegistryKey app = Registry.CurrentUser.CreateSubKey(
+				@"Software\Classes\Applications\" + exeName);
+			using RegistryKey appCmd = app?.CreateSubKey(@"shell\open\command");
+			appCmd?.SetValue("", $"\"{exe}\" \"%1\"");
+			using RegistryKey supported = app?.CreateSubKey("SupportedTypes");
+			supported?.SetValue(".c2", "");
+		}
+
+		using (RegistryKey caps = Registry.CurrentUser.CreateSubKey(@"Software\Cue2\Capabilities"))
+		{
+			caps?.SetValue("ApplicationName", "Cue2");
+			caps?.SetValue("ApplicationDescription", "Cue2 show playback");
+			caps?.SetValue("ApplicationIcon", $"\"{exe}\",0");
+			using RegistryKey fa = caps?.CreateSubKey("FileAssociations");
+			fa?.SetValue(".c2", WindowsProgId);
+		}
+
+		using (RegistryKey registered = Registry.CurrentUser.CreateSubKey(@"Software\RegisteredApplications"))
+			registered?.SetValue("Cue2", @"Software\Cue2\Capabilities");
+
+		using (RegistryKey fileExts = Registry.CurrentUser.CreateSubKey(
+			       @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.c2\OpenWithProgids"))
+			fileExts?.SetValue(WindowsProgId, Array.Empty<byte>(), RegistryValueKind.None);
+
+		ClearWindowsUserChoiceIfForeign();
 		ShChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
 	}
 
@@ -196,6 +235,75 @@ public static class ShowfileAssociation
 		catch (Exception)
 		{
 			return false;
+		}
+	}
+
+	[SupportedOSPlatform("windows")]
+	private static bool WindowsUserChoiceIsForeign()
+	{
+		try
+		{
+			string prog = ReadWindowsUserChoiceProgId();
+			return !string.IsNullOrEmpty(prog) &&
+			       !string.Equals(prog, WindowsProgId, StringComparison.OrdinalIgnoreCase);
+		}
+		catch (Exception)
+		{
+			return false;
+		}
+	}
+
+	[SupportedOSPlatform("windows")]
+	private static string ReadWindowsUserChoiceProgId()
+	{
+		using (RegistryKey choice = Registry.CurrentUser.OpenSubKey(
+			       @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.c2\UserChoice"))
+		{
+			string prog = choice?.GetValue("ProgId") as string;
+			if (!string.IsNullOrEmpty(prog))
+				return prog;
+		}
+
+		using (RegistryKey latest = Registry.CurrentUser.OpenSubKey(
+			       @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.c2\UserChoiceLatest"))
+		{
+			if (latest == null)
+				return string.Empty;
+			string prog = latest.GetValue("ProgId") as string;
+			if (!string.IsNullOrEmpty(prog))
+				return prog;
+			using RegistryKey nested = latest.OpenSubKey("ProgId");
+			return nested?.GetValue("") as string ?? string.Empty;
+		}
+	}
+
+	[SupportedOSPlatform("windows")]
+	private static void ClearWindowsUserChoiceIfForeign()
+	{
+		if (!WindowsUserChoiceIsForeign())
+			return;
+
+		const string extKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.c2";
+		try
+		{
+			using RegistryKey ext = Registry.CurrentUser.OpenSubKey(extKey, writable: true);
+			if (ext == null)
+				return;
+			foreach (string name in new[] { "UserChoice", "UserChoiceLatest" })
+			{
+				try
+				{
+					ext.DeleteSubKeyTree(name, throwOnMissingSubKey: false);
+				}
+				catch (Exception ex)
+				{
+					GD.Print($"ShowfileAssociation:ClearWindowsUserChoice - {name}: {ex.Message}");
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.Print($"ShowfileAssociation:ClearWindowsUserChoice - {ex.Message}");
 		}
 	}
 
@@ -266,6 +374,15 @@ public static class ShowfileAssociation
 		}
 	}
 
+	private static bool LinuxDefaultIsCue2()
+	{
+		string handler = QueryXdgDefault();
+		if (string.IsNullOrEmpty(handler))
+			return false;
+		return handler.Contains("live.cue2", StringComparison.OrdinalIgnoreCase)
+		       || handler.Contains("Cue2", StringComparison.OrdinalIgnoreCase);
+	}
+
 	private static string QueryXdgDefault()
 	{
 		try
@@ -316,6 +433,138 @@ public static class ShowfileAssociation
 		}
 	}
 
+	private static void RegisterMac(string exe)
+	{
+		string app = TryFindMacAppBundle(exe);
+		if (string.IsNullOrEmpty(app))
+			throw new InvalidOperationException("Cue2.app bundle not found from the running executable.");
+		if (app.IndexOf("AppTranslocation", StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			throw new InvalidOperationException(
+				"Cue2 is running from a translocated copy (often Downloads). " +
+				"Move Cue2.app to Applications or another local folder, then launch it again to associate .c2 files.");
+		}
+
+		const string lsregister =
+			"/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
+		if (File.Exists(lsregister))
+			RunSilent(lsregister, "-f", "-R", app);
+
+		SetMacDefaultHandler(MacUti);
+		string extUti = MacUtiForExtension("c2");
+		if (!string.IsNullOrEmpty(extUti) &&
+		    !string.Equals(extUti, MacUti, StringComparison.OrdinalIgnoreCase))
+			SetMacDefaultHandler(extUti);
+	}
+
+	private static bool MacDefaultIsCue2()
+	{
+		if (HandlerIsCue2(CopyMacDefaultHandler(MacUti)))
+			return true;
+		string extUti = MacUtiForExtension("c2");
+		return !string.IsNullOrEmpty(extUti) && HandlerIsCue2(CopyMacDefaultHandler(extUti));
+	}
+
+	private static bool HandlerIsCue2(string handler) =>
+		!string.IsNullOrEmpty(handler) &&
+		string.Equals(handler, MacBundleId, StringComparison.OrdinalIgnoreCase);
+
+	private static string TryFindMacAppBundle(string exe)
+	{
+		string dir = Path.GetDirectoryName(exe);
+		while (!string.IsNullOrEmpty(dir))
+		{
+			if (dir.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+				return dir;
+			dir = Path.GetDirectoryName(dir);
+		}
+
+		return null;
+	}
+
+	private static void SetMacDefaultHandler(string uti)
+	{
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || string.IsNullOrEmpty(uti))
+			return;
+
+		IntPtr utiCf = CreateCfString(uti);
+		IntPtr bundleCf = CreateCfString(MacBundleId);
+		try
+		{
+			int status = LSSetDefaultRoleHandlerForContentType(utiCf, kLSRolesAll, bundleCf);
+			if (status != 0)
+				GD.Print($"ShowfileAssociation:SetMacDefaultHandler - {uti} status {status}");
+		}
+		finally
+		{
+			if (utiCf != IntPtr.Zero)
+				CFRelease(utiCf);
+			if (bundleCf != IntPtr.Zero)
+				CFRelease(bundleCf);
+		}
+	}
+
+	private static string CopyMacDefaultHandler(string uti)
+	{
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || string.IsNullOrEmpty(uti))
+			return string.Empty;
+
+		IntPtr utiCf = CreateCfString(uti);
+		IntPtr handler = IntPtr.Zero;
+		try
+		{
+			handler = LSCopyDefaultRoleHandlerForContentType(utiCf, kLSRolesAll);
+			return CfStringToManaged(handler);
+		}
+		catch (DllNotFoundException)
+		{
+			return string.Empty;
+		}
+		catch (EntryPointNotFoundException)
+		{
+			return string.Empty;
+		}
+		finally
+		{
+			if (utiCf != IntPtr.Zero)
+				CFRelease(utiCf);
+			if (handler != IntPtr.Zero)
+				CFRelease(handler);
+		}
+	}
+
+	private static string MacUtiForExtension(string extension)
+	{
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || string.IsNullOrEmpty(extension))
+			return string.Empty;
+
+		IntPtr tagClass = CreateCfString("public.filename-extension");
+		IntPtr tag = CreateCfString(extension);
+		IntPtr uti = IntPtr.Zero;
+		try
+		{
+			uti = UTTypeCreatePreferredIdentifierForTag(tagClass, tag, IntPtr.Zero);
+			return CfStringToManaged(uti);
+		}
+		catch (DllNotFoundException)
+		{
+			return string.Empty;
+		}
+		catch (EntryPointNotFoundException)
+		{
+			return string.Empty;
+		}
+		finally
+		{
+			if (tagClass != IntPtr.Zero)
+				CFRelease(tagClass);
+			if (tag != IntPtr.Zero)
+				CFRelease(tag);
+			if (uti != IntPtr.Zero)
+				CFRelease(uti);
+		}
+	}
+
 	private static void RunSilent(string fileName, params string[] args)
 	{
 		try
@@ -348,6 +597,71 @@ public static class ShowfileAssociation
 		"  </mime-type>\n" +
 		"</mime-info>\n";
 
+	private const uint kCFStringEncodingUTF8 = 0x08000100;
+	private const uint kLSRolesAll = 0xFFFFFFFF;
+
+	private static IntPtr CreateCfString(string value)
+	{
+		if (string.IsNullOrEmpty(value))
+			return IntPtr.Zero;
+		return CFStringCreateWithCString(IntPtr.Zero, value, kCFStringEncodingUTF8);
+	}
+
+	private static string CfStringToManaged(IntPtr cf)
+	{
+		if (cf == IntPtr.Zero)
+			return string.Empty;
+		long length = CFStringGetLength(cf);
+		long maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
+		if (maxSize <= 1)
+			return string.Empty;
+		IntPtr buffer = Marshal.AllocHGlobal((nint)maxSize);
+		try
+		{
+			if (!CFStringGetCString(cf, buffer, maxSize, kCFStringEncodingUTF8))
+				return string.Empty;
+			return Marshal.PtrToStringUTF8(buffer) ?? string.Empty;
+		}
+		finally
+		{
+			Marshal.FreeHGlobal(buffer);
+		}
+	}
+
 	[DllImport("shell32.dll")]
 	private static extern void ShChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+	[DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+	private static extern IntPtr CFStringCreateWithCString(
+		IntPtr alloc,
+		[MarshalAs(UnmanagedType.LPUTF8Str)] string str,
+		uint encoding);
+
+	[DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+	private static extern long CFStringGetLength(IntPtr theString);
+
+	[DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+	private static extern long CFStringGetMaximumSizeForEncoding(long length, uint encoding);
+
+	[DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+	[return: MarshalAs(UnmanagedType.I1)]
+	private static extern bool CFStringGetCString(IntPtr theString, IntPtr buffer, long bufferSize, uint encoding);
+
+	[DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+	private static extern void CFRelease(IntPtr cf);
+
+	[DllImport("/System/Library/Frameworks/CoreServices.framework/CoreServices")]
+	private static extern int LSSetDefaultRoleHandlerForContentType(
+		IntPtr inContentTypeName,
+		uint inRole,
+		IntPtr inHandlerBundleID);
+
+	[DllImport("/System/Library/Frameworks/CoreServices.framework/CoreServices")]
+	private static extern IntPtr LSCopyDefaultRoleHandlerForContentType(IntPtr inContentTypeName, uint inRole);
+
+	[DllImport("/System/Library/Frameworks/CoreServices.framework/CoreServices")]
+	private static extern IntPtr UTTypeCreatePreferredIdentifierForTag(
+		IntPtr inTagClass,
+		IntPtr inTag,
+		IntPtr inConformingToUTI);
 }

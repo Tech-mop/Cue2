@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import plistlib
 import re
 import shutil
 import stat
@@ -582,6 +583,56 @@ def copy_natives_ps1(root: Path, export_root: Path, platform: str) -> None:
     )
 
 
+MACOS_SHOW_UTI = "live.cue2.show"
+MACOS_SHOW_MIME = "application/x-cue2"
+
+_MACOS_DOCUMENT_TYPES = [
+    {
+        "CFBundleTypeExtensions": ["c2"],
+        "CFBundleTypeName": "Cue2 Show",
+        "CFBundleTypeRole": "Editor",
+        "LSHandlerRank": "Owner",
+        "LSItemContentTypes": [MACOS_SHOW_UTI],
+        "NSExportableTypes": [MACOS_SHOW_UTI],
+    }
+]
+_MACOS_EXPORTED_TYPES = [
+    {
+        "UTTypeIdentifier": MACOS_SHOW_UTI,
+        "UTTypeDescription": "Cue2 Show",
+        "UTTypeConformsTo": ["public.data", "public.json"],
+        "UTTypeTagSpecification": {
+            "public.filename-extension": ["c2"],
+            "public.mime-type": MACOS_SHOW_MIME,
+        },
+    }
+]
+
+
+def ensure_macos_showfile_plist(app: Path) -> None:
+    """Declare .c2 as a Cue2 document type in Cue2.app/Contents/Info.plist."""
+    plist_path = app / "Contents" / "Info.plist"
+    if not plist_path.is_file():
+        raise RuntimeError(f"Missing Info.plist: {plist_path}")
+    with plist_path.open("rb") as handle:
+        info = plistlib.load(handle)
+
+    changed = False
+    if info.get("CFBundleDocumentTypes") != _MACOS_DOCUMENT_TYPES:
+        info["CFBundleDocumentTypes"] = _MACOS_DOCUMENT_TYPES
+        changed = True
+    if info.get("UTExportedTypeDeclarations") != _MACOS_EXPORTED_TYPES:
+        info["UTExportedTypeDeclarations"] = _MACOS_EXPORTED_TYPES
+        changed = True
+    if not changed:
+        log("  Info.plist already declares live.cue2.show")
+        return
+
+    with plist_path.open("wb") as handle:
+        plistlib.dump(info, handle, fmt=plistlib.FMT_XML)
+    log("  wrote .c2 document type into Info.plist (live.cue2.show)")
+
+
 def copy_natives(root: Path, export_root: Path, target: Target) -> None:
     ensure_natives(root, target)
     if os.name == "nt":
@@ -870,6 +921,9 @@ def process_target(
         verify_host(host, target)
     else:
         verify_host(host, target)
+
+    if target.id.startswith("macos"):
+        ensure_macos_showfile_plist(host)
 
     if not args.skip_copy:
         copy_natives(root, export_root, target)
