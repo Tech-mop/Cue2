@@ -1674,6 +1674,25 @@ public partial class CueList
 		return Live;
 	}
 
+	/// <summary>
+	/// True when both cue ids belong to the same cuelist tree or the same Button Board.
+	/// </summary>
+	/// <param name="cueIdA">First cue id.</param>
+	/// <param name="cueIdB">Second cue id.</param>
+	/// <returns>True when both ids are owned by the same list or board.</returns>
+	public static bool CuesShareListOrBoard(int cueIdA, int cueIdB)
+	{
+		if (cueIdA < 0 || cueIdB < 0)
+			return false;
+
+		var list = FindOwningList(cueIdA);
+		if (list != null && list.ContainsCue(cueIdA) && list.ContainsCue(cueIdB))
+			return true;
+
+		var board = ButtonBoard.FindOwningBoard(cueIdA);
+		return board != null && board.ContainsCue(cueIdB);
+	}
+
 	public void ResetCuelist()
 	{
 		var workspace = _globalData?.CuelistWorkspace;

@@ -53,6 +53,7 @@ public partial class ShellInspector : Control
 	private CheckBox _armedCheckBox;
 	private CheckBox _skipIfDisarmedCheckBox;
 	private CheckBox _onlyOneActiveCheckBox;
+	private OptionButton _soloOption;
 	private Button _deleteCueButton;
 
 	// Hotkey trigger UI
@@ -142,6 +143,7 @@ public partial class ShellInspector : Control
 		_armedCheckBox = GetNodeOrNull<CheckBox>("%ArmedCheckBox");
 		_skipIfDisarmedCheckBox = GetNodeOrNull<CheckBox>("%SkipIfDisarmedCheckBox");
 		_onlyOneActiveCheckBox = GetNodeOrNull<CheckBox>("%OnlyOneActiveCheckBox");
+		_soloOption = GetNodeOrNull<OptionButton>("%SoloOption");
 		_deleteCueButton = GetNodeOrNull<Button>("%DeleteCueButton");
 
 		_hotkeyEnabledCheckBox = GetNodeOrNull<CheckBox>("%HotkeyEnabledCheckBox");
@@ -202,6 +204,8 @@ public partial class ShellInspector : Control
 			_skipIfDisarmedCheckBox.Toggled += OnSkipIfDisarmedToggled;
 		if (_onlyOneActiveCheckBox != null)
 			_onlyOneActiveCheckBox.Toggled += OnOnlyOneActiveToggled;
+		if (_soloOption != null)
+			_soloOption.ItemSelected += OnSoloOptionItemSelected;
 
 		if (_hotkeyEnabledCheckBox != null)
 			_hotkeyEnabledCheckBox.Toggled += OnHotkeyEnabledToggled;
@@ -479,6 +483,7 @@ public partial class ShellInspector : Control
 		_focusedCue.NotesChanged += OnNotesChangedFromModel;
 		_focusedCue.FollowChanged += OnFollowChanged;
 		EnsureFollowOptions();
+		EnsureSoloOptions();
 		ClearMultiEditPlaceholders();
 		UpdateFields();
 	}
@@ -510,6 +515,7 @@ public partial class ShellInspector : Control
 		}
 
 		EnsureFollowOptions();
+		EnsureSoloOptions();
 		ShowMultiEditBlankFields(selected);
 		SyncDeleteHotkeyTooltip();
 	}
@@ -609,6 +615,13 @@ public partial class ShellInspector : Control
 
 			if (_onlyOneActiveCheckBox != null)
 				_onlyOneActiveCheckBox.SetPressedNoSignal(false);
+
+			if (_soloOption != null)
+			{
+				_soloOption.SetBlockSignals(true);
+				_soloOption.Selected = -1;
+				_soloOption.SetBlockSignals(false);
+			}
 
 			if (_isListeningForHotkey)
 				CancelHotkeyListening();
@@ -788,6 +801,46 @@ public partial class ShellInspector : Control
 	}
 
 	/// <summary>
+	/// Selects the OptionButton item matching <paramref name="solo"/>.
+	/// </summary>
+	private void SelectSoloOption(CueSoloMode solo)
+	{
+		if (_soloOption == null) return;
+		EnsureSoloOptions();
+		for (int i = 0; i < _soloOption.ItemCount; i++)
+		{
+			if (_soloOption.GetItemMetadata(i).AsInt32() == (int)solo)
+			{
+				_soloOption.Selected = i;
+				return;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Ensures the solo OptionButton is populated with stop-scope labels.
+	/// </summary>
+	private void EnsureSoloOptions()
+	{
+		if (_soloOption == null) return;
+		if (_soloOption.ItemCount > 0) return;
+
+		_soloOption.Clear();
+		AddSoloOption(CueSoloMode.Off, "Off");
+		AddSoloOption(CueSoloMode.StopAll, "Stop all");
+		AddSoloOption(CueSoloMode.StopCurrentList, "Stop current list");
+	}
+
+	/// <summary>
+	/// Adds one solo-mode entry to the solo OptionButton.
+	/// </summary>
+	private void AddSoloOption(CueSoloMode mode, string label)
+	{
+		UiLocalizer.AddTranslatedItem(_soloOption, label);
+		_soloOption.SetItemMetadata(_soloOption.ItemCount - 1, (int)mode);
+	}
+
+	/// <summary>
 	/// Full refresh of shell inspector fields from the focused cue model (single-edit),
 	/// or re-applies blank multi-edit UI when multi-editing.
 	/// Wired to <see cref="GlobalSignals.SyncShellInspector"/>.
@@ -863,6 +916,8 @@ public partial class ShellInspector : Control
 
 			EnsureFollowOptions();
 			SelectFollowOption(_focusedCue.Follow);
+			EnsureSoloOptions();
+			SelectSoloOption(_focusedCue.SoloMode);
 
 			_preWaitInput.Text = UiUtilities.FormatTime(_focusedCue.PreWait);
 			_postWaitInput.Text = UiUtilities.FormatTime(_focusedCue.PostWait);
@@ -1228,6 +1283,28 @@ public partial class ShellInspector : Control
 		{
 			if (cue.OnlyOneActiveInstance == pressed) continue;
 			cue.OnlyOneActiveInstance = pressed;
+		}
+	}
+
+	private void OnSoloOptionItemSelected(long index)
+	{
+		if (_isRefreshingUi) return;
+		if (_globalData?.HistoryManager?.IsRestoring == true) return;
+
+		var targets = GetEditTargets();
+		if (targets.Count == 0 || _soloOption == null) return;
+
+		int selectedValue = _soloOption.GetItemMetadata((int)index).AsInt32();
+		var solo = (CueSoloMode)selectedValue;
+
+		if (!_isMultiEdit && targets.Count == 1 && targets[0].SoloMode == solo)
+			return;
+
+		RecordHistoryBeforeEdit("Edit solo mode", "Multi-edit solo mode");
+		foreach (var cue in targets)
+		{
+			if (cue.SoloMode == solo) continue;
+			cue.SoloMode = solo;
 		}
 	}
 

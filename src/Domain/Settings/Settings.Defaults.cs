@@ -26,6 +26,7 @@ public partial class Settings
         CueDefaultArmed = SystemDefaultCueArmed;
         CueDefaultSkipIfDisarmed = SystemDefaultCueSkipIfDisarmed;
         CueDefaultOnlyOneActiveInstance = SystemDefaultCueOnlyOneActiveInstance;
+        CueDefaultSoloMode = SystemDefaultCueSoloMode;
     }
 
     /// <summary>
@@ -43,6 +44,7 @@ public partial class Settings
         cue.Armed = CueDefaultArmed;
         cue.SkipIfDisarmed = CueDefaultSkipIfDisarmed;
         cue.OnlyOneActiveInstance = CueDefaultOnlyOneActiveInstance;
+        cue.SoloMode = CueDefaultSoloMode;
     }
 
     /// <summary>
@@ -58,7 +60,8 @@ public partial class Settings
             ["Color"] = CueDefaultColor.ToHtml(true),
             ["Armed"] = CueDefaultArmed ? 1 : 0,
             ["SkipIfDisarmed"] = CueDefaultSkipIfDisarmed ? 1 : 0,
-            ["OnlyOneActiveInstance"] = CueDefaultOnlyOneActiveInstance ? 1 : 0
+            ["OnlyOneActiveInstance"] = CueDefaultOnlyOneActiveInstance ? 1 : 0,
+            ["SoloMode"] = (int)CueDefaultSoloMode
         };
     }
 
@@ -66,7 +69,7 @@ public partial class Settings
     /// Loads cue shell defaults from a dictionary (showfile or history slice).
     /// Missing keys keep their current values.
     /// </summary>
-    /// <param name="data">Dictionary with PreWait, PostWait, Follow, Color, Armed, SkipIfDisarmed, OnlyOneActiveInstance.</param>
+    /// <param name="data">Dictionary with PreWait, PostWait, Follow, Color, Armed, SkipIfDisarmed, OnlyOneActiveInstance, SoloMode.</param>
     public void ApplyCueDefaultsFromDict(Dictionary data)
     {
         if (data == null) return;
@@ -89,6 +92,12 @@ public partial class Settings
             CueDefaultSkipIfDisarmed = ReadBoolVariant(v);
         if (TryGetSettingsValue(data, "OnlyOneActiveInstance", out v))
             CueDefaultOnlyOneActiveInstance = ReadBoolVariant(v);
+        if (TryGetSettingsValue(data, "SoloMode", out v))
+        {
+            int soloInt = v.AsInt32();
+            if (soloInt is >= 0 and <= 2)
+                CueDefaultSoloMode = (CueSoloMode)soloInt;
+        }
     }
 
     /// <summary>
@@ -102,7 +111,8 @@ public partial class Settings
                && CueDefaultColor.IsEqualApprox(SystemDefaultCueColor)
                && CueDefaultArmed == SystemDefaultCueArmed
                && CueDefaultSkipIfDisarmed == SystemDefaultCueSkipIfDisarmed
-               && CueDefaultOnlyOneActiveInstance == SystemDefaultCueOnlyOneActiveInstance;
+               && CueDefaultOnlyOneActiveInstance == SystemDefaultCueOnlyOneActiveInstance
+               && CueDefaultSoloMode == SystemDefaultCueSoloMode;
     }
 
     // ── Audio component defaults ───────────────────────────────────────────

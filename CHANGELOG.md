@@ -28,6 +28,7 @@
 - Linear Timecode input: decode SMPTE LTC from a recording device channel. Status shows Locked while a valid stream is present.
 - OSC timecode send/receive on `/timecode` (string plus h/m/s/f).
 - MIDI Timecode (MTC) send and receive (quarter-frame and full-frame).
+- Shell inspector Solo option: Off (default), Stop all, or Stop current list.
 
 ### Fixed
 - Closing Cue2 no longer leaves leaked objects from video preview textures, inspector tab icons, and playback objects that only freed on a deferred idle frame.

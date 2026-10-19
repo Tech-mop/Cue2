@@ -200,6 +200,21 @@ tooltip_text = "When on, a new GO hard-stops any existing instance of this cue b
 focus_mode = 0
 text = "Only one active instance"
 
+[node name="SoloLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Solo:"
+
+[node name="SoloOption" type="OptionButton" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "When this cue is activated, stop other playing cues using the session stop fade.
+Off: do not stop others.
+Stop all: stop every other playing cue.
+Stop current list: stop other playing cues from this cue's cuelist or Button Board."
+focus_mode = 0
+
 [node name="HSeparatorDelete" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/GridContainer/GridContainer" unique_id=1607308950]
 layout_mode = 2
 theme_override_constants/separation = 16

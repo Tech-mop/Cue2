@@ -50,6 +50,21 @@ public enum FollowType
 }
 
 /// <summary>
+/// How activating this cue stops other currently playing cues (session stop fade).
+/// </summary>
+public enum CueSoloMode
+{
+    /// <summary>Do not stop other cues.</summary>
+    Off = 0,
+
+    /// <summary>Stop every other playing cue in the show.</summary>
+    StopAll = 1,
+
+    /// <summary>Stop other playing cues that belong to the same cuelist or Button Board.</summary>
+    StopCurrentList = 2
+}
+
+/// <summary>
 /// MIDI message kinds that can be used as a cue trigger.
 /// </summary>
 public enum MidiTriggerMessageType
@@ -246,6 +261,25 @@ public class Cue : ICue
         {
             if (_onlyOneActiveInstance == value) return;
             _onlyOneActiveInstance = value;
+        }
+    }
+
+    private CueSoloMode _soloMode = CueSoloMode.Off;
+
+    /// <summary>
+    /// When not <see cref="CueSoloMode.Off"/>, a GO/activate of this cue runs Stop on other
+    /// playing cues using the session stop fade. Existing instances of this cue are left
+    /// alone (see <see cref="OnlyOneActiveInstance"/>).
+    /// </summary>
+    /// <value>Default is <see cref="CueSoloMode.Off"/>.</value>
+    public CueSoloMode SoloMode
+    {
+        get => _soloMode;
+        set
+        {
+            var next = IsDefinedSoloMode(value) ? value : CueSoloMode.Off;
+            if (_soloMode == next) return;
+            _soloMode = next;
         }
     }
 
@@ -631,6 +665,9 @@ public class Cue : ICue
         _skipIfDisarmed = data.TryGetValue("SkipIfDisarmed", out var skipVal) && skipVal.AsBool();
         _onlyOneActiveInstance = data.TryGetValue("OnlyOneActiveInstance", out var onlyOneVal)
             && onlyOneVal.AsBool();
+        _soloMode = data.TryGetValue("SoloMode", out var soloVal)
+            ? ParseSoloMode(soloVal, CueSoloMode.Off)
+            : CueSoloMode.Off;
         _notes = data.TryGetValue("Notes", out var notesVal) ? notesVal.AsString() : string.Empty;
         _memo = data.TryGetValue("Memo", out var memoVal) && memoVal.AsBool();
 
@@ -1827,6 +1864,7 @@ public class Cue : ICue
         dict.Add("Armed", Armed);
         dict.Add("SkipIfDisarmed", SkipIfDisarmed);
         dict.Add("OnlyOneActiveInstance", OnlyOneActiveInstance);
+        dict.Add("SoloMode", (int)SoloMode);
         dict.Add("Notes", Notes ?? string.Empty);
         dict.Add("Memo", Memo);
         WriteHotkeyToData(dict);
@@ -1898,6 +1936,9 @@ public class Cue : ICue
         OnlyOneActiveInstance = data.TryGetValue("OnlyOneActiveInstance", out var onlyOneVal)
             ? onlyOneVal.AsBool()
             : OnlyOneActiveInstance;
+        SoloMode = data.TryGetValue("SoloMode", out var soloVal)
+            ? ParseSoloMode(soloVal, SoloMode)
+            : SoloMode;
         Notes = data.TryGetValue("Notes", out var notesVal) ? notesVal.AsString() : Notes;
         Memo = data.TryGetValue("Memo", out var memoVal) ? memoVal.AsBool() : Memo;
 
@@ -2044,5 +2085,38 @@ public class Cue : ICue
             current = current.GetNextCueInList();
         return current;
     }
-    
+
+    /// <summary>
+    /// True when <paramref name="mode"/> is a defined <see cref="CueSoloMode"/> value.
+    /// </summary>
+    private static bool IsDefinedSoloMode(CueSoloMode mode)
+        => mode is CueSoloMode.Off or CueSoloMode.StopAll or CueSoloMode.StopCurrentList;
+
+    /// <summary>
+    /// Reads a persisted solo mode, falling back when the value is missing or out of range.
+    /// </summary>
+    /// <param name="value">Serialized integer (or numeric variant).</param>
+    /// <param name="fallback">Value to use when parsing fails.</param>
+    /// <returns>A defined <see cref="CueSoloMode"/>.</returns>
+    private static CueSoloMode ParseSoloMode(Variant value, CueSoloMode fallback)
+    {
+        int raw;
+        try
+        {
+            raw = value.VariantType switch
+            {
+                Variant.Type.Int => value.AsInt32(),
+                Variant.Type.Float => (int)value.AsDouble(),
+                Variant.Type.String => int.TryParse(value.AsString(), out int parsed) ? parsed : (int)fallback,
+                _ => (int)fallback
+            };
+        }
+        catch
+        {
+            return fallback;
+        }
+
+        var mode = (CueSoloMode)raw;
+        return IsDefinedSoloMode(mode) ? mode : fallback;
+    }
 }

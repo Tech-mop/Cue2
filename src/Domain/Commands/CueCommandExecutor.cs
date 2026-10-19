@@ -312,6 +312,9 @@ public partial class CueCommandExecutor : Node
             }
         }
 
+        if (head.SoloMode != CueSoloMode.Off)
+            StopOtherActiveCuesForSolo(head);
+
         var chain = CueSequencePlanner.BuildChain(head);
         if (chain.Count == 0)
         {
@@ -1166,6 +1169,52 @@ public partial class CueCommandExecutor : Node
                 if (active?.Cue != null && active.Cue.Id == cueId)
                     yield return active;
             }
+        }
+    }
+
+    /// <summary>
+    /// Stops other playing root cues when the activating cue has Solo enabled.
+    /// Uses the session stop fade. Leaves instances of <paramref name="head"/> itself
+    /// and OSC Load standbys untouched.
+    /// </summary>
+    /// <param name="head">Cue that is about to start.</param>
+    private void StopOtherActiveCuesForSolo(Cue head)
+    {
+        if (head == null)
+            return;
+
+        double? fade = _globalData?.Settings?.StopFadeDuration;
+        bool restrictToList = head.SoloMode == CueSoloMode.StopCurrentList;
+        int stopped = 0;
+
+        foreach (var active in _activeCues.ToList())
+        {
+            if (active == null || !GodotObject.IsInstanceValid(active))
+                continue;
+            if (active.IsStandbyPreloaded)
+                continue;
+
+            var other = active.Cue;
+            if (other == null || other.Id == head.Id)
+                continue;
+            if (restrictToList && !CueList.CuesShareListOrBoard(head.Id, other.Id))
+                continue;
+
+            try
+            {
+                active.StopAll(propagateToChildren: true, fadeDurationOverride: fade);
+                stopped++;
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"CueCommandExecutor:StopOtherActiveCuesForSolo - {other.Name}: {ex.Message}");
+            }
+        }
+
+        if (stopped > 0)
+        {
+            GD.Print(
+                $"CueCommandExecutor:StopOtherActiveCuesForSolo - {head.Name}: stopped {stopped} other cue(s) ({head.SoloMode})");
         }
     }
 

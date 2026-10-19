@@ -183,6 +183,9 @@ public partial class Settings : Node
     /// </summary>
     public const bool SystemDefaultCueOnlyOneActiveInstance = false;
 
+    /// <summary>System default solo mode for newly created cues (Off = do not stop other cues).</summary>
+    public const CueSoloMode SystemDefaultCueSoloMode = CueSoloMode.Off;
+
     // ── Audio component defaults (system factory values) ───────────────────
 
     /// <summary>System default linear volume for new audio components (1.0 = 0 dB).</summary>
@@ -469,6 +472,9 @@ public partial class Settings : Node
     /// Default only-one-active-instance flag for new cues (false = multiple concurrent instances allowed).
     /// </summary>
     public bool CueDefaultOnlyOneActiveInstance = SystemDefaultCueOnlyOneActiveInstance;
+
+    /// <summary>Default solo mode applied when a new cue is created.</summary>
+    public CueSoloMode CueDefaultSoloMode = SystemDefaultCueSoloMode;
 
     // ── Audio component defaults (show-scoped; applied on new AudioComponent) ─
 

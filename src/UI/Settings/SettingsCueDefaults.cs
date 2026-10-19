@@ -12,8 +12,8 @@ namespace Cue2.UI.Settings;
 
 /// <summary>
 /// Settings panel for show-scoped cue shell defaults (pre-wait, post-wait, continue mode,
-/// colour, armed, skip-if-disarmed). Values match the editable fields on Shell Inspector
-/// and are applied to every newly created cue.
+/// colour, armed, skip-if-disarmed, only-one-active, solo). Values match the editable fields
+/// on Shell Inspector and are applied to every newly created cue.
 /// </summary>
 /// <remarks>
 /// Each control shows a refresh button when not at its system default (same pattern as
@@ -49,6 +49,9 @@ public partial class SettingsCueDefaults : ScrollContainer
     private CheckBox _onlyOneActiveCheckBox;
     private Button _onlyOneActiveResetButton;
 
+    private OptionButton _soloOption;
+    private Button _soloResetButton;
+
     /// <summary>True while pushing model → controls so handlers do not re-record history.</summary>
     private bool _isSyncingUi;
 
@@ -74,6 +77,8 @@ public partial class SettingsCueDefaults : ScrollContainer
         _skipIfDisarmedResetButton = GetNode<Button>("%SkipIfDisarmedResetButton");
         _onlyOneActiveCheckBox = GetNodeOrNull<CheckBox>("%OnlyOneActiveCheckBox");
         _onlyOneActiveResetButton = GetNodeOrNull<Button>("%OnlyOneActiveResetButton");
+        _soloOption = GetNodeOrNull<OptionButton>("%SoloOption");
+        _soloResetButton = GetNodeOrNull<Button>("%SoloResetButton");
 
         ComponentDefaultsUi.SetupResetButton(this, _preWaitResetButton, OnPreWaitResetPressed);
         ComponentDefaultsUi.SetupResetButton(this, _postWaitResetButton, OnPostWaitResetPressed);
@@ -83,8 +88,11 @@ public partial class SettingsCueDefaults : ScrollContainer
         ComponentDefaultsUi.SetupResetButton(this, _skipIfDisarmedResetButton, OnSkipIfDisarmedResetPressed);
         if (_onlyOneActiveResetButton != null)
             ComponentDefaultsUi.SetupResetButton(this, _onlyOneActiveResetButton, OnOnlyOneActiveResetPressed);
+        if (_soloResetButton != null)
+            ComponentDefaultsUi.SetupResetButton(this, _soloResetButton, OnSoloResetPressed);
 
         EnsureFollowOptions();
+        EnsureSoloOptions();
 
         _preWaitInput.TextSubmitted += OnPreWaitSubmitted;
         _preWaitInput.FocusExited += OnPreWaitFocusExited;
@@ -96,6 +104,8 @@ public partial class SettingsCueDefaults : ScrollContainer
         _skipIfDisarmedCheckBox.Toggled += OnSkipIfDisarmedToggled;
         if (_onlyOneActiveCheckBox != null)
             _onlyOneActiveCheckBox.Toggled += OnOnlyOneActiveToggled;
+        if (_soloOption != null)
+            _soloOption.ItemSelected += OnSoloItemSelected;
 
         if (_historyManager != null)
             _historyManager.HistoryRestored += OnHistoryRestored;
@@ -156,6 +166,8 @@ public partial class SettingsCueDefaults : ScrollContainer
 
             EnsureFollowOptions();
             SelectFollowOption(s.CueDefaultFollow);
+            EnsureSoloOptions();
+            SelectSoloOption(s.CueDefaultSoloMode);
 
             if (_colorPicker != null)
                 _colorPicker.Color = s.CueDefaultColor;
@@ -181,6 +193,7 @@ public partial class SettingsCueDefaults : ScrollContainer
         UpdateArmedResetButton();
         UpdateSkipIfDisarmedResetButton();
         UpdateOnlyOneActiveResetButton();
+        UpdateSoloResetButton();
     }
 
     private void RecordCueDefaultsHistory(string description, string coalesceKey = null)
@@ -232,6 +245,53 @@ public partial class SettingsCueDefaults : ScrollContainer
             FollowType.Continue => "Auto-continue",
             FollowType.Follow => "Auto-follow",
             _ => "None"
+        };
+    }
+
+    // ── Solo option helpers ────────────────────────────────────────────────
+
+    private void EnsureSoloOptions()
+    {
+        if (_soloOption == null) return;
+        if (_soloOption.ItemCount > 0) return;
+
+        _soloOption.Clear();
+        AddSoloOption(CueSoloMode.Off, "Off");
+        AddSoloOption(CueSoloMode.StopAll, "Stop all");
+        AddSoloOption(CueSoloMode.StopCurrentList, "Stop current list");
+    }
+
+    private void AddSoloOption(CueSoloMode mode, string label)
+    {
+        UiLocalizer.AddTranslatedItem(_soloOption, label);
+        _soloOption.SetItemMetadata(_soloOption.ItemCount - 1, (int)mode);
+    }
+
+    private void SelectSoloOption(CueSoloMode solo)
+    {
+        if (_soloOption == null) return;
+        EnsureSoloOptions();
+        _soloOption.SetBlockSignals(true);
+        for (int i = 0; i < _soloOption.ItemCount; i++)
+        {
+            if (_soloOption.GetItemMetadata(i).AsInt32() == (int)solo)
+            {
+                _soloOption.Selected = i;
+                _soloOption.SetBlockSignals(false);
+                return;
+            }
+        }
+        _soloOption.Selected = 0;
+        _soloOption.SetBlockSignals(false);
+    }
+
+    private static string SoloLabel(CueSoloMode solo)
+    {
+        return solo switch
+        {
+            CueSoloMode.StopAll => "Stop all",
+            CueSoloMode.StopCurrentList => "Stop current list",
+            _ => "Off"
         };
     }
 
@@ -566,6 +626,50 @@ public partial class SettingsCueDefaults : ScrollContainer
             string text = AppSettings.SystemDefaultCueOnlyOneActiveInstance ? "On" : "Off";
             _onlyOneActiveResetButton.TooltipText = UiLocalizer.ResetDefaultTip(text);
         }
+    }
+
+    private void OnSoloItemSelected(long index)
+    {
+        if (_globalData?.Settings == null || ComponentDefaultsUi.ShouldSkipEdit(_isSyncingUi, _historyManager))
+            return;
+        if (_soloOption == null)
+            return;
+
+        int selectedValue = _soloOption.GetItemMetadata((int)index).AsInt32();
+        var solo = (CueSoloMode)selectedValue;
+        if (_globalData.Settings.CueDefaultSoloMode == solo)
+        {
+            UpdateSoloResetButton();
+            return;
+        }
+
+        RecordCueDefaultsHistory("Change default solo mode");
+        _globalData.Settings.CueDefaultSoloMode = solo;
+        UpdateSoloResetButton();
+    }
+
+    private void OnSoloResetPressed()
+    {
+        if (_isSyncingUi || _globalData?.Settings == null) return;
+        if (_globalData.Settings.CueDefaultSoloMode == AppSettings.SystemDefaultCueSoloMode)
+        {
+            SyncSettings();
+            return;
+        }
+
+        RecordCueDefaultsHistory("Reset default solo mode");
+        _globalData.Settings.CueDefaultSoloMode = AppSettings.SystemDefaultCueSoloMode;
+        SyncSettings();
+    }
+
+    private void UpdateSoloResetButton()
+    {
+        if (_soloResetButton == null || _globalData?.Settings == null) return;
+        bool atDefault = _globalData.Settings.CueDefaultSoloMode == AppSettings.SystemDefaultCueSoloMode;
+        _soloResetButton.Visible = !atDefault;
+        if (!atDefault)
+            _soloResetButton.TooltipText =
+                UiLocalizer.ResetDefaultTip(SoloLabel(AppSettings.SystemDefaultCueSoloMode));
     }
 
     private void UpdateSkipIfDisarmedResetButton()
