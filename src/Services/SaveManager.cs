@@ -74,6 +74,19 @@ public partial class SaveManager : Node
 	/// </summary>
 	private int _saveGeneration;
 
+	/// <summary>
+	/// Serializes every showfile write (main file and autosave backups) so at most one
+	/// write runs at a time. Waited on inside the worker task, never on the main thread.
+	/// </summary>
+	private readonly SemaphoreSlim _writeGate = new SemaphoreSlim(1, 1);
+
+	/// <summary>
+	/// Newest save generation queued per target path (key from <see cref="WriteGateKey"/>).
+	/// A queued write that is older than the newest one for the same path is skipped, so the
+	/// newest snapshot is the one left on disk.
+	/// </summary>
+	private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _latestGenByPath = new();
+
 	private Godot.Timer _autosaveTimer;
 
 	/// <summary>P0 stage timings for the in-flight open (null when idle).</summary>
@@ -620,9 +633,24 @@ public partial class SaveManager : Node
 		(bool Ok, string Error) writeResult;
 		try
 		{
-			// Heavy work: stringify large JSON + plain disk write (off main thread).
-			writeResult = await Task.Run(() => WritePlainShowfile(pathForWrite, saveData))
-				.ConfigureAwait(true);
+			// Heavy work: stringify large JSON + atomic disk write (off main thread), one at a time.
+			string gateKey = WriteGateKey(pathForWrite);
+			_latestGenByPath.AddOrUpdate(gateKey, gen, (_, prev) => Math.Max(prev, gen));
+			writeResult = await Task.Run(async () =>
+			{
+				await _writeGate.WaitAsync().ConfigureAwait(false);
+				try
+				{
+					// A newer save for this path is queued behind us; let it write instead.
+					if (_latestGenByPath.TryGetValue(gateKey, out int latest) && gen < latest)
+						return (false, "superseded by a newer save");
+					return WritePlainShowfile(pathForWrite, saveData);
+				}
+				finally
+				{
+					_writeGate.Release();
+				}
+			}).ConfigureAwait(true);
 		}
 		catch (Exception ex)
 		{
@@ -690,24 +718,90 @@ public partial class SaveManager : Node
 	/// JSON-stringify + plain UTF-8 write. Intended for a worker thread (no Godot node access).
 	/// Showfiles are not encrypted — open, editable JSON for an open-source tool.
 	/// </summary>
+	/// <remarks>
+	/// Atomic: writes <c>{path}.tmp</c> next to the target, flushes it to disk, then swaps it in
+	/// with <see cref="File.Replace(string, string, string, bool)"/> (previous version kept as
+	/// <c>{path}.bak</c>). The live file is never truncated, so a crash or power loss mid-save
+	/// leaves either the old or the new show. Callers must hold <see cref="_writeGate"/>.
+	/// </remarks>
 	/// <param name="sessionPath">Absolute .c2 path.</param>
 	/// <param name="saveData">Snapshot dictionary built on the main thread.</param>
 	/// <returns>Success flag and error text.</returns>
 	private static (bool Ok, string Error) WritePlainShowfile(string sessionPath, Dictionary saveData)
 	{
+		string tmpPath = sessionPath + ".tmp";
 		try
 		{
 			string jsonString = Json.Stringify(saveData);
 			if (string.IsNullOrEmpty(jsonString))
 				return (false, "JSON stringify produced empty output.");
 
+			// A stale .tmp is left only by a write that died mid-way; it is never the live show.
+			if (File.Exists(tmpPath))
+				File.Delete(tmpPath);
+
 			// Prefer System.IO for plain UTF-8 so worker-thread writes are reliable.
-			System.IO.File.WriteAllText(sessionPath, jsonString);
+			using (var fs = new FileStream(tmpPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.None))
+			using (var sw = new StreamWriter(fs, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+			{
+				sw.Write(jsonString);
+				sw.Flush();
+				fs.Flush(flushToDisk: true);
+			}
+
+			if (File.Exists(sessionPath))
+				ReplaceShowfile(tmpPath, sessionPath);
+			else
+				File.Move(tmpPath, sessionPath);
 			return (true, null);
 		}
 		catch (Exception ex)
 		{
+			try
+			{
+				if (File.Exists(tmpPath))
+					File.Delete(tmpPath);
+			}
+			catch
+			{
+				// Best effort; the next write deletes it.
+			}
 			return (false, ex.Message);
+		}
+	}
+
+	/// <summary>
+	/// Swaps a fully written temp file over the live showfile, keeping the old one as <c>.bak</c>.
+	/// Falls back to copy-to-.bak plus overwrite-move where the volume does not support
+	/// <see cref="File.Replace(string, string, string, bool)"/>.
+	/// </summary>
+	private static void ReplaceShowfile(string tmpPath, string sessionPath)
+	{
+		string bakPath = sessionPath + ".bak";
+		try
+		{
+			File.Replace(tmpPath, sessionPath, bakPath, ignoreMetadataErrors: true);
+		}
+		catch (Exception ex) when (ex is IOException || ex is PlatformNotSupportedException || ex is UnauthorizedAccessException)
+		{
+			if (!File.Exists(tmpPath))
+				throw;
+			GD.Print($"SaveManager:ReplaceShowfile - File.Replace failed ({ex.Message}); using copy + move.");
+			File.Copy(sessionPath, bakPath, overwrite: true);
+			File.Move(tmpPath, sessionPath, overwrite: true);
+		}
+	}
+
+	/// <summary>Normalized key for per-path write supersede (case-insensitive, like <see cref="PathsEqual"/>).</summary>
+	private static string WriteGateKey(string path)
+	{
+		try
+		{
+			return System.IO.Path.GetFullPath(path.Replace('\\', '/')).ToUpperInvariant();
+		}
+		catch
+		{
+			return path.ToUpperInvariant();
 		}
 	}
 
@@ -972,6 +1066,12 @@ public partial class SaveManager : Node
 			{
 				_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
 					$"Failed to read session (session not changed): {readError}", 2);
+				// Point at the previous version kept by the atomic save. Never restored automatically.
+				if (File.Exists(selectedPath + ".bak"))
+				{
+					_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+						$"A backup of the previous save exists: {selectedPath}.bak (copy it to a name ending in .c2 to open it).", 1);
+				}
 				GD.PrintErr($"SaveManager:OpenSelectedSession - Read failed: {readError}");
 				if (isStartupOpen)
 					AbandonStartupOpenToNewSession(selectedPath, readError ?? "Failed to read showfile",
@@ -2082,10 +2182,20 @@ public partial class SaveManager : Node
 			string backupName = $"{_globalData.SessionName}_autosave_{timestamp}.c2";
 			string backupPath = backupDir + "/" + backupName;
 
-			// Snapshot on main; stringify + plain write on worker (same as SaveSession).
+			// Snapshot on main; stringify + atomic write on worker, behind the same write gate as SaveSession.
 			var saveData = BuildSaveDataDictionary();
-			var writeResult = await Task.Run(() => WritePlainShowfile(backupPath, saveData))
-				.ConfigureAwait(true);
+			var writeResult = await Task.Run(async () =>
+			{
+				await _writeGate.WaitAsync().ConfigureAwait(false);
+				try
+				{
+					return WritePlainShowfile(backupPath, saveData);
+				}
+				finally
+				{
+					_writeGate.Release();
+				}
+			}).ConfigureAwait(true);
 
 			if (writeResult.Ok)
 			{

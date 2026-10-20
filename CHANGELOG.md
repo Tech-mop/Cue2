@@ -43,6 +43,7 @@
 - Cmd+S / Ctrl+S Save, and other modifier shortcuts, work while Settings is open, including when a text field there is focused. Plain keys such as Go and Delete still wait until you leave a text field and close an open menu.
 - Native popups follow UI scale (OptionButton lists, colour picker, shell context menu, clock-days). They were opening at 1× because a PopupPanel is its own window.
 - Audio devices: Fixed a possible crash, or a cue cutting out mid-show, when an audio device is plugged or unplugged during playback. Audio input cues also no longer leak resources when their output device is lost.
+- Saving is now safe from breaking interruptions. Cue2 writes the show to a temporary file and only swaps it in once it's fully on disk, so a crash, power cut or full drive mid-save can't leave a broken showfile. The previous version is kept as a .c2.bak file, and overlapping saves (like Ctrl+S during an autosave) no longer collide.
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.
