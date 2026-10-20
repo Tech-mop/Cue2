@@ -55,4 +55,10 @@ public interface IAudioPlayback
     /// for that device before calling this method — do not assume the device is still open.
     /// </remarks>
     void OnOutputDeviceLost(uint logicalDeviceId);
+
+    /// <summary>
+    /// Publishes the current <see cref="DeviceStreams"/> / <see cref="DeviceStreamChannels"/>
+    /// to the playback's fill worker. Main thread only; call after binding or unbinding streams.
+    /// </summary>
+    void PublishStreamBindings();
 }

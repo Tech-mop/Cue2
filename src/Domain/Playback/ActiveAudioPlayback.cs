@@ -38,6 +38,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     public string DirectOutput { get; set; }
     public Dictionary<uint, IntPtr> DeviceStreams { get; set; }
     public Dictionary<uint, int> DeviceStreamChannels { get; set; }
+
+    /// <summary>Worker-side view of <see cref="DeviceStreams"/>; see <see cref="AudioStreamBindingSet"/>.</summary>
+    private readonly AudioStreamBindingSet _streamBindings = new();
+
     public int SourceChannels { get; set; }
     public int SourceSampleRate { get; set; }
     public int SourceBytesPerFrame { get; set; }
@@ -532,7 +536,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                     continue;
                 }
 
-                if (DeviceStreams == null || DeviceStreams.Count == 0)
+                var bindings = _streamBindings.Snapshot;
+                if (bindings.Length == 0)
                 {
                     emptyStreamIterations++;
                     if (emptyStreamIterations >= maxEmptyStreamIterations)
@@ -550,10 +555,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 bool anyNeed = false;
                 int maxNeedFrames = 0;
 
-                foreach (var kv in DeviceStreams)
+                foreach (var b in bindings)
                 {
-                    long queued = SDL.GetAudioStreamQueued(kv.Value);
-                    int outCh = GetStreamChannels(kv.Key);
+                    long queued = _streamBindings.GetQueued(b);
+                    if (queued < 0) continue;
+                    int outCh = GetStreamChannels(b);
                     int bytesPerOutFrame = outCh * sizeof(float);
                     if (bytesPerOutFrame <= 0) continue;
 
@@ -668,21 +674,30 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         catch (Exception ex)
         {
             GD.PrintErr($"ActiveAudioPlayback:FillLoop - {ex.Message}");
+            // Make the early stop visible in the operator log (GlobalSignals is main-thread only).
+            try { CallDeferred(nameof(ReportFillLoopError), ex.Message); } catch { /* object may be freeing */ }
             // Ensure ActiveCue can tear down the UI if the fill loop dies unexpectedly.
             try { CallDeferred(nameof(CompleteFromEnd)); } catch { /* object may be freeing */ }
         }
     }
 
-    private int GetStreamChannels(uint deviceLogicalId)
+    private int GetStreamChannels(AudioStreamBinding binding) =>
+        binding.Channels > 0 ? binding.Channels : SourceChannels;
+
+    /// <summary>Main thread: forwards a fill-loop failure to the operator log.</summary>
+    private void ReportFillLoopError(string message)
     {
-        if (DeviceStreamChannels != null &&
-            DeviceStreamChannels.TryGetValue(deviceLogicalId, out int ch) &&
-            ch > 0)
-        {
-            return ch;
-        }
-        return SourceChannels;
+        if (Engine.GetMainLoop() is not SceneTree tree)
+            return;
+        string file = System.IO.Path.GetFileName(_audioComponent?.AudioFile ?? string.Empty);
+        tree.Root.GetNodeOrNull<GlobalSignals>("/root/GlobalSignals")?.EmitSignal(nameof(GlobalSignals.Log),
+            $"ActiveAudioPlayback: audio cue '{file}' stopped early, fill loop error: {message}", (int)LogType.Error);
     }
+
+    /// <inheritdoc />
+    public void PublishStreamBindings() =>
+        _streamBindings.Publish(DeviceStreams, DeviceStreamChannels,
+            id => _audioDevices?.GetAudioDeviceByLogicalId(id)?.Name);
 
     /// <summary>
     /// Arms a raised-cosine fade-in so the next PCM pushed after silence does not click.
@@ -755,7 +770,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// </summary>
     private void PrefillStreams()
     {
-        if (Decoder == null || DeviceStreams == null || DeviceStreams.Count == 0)
+        if (Decoder == null || !_streamBindings.HasStreams)
             return;
         if (_srcBuffer == null || SourceSampleRate <= 0 || SourceChannels <= 0)
             return;
@@ -766,10 +781,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         for (int iter = 0; iter < maxIterations; iter++)
         {
             int maxNeedFrames = 0;
-            foreach (var kv in DeviceStreams)
+            foreach (var b in _streamBindings.Snapshot)
             {
-                long queued = SDL.GetAudioStreamQueued(kv.Value);
-                int outCh = GetStreamChannels(kv.Key);
+                long queued = _streamBindings.GetQueued(b);
+                if (queued < 0) continue;
+                int outCh = GetStreamChannels(b);
                 int bpf = outCh * sizeof(float);
                 if (bpf <= 0) continue;
                 long target = SourceSampleRate * _audioTuning.TargetBufferMs / 1000L * bpf;
@@ -815,7 +831,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
     private unsafe void PushMixedFrames(int frames, float timelineVolumeLinear)
     {
-        if (DeviceStreams == null) return;
+        var bindings = _streamBindings.Snapshot;
+        if (bindings.Length == 0) return;
 
         float masterVol;
         float componentVol;
@@ -837,14 +854,14 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         int declickRemainSnapshot = _declickFramesRemaining;
         int declickTotalSnapshot = _declickRampTotalFrames;
 
-        foreach (var kv in DeviceStreams)
+        foreach (var b in bindings)
         {
-            int outCh = GetStreamChannels(kv.Key);
+            int outCh = GetStreamChannels(b);
             int outSamples = frames * outCh;
             if (outSamples > _mixBuffer.Length)
                 _mixBuffer = new float[outSamples];
 
-            string deviceName = _audioDevices.GetAudioDeviceByLogicalId(kv.Key)?.Name;
+            string deviceName = b.DeviceName;
 
             AudioMixMatrix.Mix(
                 _srcBuffer.AsSpan(0, frames * SourceChannels),
@@ -876,7 +893,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             int byteCount = outSamples * sizeof(float);
             fixed (float* p = _mixBuffer)
             {
-                SDL.PutAudioStreamData(kv.Value, (IntPtr)p, byteCount);
+                _streamBindings.Put(b, (IntPtr)p, byteCount);
             }
         }
 
@@ -1042,11 +1059,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     {
         try
         {
-            if (DeviceStreams != null)
-            {
-                foreach (var stream in DeviceStreams.Values)
-                    SDL.ClearAudioStream(stream);
-            }
+            _streamBindings.ClearAll();
 
             long startUs;
             lock (_lock)
@@ -1099,11 +1112,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             // Loop path: seek + re-prime outside lock; hold fill via _fillSuspended.
             try
             {
-                if (DeviceStreams != null)
-                {
-                    foreach (var stream in DeviceStreams.Values)
-                        SDL.ClearAudioStream(stream);
-                }
+                _streamBindings.ClearAll();
                 long loopStartUs;
                 lock (_lock)
                 {
@@ -1257,11 +1266,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _pausedAtUs = GetPlaybackPositionUs();
         }
 
-        if (DeviceStreams != null)
-        {
-            foreach (var stream in DeviceStreams.Values)
-                SDL.ClearAudioStream(stream);
-        }
+        _streamBindings.ClearAll();
         Decoder?.FlushBuffers();
         GD.Print($"ActiveAudioPlayback:Pause - Paused at {_pausedAtUs / 1000} ms");
     }
@@ -1360,13 +1365,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
         StopFillLoop();
 
-        if (DeviceStreams != null)
-        {
-            foreach (var stream in DeviceStreams.Values)
-            {
-                try { SDL.ClearAudioStream(stream); } catch { /* ignore */ }
-            }
-        }
+        _streamBindings.ClearAll();
 
         Clean();
     }
@@ -1776,16 +1775,14 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         long decUs = Decoder.PositionUs;
         long queuedUs = 0;
         int count = 0;
-        if (DeviceStreams != null)
+        foreach (var b in _streamBindings.Snapshot)
         {
-            foreach (var kv in DeviceStreams)
-            {
-                long queuedBytes = SDL.GetAudioStreamQueued(kv.Value);
-                int outCh = GetStreamChannels(kv.Key);
-                if (outCh <= 0 || SourceSampleRate <= 0) continue;
-                queuedUs += queuedBytes * 1_000_000L / (SourceSampleRate * outCh * sizeof(float));
-                count++;
-            }
+            long queuedBytes = _streamBindings.GetQueued(b);
+            if (queuedBytes < 0) continue;
+            int outCh = GetStreamChannels(b);
+            if (outCh <= 0 || SourceSampleRate <= 0) continue;
+            queuedUs += queuedBytes * 1_000_000L / (SourceSampleRate * outCh * sizeof(float));
+            count++;
         }
         if (count > 0) queuedUs /= count;
         long pos = decUs - queuedUs;
@@ -1820,11 +1817,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
             RefreshAudioTuning();
 
-            if (DeviceStreams != null)
-            {
-                foreach (var stream in DeviceStreams.Values)
-                    SDL.ClearAudioStream(stream);
-            }
+            _streamBindings.ClearAll();
 
             long clamped = Math.Max(_startTimeUs, timestampUs);
             if (_endTimeUs < long.MaxValue)
@@ -1956,22 +1949,9 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     public void OnOutputDeviceLost(uint logicalDeviceId)
     {
         // Tracking for this logical id was already cleared by AudioDevices.CloseAudioDevice.
-        if (DeviceStreams != null && DeviceStreams.TryGetValue(logicalDeviceId, out var stream))
-        {
-            try
-            {
-                if (stream != IntPtr.Zero)
-                    SDL.DestroyAudioStream(stream);
-            }
-            catch
-            {
-                // ignore
-            }
-
-            DeviceStreams.Remove(logicalDeviceId);
-        }
-
-        DeviceStreamChannels?.Remove(logicalDeviceId);
+        // Detach first (the fill worker can no longer reach the handle), then destroy.
+        IntPtr stream = _streamBindings.Detach(DeviceStreams, DeviceStreamChannels, logicalDeviceId);
+        AudioStreamBindingSet.Destroy(stream);
 
         if (DeviceStreams == null || DeviceStreams.Count == 0)
         {
@@ -2012,6 +1992,12 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         CancelSeekWorker();
         _fadeCts?.Cancel();
 
+        // Detach every stream before destroying it, so a fill worker that outlived
+        // StopFillLoop's wait skips the handles instead of writing to freed streams.
+        if (DeviceStreams != null)
+            _audioDevices?.NotifyPlaybackCompleted(this);
+        AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
+
         if (Decoder != null)
         {
             try
@@ -2036,17 +2022,6 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_mixBuffer));
             _mixBuffer = null;
         }
-
-        if (DeviceStreams != null)
-        {
-            _audioDevices?.NotifyPlaybackCompleted(this);
-            foreach (var stream in DeviceStreams.Values)
-            {
-                try { SDL.DestroyAudioStream(stream); } catch { /* ignore */ }
-            }
-            DeviceStreams.Clear();
-        }
-        DeviceStreamChannels?.Clear();
 
         MediaMemory.ReclaimIfNeeded();
 

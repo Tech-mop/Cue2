@@ -1034,6 +1034,9 @@ public partial class AudioDevices : Node
 		    GD.Print($"AudioDevices:StartAudioPlayback - Stream for {device.Name}: srcCh={outChannels} rate={playback.SourceSampleRate} → devCh={deviceSpec.Channels} rate={deviceSpec.Freq}");
 	    }
 
+	    // Hand the new bindings to the playback's fill worker (it never reads DeviceStreams).
+	    playback.PublishStreamBindings();
+
 	    if (playback.DeviceStreams.Count == 0)
 	    {
 		    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),

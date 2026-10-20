@@ -62,6 +62,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     public string DirectOutput { get; set; }
     public Dictionary<uint, IntPtr> DeviceStreams { get; set; }
     public Dictionary<uint, int> DeviceStreamChannels { get; set; }
+
+    /// <summary>Worker-side view of <see cref="DeviceStreams"/>; see <see cref="AudioStreamBindingSet"/>.</summary>
+    private readonly AudioStreamBindingSet _streamBindings = new();
     public int SourceChannels { get; set; }
     public int SourceSampleRate { get; set; }
     public int SourceBytesPerFrame { get; set; }
@@ -196,8 +199,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// <summary>
     /// True when at least one SDL audio stream is bound and can drive the A/V master clock.
     /// </summary>
-    public bool HasBoundAudioStreams =>
-        DeviceStreams != null && DeviceStreams.Count > 0;
+    public bool HasBoundAudioStreams => _streamBindings.HasStreams;
 
     public ActiveVideoPlayback(VideoComponent videoComponent, AudioDevices audioDevices)
     {
@@ -628,10 +630,11 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             long audioUs = _audioDecoder.PositionUs;
             long queuedUs = 0;
             int count = 0;
-            foreach (var kv in DeviceStreams)
+            foreach (var b in _streamBindings.Snapshot)
             {
-                long qb = SDL.GetAudioStreamQueued(kv.Value);
-                int outCh = GetStreamChannels(kv.Key);
+                long qb = _streamBindings.GetQueued(b);
+                if (qb < 0) continue;
+                int outCh = GetStreamChannels(b);
                 if (outCh <= 0 || SourceSampleRate <= 0) continue;
                 queuedUs += qb * MicrosecondsPerSecond / (SourceSampleRate * outCh * sizeof(float));
                 count++;
@@ -807,13 +810,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         if (DeviceStreams != null)
         {
             try { _audioDevices?.NotifyPlaybackCompleted(this); } catch { /* ignore */ }
-            foreach (var stream in DeviceStreams.Values)
-            {
-                try { SDL.DestroyAudioStream(stream); } catch { /* ignore */ }
-            }
-            DeviceStreams.Clear();
         }
-        DeviceStreamChannels?.Clear();
+        // Detach before destroy so a fill worker that outlived the stop wait skips the handles.
+        AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
 
         try { _audioDecoder?.Dispose(); } catch { /* ignore */ }
         _audioDecoder = null;
@@ -825,22 +824,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     public void OnOutputDeviceLost(uint logicalDeviceId)
     {
         // Tracking for this logical id was already cleared by AudioDevices.CloseAudioDevice.
-        if (DeviceStreams != null && DeviceStreams.TryGetValue(logicalDeviceId, out var stream))
-        {
-            try
-            {
-                if (stream != IntPtr.Zero)
-                    SDL.DestroyAudioStream(stream);
-            }
-            catch
-            {
-                // ignore
-            }
-
-            DeviceStreams.Remove(logicalDeviceId);
-        }
-
-        DeviceStreamChannels?.Remove(logicalDeviceId);
+        // Detach first (the fill worker can no longer reach the handle), then destroy.
+        IntPtr stream = _streamBindings.Detach(DeviceStreams, DeviceStreamChannels, logicalDeviceId);
+        AudioStreamBindingSet.Destroy(stream);
 
         if (DeviceStreams == null || DeviceStreams.Count == 0)
         {
@@ -1066,11 +1052,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _wallClock.Stop();
         }
 
-        if (DeviceStreams != null)
-        {
-            foreach (var stream in DeviceStreams.Values)
-                SDL.ClearAudioStream(stream);
-        }
+        _streamBindings.ClearAll();
         _audioDecoder?.FlushBuffers();
         GD.Print($"ActiveVideoPlayback:Pause - at {_pausedAtUs / 1000} ms");
     }
@@ -1252,11 +1234,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _segmentEndScheduled = false;
         }
 
-        if (DeviceStreams != null)
-        {
-            foreach (var stream in DeviceStreams.Values)
-                SDL.ClearAudioStream(stream);
-        }
+        _streamBindings.ClearAll();
 
         // Always park the wall clock at the seek target so silent-video masters and UI
         // match immediately (audio master still holds via _seekTargetUs until finish).
@@ -1472,7 +1450,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                     continue;
                 }
 
-                if (DeviceStreams == null || DeviceStreams.Count == 0 || _audioDecoder == null)
+                var bindings = _streamBindings.Snapshot;
+                if (bindings.Length == 0 || _audioDecoder == null)
                 {
                     Thread.Sleep(AudioFillSleepMs);
                     continue;
@@ -1480,10 +1459,11 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
                 bool anyNeed = false;
                 int maxNeedFrames = 0;
-                foreach (var kv in DeviceStreams)
+                foreach (var b in bindings)
                 {
-                    long queued = SDL.GetAudioStreamQueued(kv.Value);
-                    int outCh = GetStreamChannels(kv.Key);
+                    long queued = _streamBindings.GetQueued(b);
+                    if (queued < 0) continue;
+                    int outCh = GetStreamChannels(b);
                     int bpf = outCh * sizeof(float);
                     if (bpf <= 0) continue;
                     long lowWater = SourceSampleRate * _audioTuning.LowWaterMs / 1000L * bpf;
@@ -1537,16 +1517,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }
     }
 
-    private int GetStreamChannels(uint deviceLogicalId)
-    {
-        if (DeviceStreamChannels != null &&
-            DeviceStreamChannels.TryGetValue(deviceLogicalId, out int ch) &&
-            ch > 0)
-        {
-            return ch;
-        }
-        return SourceChannels;
-    }
+    private int GetStreamChannels(AudioStreamBinding binding) =>
+        binding.Channels > 0 ? binding.Channels : SourceChannels;
+
+    /// <inheritdoc />
+    public void PublishStreamBindings() =>
+        _streamBindings.Publish(DeviceStreams, DeviceStreamChannels,
+            id => _audioDevices?.GetAudioDeviceByLogicalId(id)?.Name);
 
     /// <summary>
     /// Arms a raised-cosine fade-in so the next PCM pushed after silence does not click.
@@ -1617,7 +1594,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// </summary>
     private void PrefillAudioStreams()
     {
-        if (_audioDecoder == null || DeviceStreams == null || DeviceStreams.Count == 0)
+        if (_audioDecoder == null || !_streamBindings.HasStreams)
             return;
         if (_audioSrcBuffer == null || SourceSampleRate <= 0 || SourceChannels <= 0)
             return;
@@ -1628,10 +1605,11 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         for (int iter = 0; iter < maxIterations; iter++)
         {
             int maxNeedFrames = 0;
-            foreach (var kv in DeviceStreams)
+            foreach (var b in _streamBindings.Snapshot)
             {
-                long queued = SDL.GetAudioStreamQueued(kv.Value);
-                int outCh = GetStreamChannels(kv.Key);
+                long queued = _streamBindings.GetQueued(b);
+                if (queued < 0) continue;
+                int outCh = GetStreamChannels(b);
                 int bpf = outCh * sizeof(float);
                 if (bpf <= 0) continue;
                 long target = SourceSampleRate * _audioTuning.TargetBufferMs / 1000L * bpf;
@@ -1660,7 +1638,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
     private unsafe void PushMixedAudioFrames(int frames)
     {
-        if (DeviceStreams == null || _isExiting) return;
+        var bindings = _streamBindings.Snapshot;
+        if (bindings.Length == 0 || _isExiting) return;
 
         float masterVol;
         float componentVol;
@@ -1687,14 +1666,14 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         int declickRemainSnapshot = _declickFramesRemaining;
         int declickTotalSnapshot = _declickRampTotalFrames;
 
-        foreach (var kv in DeviceStreams)
+        foreach (var b in bindings)
         {
-            int outCh = GetStreamChannels(kv.Key);
+            int outCh = GetStreamChannels(b);
             int outSamples = frames * outCh;
             if (outSamples > _audioMixBuffer.Length)
                 _audioMixBuffer = new float[outSamples];
 
-            string deviceName = _audioDevices.GetAudioDeviceByLogicalId(kv.Key)?.Name;
+            string deviceName = b.DeviceName;
             AudioMixMatrix.Mix(
                 _audioSrcBuffer.AsSpan(0, frames * SourceChannels),
                 frames,
@@ -1726,7 +1705,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             int byteCount = outSamples * sizeof(float);
             fixed (float* p = _audioMixBuffer)
             {
-                SDL.PutAudioStreamData(kv.Value, (IntPtr)p, byteCount);
+                _streamBindings.Put(b, (IntPtr)p, byteCount);
             }
         }
 
@@ -2036,13 +2015,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         if (DeviceStreams != null)
         {
             try { _audioDevices?.NotifyPlaybackCompleted(this); } catch { /* ignore */ }
-            foreach (var stream in DeviceStreams.Values)
-            {
-                try { SDL.DestroyAudioStream(stream); } catch { /* ignore */ }
-            }
-            DeviceStreams.Clear();
         }
-        DeviceStreamChannels?.Clear();
+        // Detach before destroy so a fill worker that outlived the stop wait skips the handles.
+        AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
 
         // Prefer signaling completion before tearing down the display when Clean is the
         // first completion path (user Stop). Natural end already emitted while holding frame.
@@ -2226,14 +2201,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         CancelSeekWorker();
         StopVideoPrefetchLoop();
         StopAudioFillLoop();
-        if (DeviceStreams != null)
-        {
-            foreach (var stream in DeviceStreams.Values)
-            {
-                try { SDL.DestroyAudioStream(stream); } catch { /* ignore */ }
-            }
-            DeviceStreams.Clear();
-        }
+        AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
         ReleaseMediaBuffers();
         MediaMemory.ReclaimIfNeeded();
         _isDisposed = true;

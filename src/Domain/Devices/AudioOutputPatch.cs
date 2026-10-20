@@ -219,7 +219,9 @@ public partial class AudioOutputPatch : Godot.GodotObject
         {
             foreach (var output in device)
             {
-                output.RoutedChannels.RemoveAll(id => id == channelId);
+                // Copy-on-write: audio fill workers enumerate RoutedChannels while mixing.
+                if (output.RoutedChannels != null && output.RoutedChannels.Contains(channelId))
+                    output.RoutedChannels = output.RoutedChannels.Where(id => id != channelId).ToList();
             }
         }
         GD.Print("AudioOutputPatch:RemoveChannel - Successfully removed channel " + channelId + " (" + removedName + ") and cleaned routes.");
@@ -267,7 +269,11 @@ public partial class AudioOutputPatch : Godot.GodotObject
                 DeviceChannel = hw
             });
         }
-        OutputDevices.Add(deviceName, outputs);
+        // Copy-on-write: audio fill workers read OutputDevices while mixing, so never mutate
+        // the published dictionary; build a new one and swap the reference.
+        var next = new System.Collections.Generic.Dictionary<string, List<OutputChannel>>(OutputDevices);
+        next.Add(deviceName, outputs);
+        OutputDevices = next;
     }
 
     /// <summary>
@@ -311,7 +317,10 @@ public partial class AudioOutputPatch : Godot.GodotObject
     {
         if (OutputDevices.ContainsKey(deviceName))
         {
-            OutputDevices.Remove(deviceName);
+            // Copy-on-write (see AddDeviceOutputs).
+            var next = new System.Collections.Generic.Dictionary<string, List<OutputChannel>>(OutputDevices);
+            next.Remove(deviceName);
+            OutputDevices = next;
             return;
         }
         GD.Print($"Could not remove device: {deviceName} from patch: {Name}");
@@ -350,17 +359,23 @@ public partial class AudioOutputPatch : Godot.GodotObject
             return;
         }
 
-        var list = outputs[outputIndex].RoutedChannels;
+        // Copy-on-write: audio fill workers enumerate RoutedChannels while mixing.
+        var list = outputs[outputIndex].RoutedChannels ?? new List<int>();
         if (routed)
         {
             if (!list.Contains(channelId))
             {
-                list.Add(channelId);
+                outputs[outputIndex].RoutedChannels = new List<int>(list) { channelId };
             }
         }
         else
         {
-            list.Remove(channelId);
+            if (list.Contains(channelId))
+            {
+                var next = new List<int>(list);
+                next.Remove(channelId);
+                outputs[outputIndex].RoutedChannels = next;
+            }
         }
     }
     

@@ -30,6 +30,9 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
 
     private CancellationTokenSource _fillCts;
     private Task _fillTask;
+
+    /// <summary>Worker-side view of <see cref="DeviceStreams"/>; see <see cref="AudioStreamBindingSet"/>.</summary>
+    private readonly AudioStreamBindingSet _streamBindings = new();
     private float[] _mono;
     private float[] _mix;
     private byte[] _pcmBytes;
@@ -166,18 +169,13 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
         }
 
         try { _fillCts?.Cancel(); } catch { /* already done */ }
+        // Wait for the worker like the other playbacks do. If it outlives the wait, the
+        // detach below and the IoLock in CloseCaptures / ReadMonoChunk still keep it off
+        // destroyed handles.
+        try { _fillTask?.Wait(500); } catch { /* cancelled or faulted */ }
         CloseCaptures();
         try { _audioDevices?.NotifyPlaybackCompleted(this); } catch { /* device map */ }
-        if (DeviceStreams != null)
-        {
-            foreach (var stream in DeviceStreams.Values)
-            {
-                try { if (stream != IntPtr.Zero) SDL.DestroyAudioStream(stream); }
-                catch { /* ignore */ }
-            }
-            DeviceStreams.Clear();
-        }
-        DeviceStreamChannels?.Clear();
+        AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
         try { Completed?.Invoke(); }
         catch (Exception ex)
         {
@@ -203,11 +201,17 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
     /// <inheritdoc />
     public void OnOutputDeviceLost(uint logicalDeviceId)
     {
-        DeviceStreams?.Remove(logicalDeviceId);
-        DeviceStreamChannels?.Remove(logicalDeviceId);
+        // Detach first (the fill worker can no longer reach the handle), then destroy.
+        IntPtr stream = _streamBindings.Detach(DeviceStreams, DeviceStreamChannels, logicalDeviceId);
+        AudioStreamBindingSet.Destroy(stream);
         if (DeviceStreams == null || DeviceStreams.Count == 0)
             Clean();
     }
+
+    /// <inheritdoc />
+    public void PublishStreamBindings() =>
+        _streamBindings.Publish(DeviceStreams, DeviceStreamChannels,
+            id => _audioDevices?.GetAudioDeviceByLogicalId(id)?.Name);
 
     private void OpenCaptures()
     {
@@ -276,16 +280,19 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
 
     private void CloseCaptures()
     {
+        // Unlink under IoLock (ReadMonoChunk reads _captures under the same lock), destroy after.
         var closed = new HashSet<IntPtr>();
-        foreach (var capture in _captures)
+        lock (_streamBindings.IoLock)
         {
-            if (capture.Stream == IntPtr.Zero || !closed.Add(capture.Stream))
-                continue;
-            try { SDL.DestroyAudioStream(capture.Stream); }
-            catch { /* ignore */ }
-            capture.Stream = IntPtr.Zero;
+            foreach (var capture in _captures)
+            {
+                if (capture.Stream != IntPtr.Zero)
+                    closed.Add(capture.Stream);
+                capture.Stream = IntPtr.Zero;
+            }
+            _captures.Clear();
         }
-        _captures.Clear();
+        AudioStreamBindingSet.Destroy(closed);
     }
 
     private void FillLoop(CancellationToken token)
@@ -302,7 +309,7 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
                 if (finished)
                     break;
 
-                if (IsPaused || DeviceStreams == null || DeviceStreams.Count == 0)
+                if (IsPaused || !_streamBindings.HasStreams)
                 {
                     Thread.Sleep(16);
                     continue;
@@ -378,6 +385,14 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
 
     private int ReadMonoChunk()
     {
+        // Held for the whole read so CloseCaptures cannot clear _captures or free a capture
+        // stream mid-read. Short: one non-blocking chunk per call.
+        lock (_streamBindings.IoLock)
+            return ReadMonoChunkLocked();
+    }
+
+    private int ReadMonoChunkLocked()
+    {
         int frames = FramesPerChunk;
         Array.Clear(_mono, 0, frames);
         float submaster = DbToLinear(_component.InputPatch?.TrimDb ?? 0f);
@@ -422,16 +437,15 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
     {
         float componentVol = AudioMixMatrix.ClampComponentGainLinear((float)_component.Volume);
         float master = envelope * (_audioDevices.GetEffectiveSessionMasterLinear());
-        foreach (var kv in DeviceStreams)
+        foreach (var b in _streamBindings.Snapshot)
         {
-            if (kv.Value == IntPtr.Zero)
-                continue;
-            if (!DeviceStreamChannels.TryGetValue(kv.Key, out int outCh) || outCh <= 0)
+            int outCh = b.Channels;
+            if (outCh <= 0)
                 continue;
             int outSamples = frames * outCh;
             if (_mix.Length < outSamples)
                 _mix = new float[outSamples];
-            string deviceName = _audioDevices.GetAudioDeviceByLogicalId(kv.Key)?.Name;
+            string deviceName = b.DeviceName;
             AudioMixMatrix.Mix(
                 _mono.AsSpan(0, frames),
                 frames,
@@ -458,7 +472,7 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
             if (_pcmBytes.Length < byteCount)
                 _pcmBytes = new byte[byteCount];
             Buffer.BlockCopy(_mix, 0, _pcmBytes, 0, byteCount);
-            SDL.PutAudioStreamData(kv.Value, _pcmBytes, byteCount);
+            _streamBindings.Put(b, _pcmBytes, byteCount);
         }
     }
 
