@@ -498,7 +498,7 @@ public partial class OscListen : Node
 
         // A cue trigger is an operator GO from another system: same gates as the GO button,
         // applied once per message. Rejected messages are still consumed (and logged).
-        if (!executor.TryBeginOperatorGo($"OSC cue trigger {msg.Address}"))
+        if (executor.RejectOperatorGo($"OSC cue trigger {msg.Address}"))
             return true;
 
         foreach (Cue cue in matches)
@@ -508,6 +508,7 @@ public partial class OscListen : Node
                 $"OSC cue trigger: \"{cue.Name}\" ← {msg.Address}", (int)LogType.Info);
             executor.ActivateSequenceFrom(cue);
         }
+        executor.StartOperatorGoCooldown();
         return true;
     }
 

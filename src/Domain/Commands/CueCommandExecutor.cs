@@ -129,19 +129,19 @@ public partial class CueCommandExecutor : Node
 
     /// <summary>
     /// Gate for an operator-initiated GO (GO button, mapped GO action, OSC GO and per-cue OSC
-    /// triggers). Rejects and logs while a showfile loads or Double Go Protection is active;
-    /// otherwise starts the cooldown. Call once per GO action, before starting its cues.
-    /// Main thread only.
+    /// triggers). Rejects and logs while a showfile loads or Double Go Protection is active.
+    /// Call once per GO action, before starting its cues; then call
+    /// <see cref="StartOperatorGoCooldown"/> only if at least one cue was started. Main thread only.
     /// </summary>
     /// <param name="actionLabel">Short action name for logs.</param>
-    /// <returns>True if the GO may proceed.</returns>
-    public bool TryBeginOperatorGo(string actionLabel)
-    {
-        if (RejectIfGoDisabled(actionLabel))
-            return false;
-        ApplyDoubleGoProtection();
-        return true;
-    }
+    /// <returns>True if the caller should abort.</returns>
+    public bool RejectOperatorGo(string actionLabel) => RejectIfGoDisabled(actionLabel);
+
+    /// <summary>
+    /// Starts the Double Go Protection cooldown after an operator GO that started at least one cue.
+    /// A GO that activates nothing must not call this (R1-P2-08).
+    /// </summary>
+    public void StartOperatorGoCooldown() => ApplyDoubleGoProtection();
 
     /// <summary>
     /// Starts the show-scoped double-GO cooldown when the setting is above 0.
@@ -161,7 +161,7 @@ public partial class CueCommandExecutor : Node
     /// </summary>
     public void GoCommand()
     {
-        if (!TryBeginOperatorGo("GO"))
+        if (RejectOperatorGo("GO"))
             return;
 
         if (!ShellSelection.SelectedCues.Any())
@@ -171,6 +171,7 @@ public partial class CueCommandExecutor : Node
         }
 
         var selected = ShellSelection.SelectedCues.ToList();
+        bool startedAny = false;
         foreach (var cue in selected)
         {
             if (!cue.Armed)
@@ -180,7 +181,12 @@ public partial class CueCommandExecutor : Node
             }
 
             ActivateSequenceFrom(cue);
+            startedAny = true;
         }
+
+        // Only a GO that started something arms the cooldown (empty / disarmed-only GO does not).
+        if (startedAny)
+            StartOperatorGoCooldown();
 
         AdvancePlayheadAfterGo(selected);
     }

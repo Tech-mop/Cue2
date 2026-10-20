@@ -396,26 +396,31 @@ public partial class OscListen
         // OSC GO is an operator GO: same session-load gate and Double Go Protection as the GO
         // button, applied once per message (a multi-cue match is one GO).
         var executor = _globalData?.CueCommandExecutor;
-        if (executor != null && !executor.TryBeginOperatorGo($"OSC Go{LookupLabel(lookup)}"))
+        if (executor != null && executor.RejectOperatorGo($"OSC Go{LookupLabel(lookup)}"))
             return true;
+        bool startedAny = false;
         foreach (var cue in cues)
-            TryActivateCue(cue, $"Go{LookupLabel(lookup)}");
+            startedAny |= TryActivateCue(cue, $"Go{LookupLabel(lookup)}");
+        // Cooldown only when the message started something (R1-P2-08).
+        if (startedAny)
+            executor?.StartOperatorGoCooldown();
         return true;
     }
 
-    private void TryActivateCue(Cue cue, string via)
+    private bool TryActivateCue(Cue cue, string via)
     {
-        if (cue == null) return;
+        if (cue == null) return false;
         if (!cue.Armed)
         {
             LogBuiltIn($"{via}: skipped disarmed \"{cue.Name}\" (id={cue.Id})", LogType.Info);
-            return;
+            return false;
         }
         var executor = _globalData?.CueCommandExecutor;
-        if (executor == null) { LogBuiltIn($"{via}: executor missing", LogType.Error); return; }
+        if (executor == null) { LogBuiltIn($"{via}: executor missing", LogType.Error); return false; }
         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
             $"OSC {via}: GO \"{cue.Name}\" (#{cue.CueNum}, id={cue.Id})", (int)LogType.Info);
         executor.ActivateSequenceFrom(cue);
+        return true;
     }
 
     private bool ExecLoad(string[] parts, OscInputMessage msg, CueLookup lookup)
