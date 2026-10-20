@@ -30,6 +30,16 @@ public partial class TimecodeManager : Node
     private AudioDevices _audioDevices;
 
     private readonly List<TimecodeEndpoint> _inputs = new();
+
+    /// <summary>
+    /// Read-only copy of <see cref="_inputs"/> for the MIDI callback thread (R1-P2-10). Main
+    /// replaces it after every change to <see cref="_inputs"/>; MTC handling iterates the copy,
+    /// so a concurrent Add / Remove / Clear on main can no longer break the enumeration.
+    /// </summary>
+    private volatile TimecodeEndpoint[] _inputsForMidiThread = System.Array.Empty<TimecodeEndpoint>();
+
+    /// <summary>Publishes the current inputs to <see cref="_inputsForMidiThread"/>. Main thread.</summary>
+    private void PublishInputsForMidiThread() => _inputsForMidiThread = _inputs.ToArray();
     private readonly List<TimecodeEndpoint> _outputs = new();
 
     private int _nextId = 1;
@@ -173,6 +183,7 @@ public partial class TimecodeManager : Node
 
         var endpoint = CreateEndpoint(kind, TimecodeDirection.Input);
         _inputs.Add(endpoint);
+        PublishInputsForMidiThread();
         SyncProcess();
         ReconcileIo();
         GD.Print($"TimecodeManager:AddInput - {endpoint.Id} '{endpoint.Name}' {kind}");
@@ -218,6 +229,7 @@ public partial class TimecodeManager : Node
         {
             string name = _inputs[inIdx].Name;
             _inputs.RemoveAt(inIdx);
+            PublishInputsForMidiThread();
             GD.Print($"TimecodeManager:RemoveEndpoint - Removed input '{name}' (id={id}).");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"Timecode: removed input '{name}'", (int)LogType.Info);
@@ -589,6 +601,7 @@ public partial class TimecodeManager : Node
                 _inputs.Add(endpoint);
             }
         }
+        PublishInputsForMidiThread();
 
         if (data.TryGetValue("Outputs", out var outputsVar)
             && outputsVar.AsGodotArray() is Godot.Collections.Array outputArr)
@@ -633,6 +646,7 @@ public partial class TimecodeManager : Node
             _outputs.Insert(0, endpoint);
             GD.Print($"TimecodeManager:LoadFromData - Moved '{endpoint.Name}' to outputs.");
         }
+        PublishInputsForMidiThread();
     }
 
     /// <summary>
@@ -643,6 +657,7 @@ public partial class TimecodeManager : Node
         StopLtcFillThread();
         DestroyAllLtcRuntimes();
         _inputs.Clear();
+        PublishInputsForMidiThread();
         _outputs.Clear();
         _nextId = 1;
         _timecodeEnabled = false;
