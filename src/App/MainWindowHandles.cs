@@ -121,6 +121,7 @@ public partial class MainWindowHandles : Control
 
 		_globalSignals.LogAlert += OnAlertReceived;
 		_globalSignals.ShowModeChanged += OnShowModeChanged;
+		_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 
 		var border = GetNode<Panel>("%Border");
 		// Duplicate so border colour mutations do not touch a shared theme resource.
@@ -324,6 +325,11 @@ public partial class MainWindowHandles : Control
 	private void OnShowModeChanged(bool enabled)
 	{
 		ApplyShowModeBorder(enabled);
+	}
+
+	private void OnThemeColorsChanged()
+	{
+		ApplyShowModeBorder(_globalData?.Settings?.ShowMode == true);
 	}
 
 	/// <summary>
@@ -904,6 +910,7 @@ public partial class MainWindowHandles : Control
 		{
 			_globalSignals.LogAlert -= OnAlertReceived;
 			_globalSignals.ShowModeChanged -= OnShowModeChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 		}
 
 		_resizeSaveTimer?.Stop();

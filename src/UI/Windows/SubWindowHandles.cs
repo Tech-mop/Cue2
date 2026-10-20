@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2025-2026 Samuel Moxham
 // SPDX-License-Identifier: MIT
 
+using Godot;
+using Cue2.Services;
 using Cue2.UI.Settings;
 using Cue2.UI.Utilities;
-using Godot;
 
 namespace Cue2.UI.Windows;
 
@@ -30,6 +31,8 @@ public partial class SubWindowHandles : Control
 	private Control _bottomLeftHandle;
 	private Control _topRightHandle;
 	private Control _topLeftHandle;
+	private GlobalSignals _globalSignals;
+	private StyleBoxFlat _borderStylebox;
 
 	/// <summary>
 	/// Wires handle input. Does not cache a DisplayServer window id — see class remarks.
@@ -55,6 +58,36 @@ public partial class SubWindowHandles : Control
 		_bottomRightHandle.GuiInput += OnBottomRightHandleGuiInput;
 
 		GetNode<Button>("%ExitButton").Pressed += OnExitButtonPressed;
+
+		_globalSignals = GetNodeOrNull<GlobalSignals>("/root/GlobalSignals");
+		var border = GetNodeOrNull<Panel>("%Border");
+		if (border?.GetThemeStylebox("panel") is StyleBoxFlat style)
+		{
+			_borderStylebox = (StyleBoxFlat)style.Duplicate();
+			border.AddThemeStyleboxOverride("panel", _borderStylebox);
+			ApplyAccentBorder();
+		}
+
+		if (_globalSignals != null)
+			_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+	}
+
+	/// <summary>
+	/// Re-tints the window outline after Cue2 Preferences high/low accents change.
+	/// </summary>
+	private void OnThemeColorsChanged()
+	{
+		ApplyAccentBorder();
+	}
+
+	/// <summary>
+	/// Sets the duplicated border StyleBox to the deepest high cascade step.
+	/// </summary>
+	private void ApplyAccentBorder()
+	{
+		if (_borderStylebox == null)
+			return;
+		_borderStylebox.BorderColor = GlobalStyles.HighColor5;
 	}
 
 	/// <summary>
@@ -203,5 +236,7 @@ public partial class SubWindowHandles : Control
 		if (_bottomLeftHandle != null) _bottomLeftHandle.GuiInput -= OnBottomLeftHandleGuiInput;
 		if (_topRightHandle != null) _topRightHandle.GuiInput -= OnTopRightHandleGuiInput;
 		if (_topLeftHandle != null) _topLeftHandle.GuiInput -= OnTopLeftHandleGuiInput;
+		if (_globalSignals != null)
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 	}
 }

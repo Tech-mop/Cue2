@@ -695,6 +695,18 @@ public partial class UiUtilities : Node
         }
     }
 
+    /// <summary>
+    /// Applies <see cref="GlobalStyles.SoftFontColor"/> to inspector labels (follows Low colour).
+    /// </summary>
+    /// <param name="root">Inspector root.</param>
+    /// <param name="infoLabel">Optional "no selection" label using <see cref="GlobalStyles.DisabledColor"/>.</param>
+    public static void ApplyInspectorLabelColours(Node root, Label infoLabel = null)
+    {
+        FormatLabelsColours(root, GlobalStyles.SoftFontColor);
+        if (infoLabel != null && GodotObject.IsInstanceValid(infoLabel))
+            infoLabel.AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
+    }
+
     
     /// <summary>
     /// Cleans and verifies an IP address string.

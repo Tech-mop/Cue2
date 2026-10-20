@@ -145,6 +145,7 @@ public partial class TimelineInspector : Control
         _globalSignals.ShellFocused += ShellSelected;
         _globalSignals.ShowTimelineWaveformsChanged += OnShowTimelineWaveformsChanged;
         _globalSignals.NewSession += OnNewSession;
+        _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
         if (_historyManager != null)
             _historyManager.HistoryRestored += OnHistoryRestored;
 
@@ -187,6 +188,7 @@ public partial class TimelineInspector : Control
             _globalSignals.ShellFocused -= ShellSelected;
             _globalSignals.ShowTimelineWaveformsChanged -= OnShowTimelineWaveformsChanged;
             _globalSignals.NewSession -= OnNewSession;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
         }
         if (_historyManager != null)
             _historyManager.HistoryRestored -= OnHistoryRestored;
@@ -1227,6 +1229,65 @@ public partial class TimelineInspector : Control
         SyncTimeViewChrome();
         if (_focusedCue == null)
             ShowNoSelection();
+    }
+
+    /// <summary>
+    /// Updates existing timeline bars, swatches, and waveforms after high/low accents change.
+    /// Does not rebuild the timeline.
+    /// </summary>
+    private void OnThemeColorsChanged()
+    {
+        if (!GodotObject.IsInstanceValid(this))
+            return;
+        RefreshAccentColors();
+        if (_infoLabel != null && GodotObject.IsInstanceValid(_infoLabel))
+            _infoLabel.AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
+    }
+
+    private void RefreshAccentColors()
+    {
+        foreach (var kv in _cueToBar)
+        {
+            var cue = kv.Key;
+            var bar = kv.Value;
+            if (bar == null || !GodotObject.IsInstanceValid(bar))
+                continue;
+
+            Color barColor = ResolveBarColor(cue);
+            Color accent = ResolveAccentColor(cue, barColor);
+            bar.Color = barColor;
+
+            if (bar.GetNodeOrNull<ColorRect>("StartLine") is ColorRect startLine)
+                startLine.Color = accent;
+            if (bar.GetNodeOrNull<ColorRect>("EndLine") is ColorRect endLine)
+                endLine.Color = accent.Darkened(0.15f);
+            if (bar.GetNodeOrNull<CueBarWaveform>("Waveform") is CueBarWaveform wave)
+            {
+                wave.WaveColor = GlobalStyles.LowColor1.Lightened(0.25f);
+                wave.QueueRedraw();
+            }
+        }
+
+        foreach (var kv in _cueToSidebarRow)
+        {
+            var cue = kv.Key;
+            var row = kv.Value;
+            if (row == null || !GodotObject.IsInstanceValid(row))
+                continue;
+            if (row.GetNodeOrNull<ColorRect>("Swatch") is ColorRect swatch)
+            {
+                Color swatchColor = cue.Color;
+                if (IsNearBlack(swatchColor))
+                    swatchColor = GlobalStyles.LowColor2;
+                swatch.Color = swatchColor;
+            }
+        }
+
+        foreach (var kv in _cueToLoopBadge)
+        {
+            if (kv.Value != null && GodotObject.IsInstanceValid(kv.Value))
+                StyleBarTextLabel(kv.Value, GlobalStyles.HighColor1.Lightened(0.15f));
+        }
     }
 
 }

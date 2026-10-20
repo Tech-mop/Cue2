@@ -41,7 +41,7 @@ internal sealed class CueMovePreview
         _cardStyle.ContentMarginBottom = 6;
 
         _lineStyle = new StyleBoxFlat();
-        _lineStyle.BgColor = new Color(0.59f, 0.29f, 0.03f, 1f);
+        ApplyAccentColors();
 
         _root = new Control
         {
@@ -81,6 +81,17 @@ internal sealed class CueMovePreview
         };
         _dropLine.AddThemeStyleboxOverride("panel", _lineStyle);
         _root.AddChild(_dropLine);
+    }
+
+    /// <summary>
+    /// Updates card border and drop line from the current high accent cascade.
+    /// </summary>
+    public void ApplyAccentColors()
+    {
+        if (_cardStyle != null)
+            _cardStyle.BorderColor = GlobalStyles.HighColor1;
+        if (_lineStyle != null)
+            _lineStyle.BgColor = GlobalStyles.HighColor2;
     }
 
     /// <summary>Parents the overlay under <paramref name="host"/> (Cue2Base).</summary>
@@ -159,6 +170,11 @@ internal sealed class CueMovePreview
     }
 
     /// <summary>Frees overlay resources. Call from the workspace <c>_ExitTree</c>.</summary>
+    /// <remarks>
+    /// The overlay is parented to Cue2Base, a sibling of the workspace. Do not
+    /// <see cref="Node.RemoveChild"/> here — Cue2Base is often already iterating
+    /// children during quit. <see cref="Node.QueueFree"/> removes it when safe.
+    /// </remarks>
     public void DisposeResources()
     {
         End();
@@ -169,10 +185,7 @@ internal sealed class CueMovePreview
         UiUtilities.DisposeRefCounted(_cardStyle);
         UiUtilities.DisposeRefCounted(_lineStyle);
         if (_root != null && GodotObject.IsInstanceValid(_root))
-        {
-            _root.GetParent()?.RemoveChild(_root);
             _root.QueueFree();
-        }
     }
 
     private void ClearNames()

@@ -55,6 +55,7 @@ public partial class WaveformDisplay : Control
     private float _playheadNorm = -1f;
     private float _hoverNorm = -1f;
 
+    private GlobalSignals _globalSignals;
     private Color _activeColor = GlobalStyles.HighColor2;
     private Color _inactiveColor = GlobalStyles.LowColor4;
     private Color _centerLineColor = new Color(1, 1, 1, 0.16f);
@@ -570,6 +571,10 @@ public partial class WaveformDisplay : Control
         MouseFilter = MouseFilterEnum.Ignore;
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         _font = ThemeDB.FallbackFont;
+        _globalSignals = GetNodeOrNull<GlobalSignals>("/root/GlobalSignals");
+        if (_globalSignals != null)
+            _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+        SyncAccentColors();
     }
 
     public override void _Draw()
@@ -1284,8 +1289,29 @@ public partial class WaveformDisplay : Control
     /// <inheritdoc />
     public override void _ExitTree()
     {
+        if (_globalSignals != null)
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
         UiUtilities.DisposeRefCounted(_chipBox);
         _chipBox = null;
         base._ExitTree();
+    }
+
+    private void OnThemeColorsChanged()
+    {
+        if (!GodotObject.IsInstanceValid(this))
+            return;
+        SyncAccentColors();
+        QueueRedraw();
+    }
+
+    /// <summary>
+    /// Re-reads high/low cascade colours used for the envelope and trim flags.
+    /// </summary>
+    private void SyncAccentColors()
+    {
+        _activeColor = GlobalStyles.HighColor2;
+        _inactiveColor = GlobalStyles.LowColor4;
+        _startMarkerColor = GlobalStyles.LowColor1;
+        _endMarkerColor = GlobalStyles.HighColor1;
     }
 }

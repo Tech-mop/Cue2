@@ -22,6 +22,8 @@ namespace Cue2.UI.Shell;
 /// </summary>
 public partial class CuelistZebraBackground : Control
 {
+	private GlobalSignals _globalSignals;
+
 	public override void _Ready()
 	{
 		MouseFilter = MouseFilterEnum.Ignore;
@@ -29,13 +31,24 @@ public partial class CuelistZebraBackground : Control
 		ZIndex = -1;
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		ShellColumnLayout.Changed += OnShellColumnLayoutChanged;
+		_globalSignals = GetNodeOrNull<GlobalSignals>("/root/GlobalSignals");
+		if (_globalSignals != null)
+			_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 		QueueRedraw();
 	}
 
 	public override void _ExitTree()
 	{
 		ShellColumnLayout.Changed -= OnShellColumnLayoutChanged;
+		if (_globalSignals != null)
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 		base._ExitTree();
+	}
+
+	private void OnThemeColorsChanged()
+	{
+		if (IsInstanceValid(this))
+			QueueRedraw();
 	}
 
 	private void OnShellColumnLayoutChanged()

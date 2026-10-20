@@ -1,0 +1,157 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/UI/Settings/SettingsTheme.cs" id="1_theme"]
+[ext_resource type="PackedScene" path="res://src/UI/Controls/ColourButton.tscn" id="2_colour"]
+
+[node name="SettingsTheme" type="ScrollContainer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_theme")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Header" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Theme"
+vertical_alignment = 1
+uppercase = true
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Description" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 10
+text = "Application theme and accent colours. Saved as Cue2 Preferences, not with the showfile."
+autowrap_mode = 3
+
+[node name="ThemeRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ThemeLabel" type="Label" parent="VBoxContainer/ThemeRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Theme"
+vertical_alignment = 1
+tooltip_text = "UI theme. Cue2 (Default), Dark, and Light are shipped. You can also add a Godot Theme .tres."
+
+[node name="ThemeOptionButton" type="OptionButton" parent="VBoxContainer/ThemeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "UI theme. Cue2 (Default), Dark, and Light are shipped. You can also add a Godot Theme .tres."
+
+[node name="ThemeResetButton" type="Button" parent="VBoxContainer/ThemeRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"
+
+[node name="ThemeRemoveButton" type="Button" parent="VBoxContainer/ThemeRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Remove this theme from the list"
+
+[node name="AddThemeButton" type="Button" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 0
+tooltip_text = "Add a Godot Theme resource (.tres) created in the Godot editor."
+text = "Add Theme"
+
+[node name="ThemeEditorHint" type="Label" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 10
+text = "Themes can be created and edited using the Godot editor"
+autowrap_mode = 3
+
+[node name="ThemeMissingLabel" type="Label" parent="VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Theme file is missing."
+autowrap_mode = 3
+
+[node name="HighColorRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="HighColorLabel" type="Label" parent="VBoxContainer/HighColorRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "High colour"
+vertical_alignment = 1
+tooltip_text = "Warm accent used for playback, selection highlights, and related chrome."
+
+[node name="HighColorPicker" parent="VBoxContainer/HighColorRow" instance=ExtResource("2_colour")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Warm accent used for playback, selection highlights, and related chrome."
+edit_alpha = false
+
+[node name="HighColorResetButton" type="Button" parent="VBoxContainer/HighColorRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"
+
+[node name="LowColorRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="LowColorLabel" type="Label" parent="VBoxContainer/LowColorRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Low colour"
+vertical_alignment = 1
+tooltip_text = "Cool accent used for waits, routing, and related chrome."
+
+[node name="LowColorPicker" parent="VBoxContainer/LowColorRow" instance=ExtResource("2_colour")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 24)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Cool accent used for waits, routing, and related chrome."
+edit_alpha = false
+
+[node name="LowColorResetButton" type="Button" parent="VBoxContainer/LowColorRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"

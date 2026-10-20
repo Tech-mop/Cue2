@@ -46,6 +46,9 @@ public partial class MainTitleBarUI : Control
     private SystemFont _unsavedTitleFont;
     private CheckButton _showModeButton;
     private bool _isSyncingShowModeUi;
+    private Button _aboutButton;
+    private Button _settingsButton;
+    private ColorRect _titleBarBackground;
 
     // Top-level menu bar buttons
     private Button _menuFileButton;
@@ -157,9 +160,13 @@ public partial class MainTitleBarUI : Control
         GetNode<Button>("%WindowExpandButton").Pressed += OnWindowExpandButtonPressed;
         GetNode<Button>("%ExitButton").Pressed += OnExitButtonPressed;
 
-        GetNode<Button>("%SettingsButton").Toggled += OnSettingsButtonToggled;
-        GetNode<Button>("%AboutButton").Toggled += OnAboutButtonPressed;
-        GetNode<Button>("%AboutButton").TooltipText += Version.FullVersionString;
+        _settingsButton = GetNode<Button>("%SettingsButton");
+        _aboutButton = GetNode<Button>("%AboutButton");
+        _settingsButton.Toggled += OnSettingsButtonToggled;
+        _aboutButton.Toggled += OnAboutButtonPressed;
+        _aboutButton.TooltipText += Version.FullVersionString;
+        _titleBarBackground = GetNodeOrNull<ColorRect>("%TitleBarBackground");
+        ApplyTitleBarTheme();
 
         _globalSignals.ToggleSettingsWindow += ToggleSettingsWindow;
         _globalSignals.OpenSettingsMenu += OnOpenSettingsMenu;
@@ -191,7 +198,10 @@ public partial class MainTitleBarUI : Control
         // Scene chrome (File/Edit/… labels, window tooltips) + menus when locale changes.
         LocalizeTree(this);
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged += OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+        }
 
         // _Input only dismisses the hamburger menu; keep it off until the strip is open.
         SetProcessInput(false);
@@ -215,6 +225,7 @@ public partial class MainTitleBarUI : Control
             _globalSignals.Save -= UpdateTitle;
             _globalSignals.SaveAs -= UpdateTitle;
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
         }
         if (_globalData?.HistoryManager != null)
         {
@@ -242,13 +253,54 @@ public partial class MainTitleBarUI : Control
         SyncSettingsButtonTooltip();
         SyncHotkeyLabels();
         // About button appends version after the base tooltip.
-        var aboutBtn = GetNodeOrNull<Button>("%AboutButton");
-        if (aboutBtn != null)
+        if (_aboutButton != null)
         {
             string baseTip = T("About Cue2");
-            aboutBtn.SetMeta(MetaTooltip, baseTip);
-            aboutBtn.TooltipText = baseTip + "\n" + Version.FullVersionString;
+            _aboutButton.SetMeta(MetaTooltip, baseTip);
+            _aboutButton.TooltipText = baseTip + "\n" + Version.FullVersionString;
         }
+    }
+
+    /// <summary>
+    /// Re-tints About/Settings pressed-icon colours after Cue2 Preferences accents change.
+    /// </summary>
+    private void OnThemeColorsChanged()
+    {
+        ApplyTitleBarTheme();
+    }
+
+    /// <summary>
+    /// Applies title-bar strip and icon colours from the active Theme.
+    /// </summary>
+    private void ApplyTitleBarTheme()
+    {
+        if (_titleBarBackground != null && GodotObject.IsInstanceValid(_titleBarBackground))
+            _titleBarBackground.Color = GlobalStyles.TitleBarColor;
+        ApplyTitleBarAccentColors();
+    }
+
+    /// <summary>
+    /// Sets About and Settings toggle-icon pressed colours to the peak high accent
+    /// so they light up while those sub-windows are open.
+    /// </summary>
+    private void ApplyTitleBarAccentColors()
+    {
+        Color high = GlobalStyles.HighColor1;
+        ApplyToggleIconAccent(_aboutButton, high);
+        ApplyToggleIconAccent(_settingsButton, high);
+    }
+
+    /// <summary>
+    /// Overrides pressed / hover-pressed icon colours on a title-bar toggle button.
+    /// </summary>
+    /// <param name="button">About or Settings toggle; ignored when null.</param>
+    /// <param name="color">Peak high accent.</param>
+    private static void ApplyToggleIconAccent(Button button, Color color)
+    {
+        if (button == null || !GodotObject.IsInstanceValid(button))
+            return;
+        button.AddThemeColorOverride("icon_pressed_color", color);
+        button.AddThemeColorOverride("icon_hover_pressed_color", color);
     }
 
     /// <summary>
@@ -1566,10 +1618,9 @@ public partial class MainTitleBarUI : Control
 
     private void OpenAboutWindow()
     {
-        var aboutBtn = GetNodeOrNull<Button>("%AboutButton");
-        if (aboutBtn != null)
+        if (_aboutButton != null)
         {
-            aboutBtn.ButtonPressed = true;
+            _aboutButton.ButtonPressed = true;
             return;
         }
 
@@ -1609,9 +1660,8 @@ public partial class MainTitleBarUI : Control
     private void OnAboutWindowExiting()
     {
         _aboutWindow = null;
-        var aboutBtn = GetNodeOrNull<Button>("%AboutButton");
-        if (aboutBtn != null)
-            aboutBtn.ButtonPressed = false;
+        if (_aboutButton != null)
+            _aboutButton.ButtonPressed = false;
     }
 
     private void OnSettingsButtonToggled(bool toggle)
@@ -1621,8 +1671,6 @@ public partial class MainTitleBarUI : Control
 
     private void ToggleSettingsWindowOpen(bool open)
     {
-        var settingsBtn = GetNodeOrNull<Button>("%SettingsButton");
-
         if (open)
         {
             if (_settingsWindow == null || !GodotObject.IsInstanceValid(_settingsWindow))
@@ -1639,15 +1687,15 @@ public partial class MainTitleBarUI : Control
                 _settingsWindow.Show();
                 _settingsWindow.GrabFocus();
             }
-            if (settingsBtn != null)
-                settingsBtn.SetPressedNoSignal(true);
+            if (_settingsButton != null)
+                _settingsButton.SetPressedNoSignal(true);
         }
         else
         {
             if (_settingsWindow != null && GodotObject.IsInstanceValid(_settingsWindow))
                 _settingsWindow.Hide();
-            if (settingsBtn != null)
-                settingsBtn.SetPressedNoSignal(false);
+            if (_settingsButton != null)
+                _settingsButton.SetPressedNoSignal(false);
         }
     }
 
@@ -1655,17 +1703,15 @@ public partial class MainTitleBarUI : Control
     {
         if (_settingsWindow != null && GodotObject.IsInstanceValid(_settingsWindow))
             _settingsWindow.Hide();
-        var settingsBtn = GetNodeOrNull<Button>("%SettingsButton");
-        if (settingsBtn != null)
-            settingsBtn.ButtonPressed = false;
+        if (_settingsButton != null)
+            _settingsButton.ButtonPressed = false;
     }
 
     private void OnSettingsWindowClose()
     {
         _settingsWindow = null;
-        var settingsBtn = GetNodeOrNull<Button>("%SettingsButton");
-        if (settingsBtn != null)
-            settingsBtn.ButtonPressed = false;
+        if (_settingsButton != null)
+            _settingsButton.ButtonPressed = false;
     }
 
     private void OpenUpdatesSettings()
@@ -1686,9 +1732,8 @@ public partial class MainTitleBarUI : Control
 
     private void ToggleSettingsWindow()
     {
-        var btn = GetNodeOrNull<Button>("%SettingsButton");
-        if (btn != null)
-            btn.ButtonPressed = !btn.ButtonPressed;
+        if (_settingsButton != null)
+            _settingsButton.ButtonPressed = !_settingsButton.ButtonPressed;
         else
             ToggleSettingsWindowOpen(_settingsWindow == null ||
                                      !GodotObject.IsInstanceValid(_settingsWindow) ||

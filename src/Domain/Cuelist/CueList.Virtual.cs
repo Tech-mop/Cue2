@@ -354,7 +354,10 @@ public partial class CueList
 		foreach (var sb in _shellPool)
 		{
 			if (sb != null && IsInstanceValid(sb))
+			{
+				sb.ClearCompactLineEditOverrides();
 				sb.QueueFree();
+			}
 		}
 		_shellPool.Clear();
 		if (_virtualPoolHolder != null && IsInstanceValid(_virtualPoolHolder))

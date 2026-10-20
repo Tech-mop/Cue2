@@ -79,10 +79,12 @@ public partial class InspectorTabsController : TabContainer
 
 		CacheBaseTitles();
 		_contentDotIcon = CreateContentDotIcon();
+		GlobalStyles.ApplyTabContainerAccent(this);
 
 		_globalSignals.ShellFocused += OnShellFocused;
 		_globalSignals.SyncShellInspector += OnSyncIndicators;
 		_globalSignals.LocaleChanged += OnLocaleChanged;
+		_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 
 		if (_globalData.HistoryManager != null)
 		{
@@ -102,6 +104,7 @@ public partial class InspectorTabsController : TabContainer
 			_globalSignals.ShellFocused -= OnShellFocused;
 			_globalSignals.SyncShellInspector -= OnSyncIndicators;
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 		}
 
 		if (_globalData?.HistoryManager != null)
@@ -137,6 +140,23 @@ public partial class InspectorTabsController : TabContainer
 	{
 		if (!GodotObject.IsInstanceValid(this))
 			return;
+		RefreshIndicatorsFromFocusedCue();
+	}
+
+	/// <summary>
+	/// Recreates the content-dot icon so it samples the current high accent.
+	/// </summary>
+	private void OnThemeColorsChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		if (_contentDotIcon != null)
+		{
+			UiUtilities.DisposeRefCounted(_contentDotIcon);
+			_contentDotIcon = null;
+		}
+		_contentDotIcon = CreateContentDotIcon();
+		GlobalStyles.ApplyTabContainerAccent(this);
 		RefreshIndicatorsFromFocusedCue();
 	}
 

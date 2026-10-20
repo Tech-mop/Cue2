@@ -53,6 +53,11 @@ public partial class HeaderUI : Control
 	private double _baseGoSize;
 	private GoCooldownOverlay _goCooldownOverlay;
 
+	/// <summary>Duplicated GO theme StyleBoxes so high-accent edits do not mutate <c>GO_theme.tres</c>.</summary>
+	private StyleBoxFlat _goStyleNormal;
+	private StyleBoxFlat _goStyleHover;
+	private StyleBoxFlat _goStylePressed;
+
 	public override void _Ready()
 	{
 		_globalSignals = GetNode<GlobalSignals>("/root/GlobalSignals");
@@ -77,6 +82,7 @@ public partial class HeaderUI : Control
 		_goCooldownOverlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 
 		_goButton.Pressed += () => _globalSignals.EmitSignal(nameof(GlobalSignals.Go));
+		ApplyGoAccentColors();
 
 		SyncHotkeys();
 
@@ -103,7 +109,10 @@ public partial class HeaderUI : Control
 		RebuildTimecodeHeader();
 		LocalizeTree(this);
 		if (_globalSignals != null)
+		{
 			_globalSignals.LocaleChanged += OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+		}
 
 		ApplyGoGateVisual(_globalSignals != null && !_globalSignals.IsGoEnabled);
 	}
@@ -123,6 +132,7 @@ public partial class HeaderUI : Control
 			_globalSignals.SyncShellInspector -= RefreshStandbyDisplay;
 			_globalSignals.NewSession -= OnTimecodeHeaderNeedsRebuild;
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 		}
 
 		if (_timecodeManager != null)
@@ -146,6 +156,63 @@ public partial class HeaderUI : Control
 		LocalizeTree(this);
 		SyncHotkeys();
 		ApplyGoGateVisual(_globalSignals != null && !_globalSignals.IsGoEnabled);
+	}
+
+	/// <summary>
+	/// Re-tints the GO button from the current high cascade after Cue2 Preferences accents change.
+	/// </summary>
+	private void OnThemeColorsChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		ApplyGoAccentColors();
+	}
+
+	/// <summary>
+	/// Duplicates GO theme StyleBoxes onto the button and sets fill from the high cascade
+	/// (pressed = HighColor1, hover = HighColor2, normal = HighColor3).
+	/// </summary>
+	private void ApplyGoAccentColors()
+	{
+		if (_goButton == null || !IsInstanceValid(_goButton))
+			return;
+
+		EnsureGoStyleOverrides();
+		if (_goStylePressed == null || _goStyleHover == null || _goStyleNormal == null)
+			return;
+
+		_goStylePressed.BgColor = GlobalStyles.HighColor1;
+		_goStyleHover.BgColor = GlobalStyles.HighColor2;
+		_goStyleNormal.BgColor = GlobalStyles.HighColor3;
+	}
+
+	/// <summary>
+	/// Copies GO_theme StyleBoxes onto per-button overrides so later colour edits stay local.
+	/// </summary>
+	private void EnsureGoStyleOverrides()
+	{
+		if (_goStyleNormal != null && _goStyleHover != null && _goStylePressed != null)
+			return;
+
+		_goStyleNormal = DuplicateGoStyle("normal");
+		_goStyleHover = DuplicateGoStyle("hover");
+		_goStylePressed = DuplicateGoStyle("pressed");
+		_goButton.AddThemeStyleboxOverride("normal", _goStyleNormal);
+		_goButton.AddThemeStyleboxOverride("hover", _goStyleHover);
+		_goButton.AddThemeStyleboxOverride("pressed", _goStylePressed);
+		_goButton.AddThemeStyleboxOverride("hover_pressed", _goStylePressed);
+	}
+
+	/// <summary>
+	/// Duplicates a named GO button StyleBox, or returns an empty flat box when missing.
+	/// </summary>
+	/// <param name="styleName">Theme StyleBox name (<c>normal</c>, <c>hover</c>, <c>pressed</c>).</param>
+	/// <returns>A unique <see cref="StyleBoxFlat"/> owned by this header.</returns>
+	private StyleBoxFlat DuplicateGoStyle(string styleName)
+	{
+		if (_goButton.GetThemeStylebox(styleName) is StyleBoxFlat flat)
+			return (StyleBoxFlat)flat.Duplicate();
+		return new StyleBoxFlat();
 	}
 
 	private void SyncHotkeys()
@@ -234,11 +301,16 @@ public partial class HeaderUI : Control
 
 	private async Task GoButtonFeedbackAsync()
 	{
-		var pressed = _goButton.GetThemeStylebox("pressed");
-		var normal = _goButton.GetThemeStylebox("normal");
-		_goButton.AddThemeStyleboxOverride("normal", pressed);
+		if (_goStylePressed == null || _goStyleNormal == null)
+			ApplyGoAccentColors();
+		if (_goButton == null || !IsInstanceValid(_goButton) || _goStylePressed == null)
+			return;
+
+		_goButton.AddThemeStyleboxOverride("normal", _goStylePressed);
 		await ToSignal(GetTree().CreateTimer(0.2), "timeout");
-		_goButton.AddThemeStyleboxOverride("normal", normal);
+		if (!IsInstanceValid(this) || _goButton == null || !IsInstanceValid(_goButton) || _goStyleNormal == null)
+			return;
+		_goButton.AddThemeStyleboxOverride("normal", _goStyleNormal);
 	}
 
 	/// <summary>

@@ -741,14 +741,88 @@ public partial class ActiveCue : GodotObject
         if (bar == null || !GodotObject.IsInstanceValid(bar))
             return;
 
-        var style = bar.GetThemeStylebox("fill")?.Duplicate() as StyleBoxFlat ?? new StyleBoxFlat();
+        StyleBoxFlat style;
+        if (bar.HasThemeStyleboxOverride("fill") && bar.GetThemeStylebox("fill") is StyleBoxFlat existing)
+        {
+            style = existing;
+        }
+        else
+        {
+            style = bar.GetThemeStylebox("fill")?.Duplicate() as StyleBoxFlat ?? new StyleBoxFlat();
+            bar.AddThemeStyleboxOverride("fill", style);
+        }
+
         style.BgColor = fill;
         if (fadeOverlay)
         {
             style.BorderWidthBottom = Math.Max(style.BorderWidthBottom, 1);
             style.BorderColor = GlobalStyles.HighColor3;
         }
-        bar.AddThemeStyleboxOverride("fill", style);
+
+        ApplyProgressBackgroundBorder(bar);
+    }
+
+    /// <summary>
+    /// Duplicates the ProgressBar background StyleBox and tints its outline to HighColor5.
+    /// Theme <c>ProgressBar/styles/background</c> is a shared resource and must not be mutated.
+    /// </summary>
+    /// <param name="bar">Progress bar whose background outline should follow the high cascade.</param>
+    private static void ApplyProgressBackgroundBorder(ProgressBar bar)
+    {
+        StyleBoxFlat bg;
+        if (bar.HasThemeStyleboxOverride("background") && bar.GetThemeStylebox("background") is StyleBoxFlat existing)
+        {
+            bg = existing;
+        }
+        else
+        {
+            bg = bar.GetThemeStylebox("background")?.Duplicate() as StyleBoxFlat;
+            if (bg == null)
+                return;
+            bar.AddThemeStyleboxOverride("background", bg);
+        }
+
+        bg.BorderColor = GlobalStyles.HighColor5;
+    }
+
+    /// <summary>
+    /// Re-applies high/low progress fills after Cue2 Preferences accent colours change.
+    /// Recurses into nested child actives.
+    /// </summary>
+    public void RefreshAccentColors()
+    {
+        if (!_uiPrepared || _activeCueBar == null || !GodotObject.IsInstanceValid(_activeCueBar))
+            return;
+
+        ApplyProgressFill(_sequenceProgress, GlobalStyles.LowColor2);
+        ApplyProgressFill(_preWaitProgress, GlobalStyles.LowColor1);
+        ApplyProgressFill(_postWaitProgress, GlobalStyles.LowColor3);
+        ApplyProgressFill(_headProgressBar, GlobalStyles.HighColor1);
+        ApplyProgressFill(
+            _activeCueBar.GetNodeOrNull<ProgressBar>("%FadeProgressBar"),
+            GlobalStyles.HighColor5,
+            fadeOverlay: true);
+
+        RefreshComponentProgressFills(_activeAudioComponents.Keys);
+        RefreshComponentProgressFills(_activeAudioInputs.Keys);
+        RefreshComponentProgressFills(_activeVideoComponents.Keys);
+
+        foreach (var child in _childActiveCues)
+            child?.RefreshAccentColors();
+    }
+
+    private void RefreshComponentProgressFills(IEnumerable<PanelContainer> panels)
+    {
+        foreach (var panel in panels)
+        {
+            if (panel == null || !GodotObject.IsInstanceValid(panel))
+                continue;
+            ApplyProgressFill(panel.GetNodeOrNull<ProgressBar>(ComponentProgressPath), GlobalStyles.HighColor2);
+            ApplyProgressFill(
+                panel.GetNodeOrNull<ProgressBar>("%ComponentFadeProgress"),
+                GlobalStyles.HighColor5,
+                fadeOverlay: true);
+        }
     }
 
     /// <summary>

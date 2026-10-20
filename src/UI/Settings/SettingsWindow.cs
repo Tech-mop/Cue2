@@ -975,6 +975,7 @@ public partial class SettingsWindow : Window
 			SettingsVideoDefaults.MenuKey => "SettingsVideoDefaults",
 			SettingsTextDefaults.MenuKey => "SettingsTextDefaults",
 			SettingsCue2Prefs.MenuKey => "SettingsCue2Prefs",
+			SettingsTheme.MenuKey => "SettingsTheme",
 			SettingsUpdates.MenuKey => "SettingsUpdates",
 			_ => null
 		};
@@ -1066,6 +1067,9 @@ public partial class SettingsWindow : Window
 		TreeItem tiCue2Preferences = _setTree.CreateItem(root);
 		SetTreeItemText(tiCue2Preferences, 0, SettingsCue2Prefs.MenuKey);
 		SetTreeItemTooltip(tiCue2Preferences, 0, "Showfile-independent preferences (stored per user)");
+		TreeItem tiTheme = _setTree.CreateItem(tiCue2Preferences);
+		SetTreeItemText(tiTheme, 0, SettingsTheme.MenuKey);
+		SetTreeItemTooltip(tiTheme, 0, "UI theme and high/low accent colours — saved with Cue2 Preferences, not the show");
 		TreeItem tiInputMap = _setTree.CreateItem(tiCue2Preferences);
 		SetTreeItemText(tiInputMap, 0, SettingsInputMap.MenuKey);
 		SetTreeItemTooltip(tiInputMap, 0, "Keyboard shortcuts — saved with Cue2 Preferences, not the show");

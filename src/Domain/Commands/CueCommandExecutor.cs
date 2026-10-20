@@ -78,6 +78,7 @@ public partial class CueCommandExecutor : Node
         GD.Print("Cue Command Executor Successfully added");
         
         _globalSignals.Go += GoCommand;
+        _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 
         TreeExiting += CleanUp;
     }
@@ -1273,7 +1274,10 @@ public partial class CueCommandExecutor : Node
     private void CleanUp()
     {
         if (_globalSignals != null)
+        {
             _globalSignals.Go -= GoCommand;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
+        }
 
         foreach (var activeCue in _activeCues.ToList())
         {
@@ -1288,6 +1292,18 @@ public partial class CueCommandExecutor : Node
             }
         }
         _activeCues.Clear();
+    }
+
+    /// <summary>
+    /// Re-applies high/low progress fills on every live active cue.
+    /// </summary>
+    private void OnThemeColorsChanged()
+    {
+        foreach (var active in _activeCues.ToList())
+        {
+            if (active != null && GodotObject.IsInstanceValid(active))
+                active.RefreshAccentColors();
+        }
     }
     
 }

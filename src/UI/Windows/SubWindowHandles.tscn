@@ -55,6 +55,7 @@ size_flags_vertical = 4
 size_flags_stretch_ratio = 0.0
 tooltip_text = "Cue-2 is a simple and free playback software for events."
 focus_mode = 0
+theme_type_variation = &"Cue2Logo"
 theme_override_constants/icon_max_width = 23
 theme_override_icons/icon = ExtResource("2_kyqqy")
 icon_alignment = 1

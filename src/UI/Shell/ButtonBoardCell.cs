@@ -472,6 +472,17 @@ public partial class ButtonBoardCell : PanelContainer
         return total;
     }
 
+    /// <summary>
+    /// Re-applies fallback strip colour and redraws after high/low accents change.
+    /// </summary>
+    internal void RefreshAccentColors()
+    {
+        if (_cue != null && _colorStrip != null)
+            _colorStrip.Color = _cue.Color.A > 0.01f ? _cue.Color : GlobalStyles.LowColor3;
+        ApplyDragPlayIcons();
+        QueueRedraw();
+    }
+
     private void RefreshChrome()
     {
         if (_panelStyle == null)
@@ -538,9 +549,8 @@ public partial class ButtonBoardCell : PanelContainer
             var icon = GetThemeIcon("Rearrange", "AtlasIcons");
             if (icon != null)
                 _dragButton.Icon = icon;
-            var grabberColor = new Color(0.72f, 0.78f, 0.82f, 0.95f);
-            _dragButton.AddThemeColorOverride("icon_normal_color", grabberColor);
-            _dragButton.AddThemeColorOverride("icon_hover_color", Colors.White);
+            _dragButton.AddThemeColorOverride("icon_normal_color", GlobalStyles.IconNormalColor);
+            _dragButton.AddThemeColorOverride("icon_hover_color", GlobalStyles.IconHoverColor);
         }
 
         if (_playButton != null)

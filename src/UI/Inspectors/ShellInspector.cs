@@ -180,7 +180,7 @@ public partial class ShellInspector : Control
 		_notesTextEdit = GetNodeOrNull<TextEdit>("%NotesTextEdit");
 		_memoCheckBox = GetNodeOrNull<CheckBox>("%MemoCheckBox");
 
-		UiUtilities.FormatLabelsColours(this, GlobalStyles.SoftFontColor);
+		UiUtilities.ApplyInspectorLabelColours(this);
 
 		_cueNum.TextChanged += OnCueNumTextChanged;
 		_cueName.TextChanged += OnCueNameTextChanged;
@@ -350,7 +350,10 @@ public partial class ShellInspector : Control
 		Visible = false;
 		UiLocalizer.LocalizeTree(this);
 		if (_globalSignals != null)
+		{
 			_globalSignals.LocaleChanged += OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+		}
 	}
 
 	public override void _ExitTree()
@@ -370,6 +373,7 @@ public partial class ShellInspector : Control
 			_globalSignals.ShellFocused -= ShellSelected;
 			_globalSignals.SyncShellInspector -= UpdateFields;
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 		}
 
 		DetachFocusedCueEvents();
@@ -380,6 +384,13 @@ public partial class ShellInspector : Control
 	/// Re-localizes shell inspector labels and tooltips when the UI language changes.
 	/// </summary>
 	/// <param name="localeCode">New locale code.</param>
+	private void OnThemeColorsChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		UiUtilities.ApplyInspectorLabelColours(this);
+	}
+
 	private void OnLocaleChanged(string localeCode)
 	{
 		if (!GodotObject.IsInstanceValid(this))

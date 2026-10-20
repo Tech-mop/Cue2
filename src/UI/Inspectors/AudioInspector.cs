@@ -336,9 +336,7 @@ public partial class AudioInspector : Control
         // Undo/redo and other model restores push this signal; rebind component + refresh UI.
         _globalSignals.SyncShellInspector += OnSyncFromHistory;
         
-        UiUtilities.FormatLabelsColours(this, GlobalStyles.SoftFontColor);
-        
-        GetNode<Label>("%InfoLabel").AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
+        UiUtilities.ApplyInspectorLabelColours(this, GetNodeOrNull<Label>("%InfoLabel"));
         
         // Ensure content is hidden at start up
         _inspectorContent.Visible = false;
@@ -354,7 +352,10 @@ public partial class AudioInspector : Control
     
         UiLocalizer.LocalizeTree(this);
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged += OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+        }
 
         SetProcess(true);
 
@@ -474,7 +475,10 @@ public partial class AudioInspector : Control
     public override void _ExitTree()
     {
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
+        }
         if (_audioInputOption != null)
         {
             _audioInputOption.ItemSelected -= OnAudioInputSelected;
@@ -535,6 +539,13 @@ public partial class AudioInspector : Control
     /// Re-localizes panel chrome when the UI language changes.
     /// </summary>
     /// <param name="localeCode">New locale code.</param>
+    private void OnThemeColorsChanged()
+    {
+        if (!GodotObject.IsInstanceValid(this))
+            return;
+        UiUtilities.ApplyInspectorLabelColours(this, GetNodeOrNull<Label>("%InfoLabel"));
+    }
+
     private void OnLocaleChanged(string localeCode)
     {
         if (!GodotObject.IsInstanceValid(this))

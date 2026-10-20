@@ -142,6 +142,12 @@ public partial class GlobalSignals : Node
 	/// <param name="localeCode">ISO-style locale code (e.g. <c>en</c>).</param>
 	[Signal] public delegate void LocaleChangedEventHandler(string localeCode);
 
+	/// <summary>
+	/// Fired after <see cref="GlobalStyles.HighColor"/> / <see cref="GlobalStyles.LowColor"/> change
+	/// so cached accent chrome can refresh. Cue2 Preferences (not showfile).
+	/// </summary>
+	[Signal] public delegate void ThemeColorsChangedEventHandler();
+
 	/// <summary>Fired when the cuelist UI scale (Small / Medium / Large) changes.</summary>
 	[Signal] public delegate void CueListScaleChangedEventHandler(float value);
 

@@ -130,6 +130,9 @@ public partial class TimecodeClockCard : PanelContainer
             _resetButton.Pressed += OnResetPressed;
 
         VisibilityChanged += OnVisibilityChanged;
+        var signals = GetNodeOrNull<GlobalSignals>("/root/GlobalSignals");
+        if (signals != null)
+            signals.ThemeColorsChanged += OnThemeColorsChanged;
         SetProcess(Visible);
         if (_statusLabel != null)
             _statusLabel.Visible = _showStatus;
@@ -140,6 +143,9 @@ public partial class TimecodeClockCard : PanelContainer
     public override void _ExitTree()
     {
         VisibilityChanged -= OnVisibilityChanged;
+        var signals = GetNodeOrNull<GlobalSignals>("/root/GlobalSignals");
+        if (signals != null)
+            signals.ThemeColorsChanged -= OnThemeColorsChanged;
         if (_playButton != null)
             _playButton.Pressed -= OnPlayPressed;
         if (_pauseButton != null)
@@ -257,6 +263,13 @@ public partial class TimecodeClockCard : PanelContainer
         if (direction == TimecodeDirection.Input)
             return active ? GlobalStyles.LowColor1 : GlobalStyles.LowColor3;
         return active ? GlobalStyles.HighColor1 : GlobalStyles.HighColor3;
+    }
+
+    private void OnThemeColorsChanged()
+    {
+        if (!GodotObject.IsInstanceValid(this))
+            return;
+        ApplyChrome();
     }
 
     private void OnPlayPressed()

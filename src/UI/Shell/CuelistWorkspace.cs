@@ -216,11 +216,15 @@ public partial class CuelistWorkspace : TabContainer
 
         RefreshTabChrome();
         ActivateCurrentPage();
+        GlobalStyles.ApplyTabContainerAccent(this);
         _movePreview = new CueMovePreview();
         CallDeferred(nameof(AttachMovePreview));
         UiLocalizer.LocalizeTree(this);
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged += OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+        }
     }
 
     private void AttachMovePreview()
@@ -234,7 +238,10 @@ public partial class CuelistWorkspace : TabContainer
     public override void _ExitTree()
     {
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
+        }
         TabChanged -= OnTabChanged;
         if (_tabBar != null && GodotObject.IsInstanceValid(_tabBar))
         {
@@ -260,9 +267,16 @@ public partial class CuelistWorkspace : TabContainer
 
         _movePreview?.DisposeResources();
         _movePreview = null;
+        ShellColumnLayout.DisposeCompactStyles();
         if (_globalData != null && _globalData.CuelistWorkspace == this)
             _globalData.CuelistWorkspace = null;
         base._ExitTree();
+    }
+
+    private void OnThemeColorsChanged()
+    {
+        GlobalStyles.ApplyTabContainerAccent(this);
+        _movePreview?.ApplyAccentColors();
     }
 
     private void OnLocaleChanged(string locale)

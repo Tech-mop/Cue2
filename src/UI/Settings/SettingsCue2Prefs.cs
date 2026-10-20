@@ -373,7 +373,7 @@ public partial class SettingsCue2Prefs : ScrollContainer
 		_resetUserDataDialog.OkButtonText = T("Reset");
 		_resetUserDataDialog.CancelButtonText = T("Cancel");
 		_resetUserDataDialog.DialogText = T(
-			"Reset all Cue2 preferences stored for this user?\n\nThis will restore defaults for:\n• Language, UI scale, startup, autosave, backup, undo, and log session settings\n• Keyboard shortcuts (Input Map)\n• Recent show files list\n• Remembered window sizes and positions\n• Shell column widths\n\nShow files on disk are not deleted.\nThis cannot be undone.");
+			"Reset all Cue2 preferences stored for this user?\n\nThis will restore defaults for:\n• Language, UI scale, startup, autosave, backup, undo, and log session settings\n• Theme and high/low accent colours\n• Keyboard shortcuts (Input Map)\n• Recent show files list\n• Remembered window sizes and positions\n• Shell column widths\n\nShow files on disk are not deleted.\nThis cannot be undone.");
 	}
 
 	private void OnStartupItemSelected(long index)

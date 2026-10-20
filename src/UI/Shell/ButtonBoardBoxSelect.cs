@@ -160,6 +160,11 @@ internal sealed class ButtonBoardBoxSelect
     }
 
     /// <summary>Frees the marquee style. Call from the board <c>_ExitTree</c>.</summary>
+    /// <remarks>
+    /// The marquee is a child of the board. Do not <see cref="Node.RemoveChild"/> from
+    /// <c>_ExitTree</c> — the board is already iterating children. <see cref="Node.QueueFree"/>
+    /// is enough.
+    /// </remarks>
     public void DisposeResources()
     {
         Cancel();
@@ -167,10 +172,7 @@ internal sealed class ButtonBoardBoxSelect
             _marqueePanel.RemoveThemeStyleboxOverride("panel");
         UiUtilities.DisposeRefCounted(_marqueeStyle);
         if (_marqueePanel != null && GodotObject.IsInstanceValid(_marqueePanel))
-        {
-            _marqueePanel.GetParent()?.RemoveChild(_marqueePanel);
             _marqueePanel.QueueFree();
-        }
     }
 
     /// <summary>Per-frame while the marquee is held: edge auto-scroll and live hit-test.</summary>

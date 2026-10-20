@@ -105,8 +105,7 @@ public partial class TextInspector : Control
         EnsureSystemFontList();
         WireSignals();
 
-        UiUtilities.FormatLabelsColours(this, GlobalStyles.SoftFontColor);
-        _infoLabel.AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
+        UiUtilities.ApplyInspectorLabelColours(this, _infoLabel);
 
         if (_deleteTextButton != null)
         {
@@ -126,14 +125,20 @@ public partial class TextInspector : Control
     
         UiLocalizer.LocalizeTree(this);
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged += OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+        }
 }
 
     /// <inheritdoc />
     public override void _ExitTree()
     {
         if (_globalSignals != null)
+        {
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
+        }
 
         if (_globalSignals != null)
         {
@@ -1610,6 +1615,13 @@ public partial class TextInspector : Control
     /// Re-localizes panel chrome when the UI language changes.
     /// </summary>
     /// <param name="localeCode">New locale code.</param>
+    private void OnThemeColorsChanged()
+    {
+        if (!GodotObject.IsInstanceValid(this))
+            return;
+        UiUtilities.ApplyInspectorLabelColours(this, _infoLabel);
+    }
+
     private void OnLocaleChanged(string localeCode)
     {
         if (!GodotObject.IsInstanceValid(this))

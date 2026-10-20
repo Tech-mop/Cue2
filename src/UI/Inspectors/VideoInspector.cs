@@ -223,9 +223,7 @@ public partial class VideoInspector : Control
 
 		_globalSignals.SyncShellInspector += OnSyncFromHistory;
 		
-		UiUtilities.FormatLabelsColours(this, GlobalStyles.SoftFontColor);
-        
-		GetNode<Label>("%InfoLabel").AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
+		UiUtilities.ApplyInspectorLabelColours(this, GetNodeOrNull<Label>("%InfoLabel"));
         
 		// Ensure content is hidden at start up
 		_inspectorContent.Visible = false;
@@ -252,7 +250,10 @@ public partial class VideoInspector : Control
 	
 		UiLocalizer.LocalizeTree(this);
 		if (_globalSignals != null)
+		{
 			_globalSignals.LocaleChanged += OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+		}
 
 		SetProcess(true);
 
@@ -272,7 +273,10 @@ public partial class VideoInspector : Control
 	public override void _ExitTree()
 	{
 		if (_globalSignals != null)
+		{
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
+		}
 
 		// Invalidate in-flight ShellSelected / waveform work so callbacks no-op after free.
 		_shellSelectGeneration++;
@@ -519,6 +523,13 @@ public partial class VideoInspector : Control
 	/// Re-localizes panel chrome when the UI language changes.
 	/// </summary>
 	/// <param name="localeCode">New locale code.</param>
+	private void OnThemeColorsChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		UiUtilities.ApplyInspectorLabelColours(this, GetNodeOrNull<Label>("%InfoLabel"));
+	}
+
 	private void OnLocaleChanged(string localeCode)
 	{
 		if (!GodotObject.IsInstanceValid(this))

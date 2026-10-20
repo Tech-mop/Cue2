@@ -29,8 +29,10 @@
 - OSC timecode send/receive on `/timecode` (string plus h/m/s/f).
 - MIDI Timecode (MTC) send and receive (quarter-frame and full-frame).
 - Shell inspector Solo option: Off (default), Stop all, or Stop current list.
+- Settings → Cue2 Preferences → Theme. Choose **Cue2 (Default)**, **Dark**, **Light**, or **Neon**, or **Add Theme** for a Godot Theme `.tres`. 
 
 ### Fixed
+- Closing Cue2 no longer logs a parent-busy `remove_child` error from the cue-move preview overlay.
 - Closing Cue2 no longer leaves leaked objects from video preview textures, inspector tab icons, and playback objects that only freed on a deferred idle frame.
 - Video inspector preview stays inside the canvas outline when expand or stretch mode changes. The preview rect was filling the whole view instead of the target layer.
 - Video inspector preview sits on the left above the transport controls (it was centering in the view).

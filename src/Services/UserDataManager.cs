@@ -62,6 +62,21 @@ public partial class UserDataManager : Node
 	/// </summary>
 	private float _uiScale = DefaultUiScale;
 
+	/// <summary>Selected UI theme id (Cue2 Preferences).</summary>
+	private string _themeId = GlobalStyles.DefaultThemeId;
+
+	/// <summary>User-added Godot Theme (.tres) files.</summary>
+	private readonly List<UserThemeEntry> _userThemes = new();
+
+	/// <summary>Last folder used by Add Theme file dialog.</summary>
+	private string _lastThemeBrowseDirectory = string.Empty;
+
+	/// <summary>Peak high (warm) accent override for the current theme.</summary>
+	private Color _themeHighColor = GlobalStyles.DefaultHighColor;
+
+	/// <summary>Peak low (cool) accent override for the current theme.</summary>
+	private Color _themeLowColor = GlobalStyles.DefaultLowColor;
+
 	private bool _checkForUpdatesOnStartup = true;
 	private bool _includePrereleaseUpdates;
 	private string _skippedUpdateVersion = string.Empty;
@@ -307,6 +322,398 @@ public partial class UserDataManager : Node
 			SaveUserData();
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.UiScaleChanged), _uiScale);
 		}
+	}
+
+	/// <summary>
+	/// UI theme id (built-in or user-added). Cue2 Preferences, not showfile data.
+	/// </summary>
+	/// <value>Stable theme id; unknown values fall back to Cue2 (Default).</value>
+	public string ThemeId
+	{
+		get => string.IsNullOrWhiteSpace(_themeId) ? GlobalStyles.DefaultThemeId : _themeId;
+		set
+		{
+			string next = ResolveThemeId(value);
+			if (string.Equals(_themeId, next, StringComparison.Ordinal))
+				return;
+			_themeId = next;
+			SaveUserData();
+			ApplyUiTheme();
+		}
+	}
+
+	/// <summary>
+	/// User-added Theme resources (path + display name). Cue2 Preferences.
+	/// </summary>
+	public IReadOnlyList<UserThemeEntry> UserThemes => _userThemes;
+
+	/// <summary>
+	/// Last folder the Add Theme dialog opened in (empty until the user picks a file).
+	/// </summary>
+	public string LastThemeBrowseDirectory => _lastThemeBrowseDirectory ?? string.Empty;
+
+	/// <summary>
+	/// Peak high (warm) accent used by <see cref="GlobalStyles.HighColor"/>.
+	/// Cue2 Preferences; does not write the Godot Theme resource.
+	/// </summary>
+	public Color ThemeHighColor
+	{
+		get => _themeHighColor;
+		set
+		{
+			var next = value with { A = 1f };
+			if (_themeHighColor.IsEqualApprox(next))
+				return;
+			_themeHighColor = next;
+			SaveUserData();
+		}
+	}
+
+	/// <summary>
+	/// Peak low (cool) accent used by <see cref="GlobalStyles.LowColor"/>.
+	/// Cue2 Preferences; does not write the Godot Theme resource.
+	/// </summary>
+	public Color ThemeLowColor
+	{
+		get => _themeLowColor;
+		set
+		{
+			var next = value with { A = 1f };
+			if (_themeLowColor.IsEqualApprox(next))
+				return;
+			_themeLowColor = next;
+			SaveUserData();
+		}
+	}
+
+	/// <summary>
+	/// Maps a stored theme id to a known built-in or user-added theme.
+	/// Unknown ids become Cue2 (Default). Missing user files stay selected.
+	/// </summary>
+	/// <param name="themeId">Candidate id from user data or the Theme OptionButton.</param>
+	/// <returns>A known theme id.</returns>
+	public string ResolveThemeId(string themeId)
+	{
+		if (string.IsNullOrWhiteSpace(themeId))
+			return GlobalStyles.DefaultThemeId;
+
+		string trimmed = themeId.Trim();
+		foreach (var theme in GlobalStyles.BuiltInThemes)
+		{
+			if (string.Equals(theme.Id, trimmed, StringComparison.OrdinalIgnoreCase))
+				return theme.Id;
+		}
+
+		foreach (var theme in _userThemes)
+		{
+			if (string.Equals(theme.Id, trimmed, StringComparison.OrdinalIgnoreCase))
+				return theme.Id;
+		}
+
+		return GlobalStyles.DefaultThemeId;
+	}
+
+	/// <summary>
+	/// True when <paramref name="themeId"/> is a shipped built-in theme.
+	/// </summary>
+	public static bool IsBuiltInThemeId(string themeId)
+	{
+		if (string.IsNullOrWhiteSpace(themeId))
+			return false;
+		foreach (var theme in GlobalStyles.BuiltInThemes)
+		{
+			if (string.Equals(theme.Id, themeId.Trim(), StringComparison.OrdinalIgnoreCase))
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Finds a user-added theme by id, or null.
+	/// </summary>
+	public UserThemeEntry FindUserTheme(string themeId)
+	{
+		if (string.IsNullOrWhiteSpace(themeId))
+			return null;
+		foreach (var theme in _userThemes)
+		{
+			if (string.Equals(theme.Id, themeId, StringComparison.OrdinalIgnoreCase))
+				return theme;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// True when the Theme file for a user-added entry is missing on disk.
+	/// Built-in themes are never missing.
+	/// </summary>
+	public static bool IsUserThemeMissing(UserThemeEntry entry)
+	{
+		if (entry == null || string.IsNullOrWhiteSpace(entry.Path))
+			return true;
+		return !ThemeFileExists(entry.Path);
+	}
+
+	/// <summary>
+	/// True when a Theme file exists at <paramref name="path"/> (filesystem or <c>res://</c>).
+	/// </summary>
+	public static bool ThemeFileExists(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path))
+			return false;
+
+		try
+		{
+			string localized = ProjectSettings.LocalizePath(path);
+			if (!string.IsNullOrEmpty(localized) && localized.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+			{
+				if (ResourceLoader.Exists(localized) || Godot.FileAccess.FileExists(localized))
+					return true;
+			}
+		}
+		catch
+		{
+			// Fall through to absolute-path checks.
+		}
+
+		try
+		{
+			if (Godot.FileAccess.FileExists(path))
+				return true;
+		}
+		catch
+		{
+			// Ignore Godot FileAccess failures on odd paths.
+		}
+
+		try
+		{
+			return File.Exists(path);
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	/// <summary>
+	/// Adds a user Theme from a <c>.tres</c> path. Duplicate paths are reused.
+	/// The shipped <c>base_theme.tres</c> is not added (Cue2 Default already covers it).
+	/// </summary>
+	/// <param name="path">Absolute path to a Godot Theme resource.</param>
+	/// <param name="entry">The added or existing entry on success.</param>
+	/// <param name="error">User-facing error when add fails.</param>
+	/// <returns>True when the theme is in the list (new or existing).</returns>
+	public bool TryAddUserTheme(string path, out UserThemeEntry entry, out string error)
+	{
+		entry = null;
+		error = null;
+		if (string.IsNullOrWhiteSpace(path))
+		{
+			error = "No file selected.";
+			return false;
+		}
+
+		string fullPath;
+		try
+		{
+			fullPath = Path.GetFullPath(path.Trim());
+		}
+		catch
+		{
+			error = "Invalid theme path.";
+			return false;
+		}
+
+		if (TryGetBuiltInThemeIdForPath(fullPath, out string builtInId))
+		{
+			error = null;
+			entry = null;
+			ThemeId = builtInId;
+			return true;
+		}
+
+		string id = MakeUserThemeId(fullPath);
+		foreach (var existing in _userThemes)
+		{
+			if (string.Equals(existing.Id, id, StringComparison.OrdinalIgnoreCase))
+			{
+				entry = existing;
+				ThemeId = existing.Id;
+				return true;
+			}
+		}
+
+		if (!ThemeFileExists(fullPath))
+		{
+			error = "Theme file is missing.";
+			return false;
+		}
+
+		var styles = GetNodeOrNull<GlobalStyles>("/root/GlobalStyles");
+		string loadError = null;
+		if (styles == null || !styles.TryLoadThemeResource(fullPath, out _, out loadError))
+		{
+			error = string.IsNullOrWhiteSpace(loadError)
+				? "File is not a Godot Theme resource."
+				: loadError;
+			return false;
+		}
+
+		string display = Path.GetFileNameWithoutExtension(fullPath);
+		if (string.IsNullOrWhiteSpace(display))
+			display = Path.GetFileName(fullPath);
+		entry = new UserThemeEntry
+		{
+			Id = id,
+			DisplayName = display,
+			Path = fullPath
+		};
+		_userThemes.Add(entry);
+		try
+		{
+			_lastThemeBrowseDirectory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+		}
+		catch
+		{
+			_lastThemeBrowseDirectory = string.Empty;
+		}
+
+		_themeId = entry.Id;
+		SaveUserData();
+		ApplyUiTheme();
+		return true;
+	}
+
+	/// <summary>
+	/// Removes a user-added theme. If it was selected, Cue2 (Default) is applied.
+	/// </summary>
+	/// <param name="themeId">User theme id to remove.</param>
+	/// <returns>True when an entry was removed.</returns>
+	public bool RemoveUserTheme(string themeId)
+	{
+		if (string.IsNullOrWhiteSpace(themeId) || IsBuiltInThemeId(themeId))
+			return false;
+
+		int removed = _userThemes.RemoveAll(t =>
+			string.Equals(t.Id, themeId, StringComparison.OrdinalIgnoreCase));
+		if (removed <= 0)
+			return false;
+
+		if (string.Equals(_themeId, themeId, StringComparison.OrdinalIgnoreCase))
+			_themeId = GlobalStyles.DefaultThemeId;
+
+		SaveUserData();
+		ApplyUiTheme();
+		return true;
+	}
+
+	/// <summary>
+	/// Pushes the current <see cref="ThemeId"/> Theme resource onto the live UI.
+	/// </summary>
+	public void ApplyUiTheme()
+	{
+		GetNodeOrNull<GlobalStyles>("/root/GlobalStyles")?.ApplyFromUserData(this);
+	}
+
+	/// <summary>
+	/// Stable id for a user theme path.
+	/// </summary>
+	public static string MakeUserThemeId(string path)
+	{
+		string norm = NormalizeThemePath(path);
+		return string.IsNullOrEmpty(norm) ? string.Empty : "user:" + norm;
+	}
+
+	/// <summary>
+	/// Absolute, slash-normalized path used for theme identity (case-folded on Windows).
+	/// </summary>
+	public static string NormalizeThemePath(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path))
+			return string.Empty;
+		try
+		{
+			string full = Path.GetFullPath(path);
+			full = full.Replace('\\', '/');
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+				full = full.ToLowerInvariant();
+			return full;
+		}
+		catch
+		{
+			string f = path.Replace('\\', '/').Trim();
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+				f = f.ToLowerInvariant();
+			return f;
+		}
+	}
+
+	/// <summary>
+	/// True when <paramref name="path"/> is a shipped Cue2 Theme resource.
+	/// </summary>
+	public static bool IsShippedDefaultThemePath(string path)
+	{
+		return TryGetBuiltInThemeIdForPath(path, out _);
+	}
+
+	/// <summary>
+	/// Maps a filesystem path to a built-in theme id when it is a shipped Theme resource.
+	/// </summary>
+	public static bool TryGetBuiltInThemeIdForPath(string path, out string themeId)
+	{
+		themeId = GlobalStyles.DefaultThemeId;
+		if (string.IsNullOrWhiteSpace(path))
+			return false;
+
+		string localized = string.Empty;
+		try
+		{
+			localized = ProjectSettings.LocalizePath(path) ?? string.Empty;
+		}
+		catch
+		{
+			localized = string.Empty;
+		}
+
+		string norm = NormalizeThemePath(path);
+		foreach (var theme in GlobalStyles.BuiltInThemes)
+		{
+			if (!string.IsNullOrEmpty(localized) &&
+			    string.Equals(localized, theme.ResourcePath, StringComparison.OrdinalIgnoreCase))
+			{
+				themeId = theme.Id;
+				return true;
+			}
+
+			string fileName = theme.ResourcePath;
+			int slash = fileName.LastIndexOf('/');
+			if (slash >= 0)
+				fileName = fileName[(slash + 1)..];
+			if (!string.IsNullOrEmpty(fileName) &&
+			    (norm.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase) ||
+			     norm.EndsWith("/" + fileName.ToLowerInvariant(), StringComparison.Ordinal)))
+			{
+				themeId = theme.Id;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Parses an HTML colour from user data. Missing or invalid values use <paramref name="fallback"/>.
+	/// </summary>
+	private static Color ParseHtmlColor(string html, Color fallback)
+	{
+		if (string.IsNullOrWhiteSpace(html))
+			return fallback;
+		Color parsed = Color.FromString(html.Trim(), fallback);
+		parsed.A = 1f;
+		return parsed;
 	}
 
 	/// <summary>
@@ -737,6 +1144,11 @@ public partial class UserDataManager : Node
 		_isFirstTimeStartup = true;
 		_locale = DefaultLocale;
 		_uiScale = DefaultUiScale;
+		_themeId = GlobalStyles.DefaultThemeId;
+		_userThemes.Clear();
+		_lastThemeBrowseDirectory = string.Empty;
+		_themeHighColor = GlobalStyles.DefaultHighColor;
+		_themeLowColor = GlobalStyles.DefaultLowColor;
 		_checkForUpdatesOnStartup = true;
 		_includePrereleaseUpdates = false;
 		_skippedUpdateVersion = string.Empty;
@@ -761,6 +1173,10 @@ public partial class UserDataManager : Node
 
 		// Notify windows that user UI scale returned to default.
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.UiScaleChanged), _uiScale);
+
+		var styles = GetNodeOrNull<GlobalStyles>("/root/GlobalStyles");
+		styles?.ApplyAccentColors(_themeHighColor, _themeLowColor);
+		styles?.ApplyFromUserData(this);
 
 		GD.Print("UserDataManager:ResetToDefaults - User preferences reset to factory defaults.");
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "User preferences reset to defaults.", 0);
@@ -1095,6 +1511,68 @@ public partial class UserDataManager : Node
 				_uiScale = DefaultUiScale;
 			}
 
+			_userThemes.Clear();
+			if (data.TryGetValue("UserThemes", out var userThemesVal))
+			{
+				var arr = userThemesVal.AsGodotArray();
+				var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var item in arr)
+				{
+					var dict = item.AsGodotDictionary();
+					if (dict == null)
+						continue;
+					string path = dict.TryGetValue("Path", out var pathVal) ? pathVal.AsString() : string.Empty;
+					if (string.IsNullOrWhiteSpace(path) || IsShippedDefaultThemePath(path))
+						continue;
+					string id = dict.TryGetValue("Id", out var idVal) ? idVal.AsString() : MakeUserThemeId(path);
+					if (string.IsNullOrWhiteSpace(id))
+						id = MakeUserThemeId(path);
+					if (!seenIds.Add(id))
+						continue;
+					string display = dict.TryGetValue("DisplayName", out var nameVal)
+						? nameVal.AsString()
+						: string.Empty;
+					if (string.IsNullOrWhiteSpace(display))
+					{
+						try
+						{
+							display = Path.GetFileNameWithoutExtension(path);
+						}
+						catch
+						{
+							display = path;
+						}
+					}
+
+					_userThemes.Add(new UserThemeEntry
+					{
+						Id = id,
+						DisplayName = display,
+						Path = path
+					});
+				}
+			}
+
+			if (data.TryGetValue("LastThemeBrowseDirectory", out var themeDirVal))
+				_lastThemeBrowseDirectory = themeDirVal.AsString() ?? string.Empty;
+			else
+				_lastThemeBrowseDirectory = string.Empty;
+
+			if (data.TryGetValue("ThemeId", out var themeIdVal))
+				_themeId = ResolveThemeId(themeIdVal.AsString());
+			else
+				_themeId = GlobalStyles.DefaultThemeId;
+
+			if (data.TryGetValue("ThemeHighColor", out var highVal))
+				_themeHighColor = ParseHtmlColor(highVal.AsString(), GlobalStyles.DefaultHighColor);
+			else
+				_themeHighColor = GlobalStyles.DefaultHighColor;
+
+			if (data.TryGetValue("ThemeLowColor", out var lowVal))
+				_themeLowColor = ParseHtmlColor(lowVal.AsString(), GlobalStyles.DefaultLowColor);
+			else
+				_themeLowColor = GlobalStyles.DefaultLowColor;
+
 			if (data.TryGetValue("CheckForUpdatesOnStartup", out var checkUpdVal))
 				_checkForUpdatesOnStartup = checkUpdVal.AsBool();
 			else
@@ -1144,7 +1622,7 @@ public partial class UserDataManager : Node
 			// OutputVSyncMode were machine prefs; they now live in the showfile (Settings). Ignore if present.
 
 			// Future: version handling, other user prefs can be loaded here.
-			GD.Print($"UserDataManager:LoadUserData - Loaded {_recentShowFiles.Count} recent show file(s). Window size:{_lastWindowSize} pos(rel):{_lastWindowPosition} maximized:{_wasMaximized} settings size:{_lastSettingsWindowSize} pos(rel):{_lastSettingsWindowPosition} settingsMax:{_settingsWasMaximized} startup:{_startupBehavior} firstTime:{_isFirstTimeStartup} locale:{_locale} uiScale:{_uiScale} autosave:{_autosaveInterval}m backups:{_backupDepth} undoDepth:{_undoDepth} logSessionDepth:{_logSessionDepth} inputMapKeys:{_inputMapBindings?.Count ?? 0} lastSaveDir:{_lastShowSaveDirectory}");
+			GD.Print($"UserDataManager:LoadUserData - Loaded {_recentShowFiles.Count} recent show file(s). Window size:{_lastWindowSize} pos(rel):{_lastWindowPosition} maximized:{_wasMaximized} settings size:{_lastSettingsWindowSize} pos(rel):{_lastSettingsWindowPosition} settingsMax:{_settingsWasMaximized} startup:{_startupBehavior} firstTime:{_isFirstTimeStartup} locale:{_locale} uiScale:{_uiScale} theme:{_themeId} autosave:{_autosaveInterval}m backups:{_backupDepth} undoDepth:{_undoDepth} logSessionDepth:{_logSessionDepth} inputMapKeys:{_inputMapBindings?.Count ?? 0} lastSaveDir:{_lastShowSaveDirectory}");
 		}
 		catch (Exception ex)
 		{
@@ -1152,6 +1630,7 @@ public partial class UserDataManager : Node
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Error loading user preferences: {ex.Message}", 2);
 			_recentShowFiles.Clear();
 			_recentCustomColours.Clear();
+			_userThemes.Clear();
 		}
 	}
 
@@ -1210,6 +1689,23 @@ public partial class UserDataManager : Node
 			data["IsFirstTimeStartup"] = _isFirstTimeStartup;
 			data["Locale"] = string.IsNullOrWhiteSpace(_locale) ? DefaultLocale : _locale;
 			data["UiScale"] = _uiScale;
+			data["ThemeId"] = string.IsNullOrWhiteSpace(_themeId) ? GlobalStyles.DefaultThemeId : _themeId;
+			data["ThemeHighColor"] = _themeHighColor.ToHtml(false);
+			data["ThemeLowColor"] = _themeLowColor.ToHtml(false);
+			data["LastThemeBrowseDirectory"] = _lastThemeBrowseDirectory ?? string.Empty;
+			var userThemesArray = new Godot.Collections.Array();
+			foreach (var theme in _userThemes)
+			{
+				if (theme == null || string.IsNullOrWhiteSpace(theme.Path))
+					continue;
+				var dict = new Dictionary();
+				dict["Id"] = theme.Id ?? string.Empty;
+				dict["DisplayName"] = theme.DisplayName ?? string.Empty;
+				dict["Path"] = theme.Path;
+				userThemesArray.Add(dict);
+			}
+
+			data["UserThemes"] = userThemesArray;
 			data["CheckForUpdatesOnStartup"] = _checkForUpdatesOnStartup;
 			data["IncludePrereleaseUpdates"] = _includePrereleaseUpdates;
 			data["SkippedUpdateVersion"] = _skippedUpdateVersion ?? string.Empty;

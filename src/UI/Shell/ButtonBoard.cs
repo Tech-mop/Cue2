@@ -125,6 +125,7 @@ public partial class ButtonBoard : Control
             _globalSignals.PasteCues += OnPasteCues;
             _globalSignals.CreateCue += OnCreateCue;
             _globalSignals.LocaleChanged += OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
             _globalSignals.ShellFocused += OnShellFocused;
             if (_historyManager != null)
                 _historyManager.HistoryRestored += OnHistoryRestored;
@@ -154,6 +155,7 @@ public partial class ButtonBoard : Control
             _globalSignals.PasteCues -= OnPasteCues;
             _globalSignals.CreateCue -= OnCreateCue;
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
             _globalSignals.ShellFocused -= OnShellFocused;
             if (_historyManager != null)
                 _historyManager.HistoryRestored -= OnHistoryRestored;
@@ -1710,6 +1712,16 @@ public partial class ButtonBoard : Control
     private void OnLocaleChanged(string locale)
     {
         UiLocalizer.LocalizeTree(this);
+    }
+
+    private void OnThemeColorsChanged()
+    {
+        foreach (var cell in _cells)
+            cell?.RefreshAccentColors();
+        foreach (var handle in _colHandles)
+            handle?.QueueRedraw();
+        foreach (var handle in _rowHandles)
+            handle?.QueueRedraw();
     }
 
     private void OnHistoryRestored(int scope)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using Cue2.Services;
 using Godot;
 
 namespace Cue2.Domain.Cuelist;
@@ -85,6 +86,7 @@ public static class ShellColumnLayout
 	private static float _compactStyleScale = float.NaN;
 	private static StyleBoxFlat _compactNormal;
 	private static StyleBoxFlat _compactFocus;
+	private static Theme _compactFromTheme;
 
 	/// <summary>
 	/// Fired after a user-resizable column width or <see cref="Scale"/> changes.
@@ -138,11 +140,10 @@ public static class ShellColumnLayout
 
 	private static void InvalidateCompactStyles()
 	{
-		// Drop C# refs only. LineEdits may still hold the native StyleBox until
-		// ApplyCompactLineEditStyleBoxes runs; disposing here would UAF.
+		// Keep the same StyleBox instances (LineEdits hold them). Next Ensure recopies
+		// Theme visuals and padding onto those boxes.
 		_compactStyleScale = float.NaN;
-		_compactNormal = null;
-		_compactFocus = null;
+		_compactFromTheme = null;
 	}
 
 	/// <summary>
@@ -154,28 +155,77 @@ public static class ShellColumnLayout
 		Cue2.UI.Utilities.UiUtilities.DisposeRefCounted(_compactFocus);
 		_compactNormal = null;
 		_compactFocus = null;
+		_compactFromTheme = null;
+		_compactStyleScale = float.NaN;
 	}
 
 	private static void EnsureCompactStyles()
 	{
-		if (_compactNormal != null && Mathf.IsEqualApprox(_compactStyleScale, _scale))
+		Theme theme = GlobalStyles.ActiveUiTheme;
+		bool needVisuals = _compactNormal == null || !ReferenceEquals(_compactFromTheme, theme);
+		bool needPadding = _compactNormal == null || !Mathf.IsEqualApprox(_compactStyleScale, _scale);
+		if (!needVisuals && !needPadding)
 			return;
 
-		_compactStyleScale = _scale;
+		_compactNormal ??= new StyleBoxFlat();
+		_compactFocus ??= new StyleBoxFlat();
+
+		if (needVisuals)
+		{
+			CopyLineEditVisuals(_compactNormal, theme, "normal");
+			CopyLineEditVisuals(_compactFocus, theme, "focus");
+			_compactFromTheme = theme;
+		}
+
 		float padH = Mathf.Max(2f, 4f * _scale);
 		float padV = Mathf.Max(1f, 2f * _scale);
-		_compactNormal = new StyleBoxFlat
+		ApplyCompactPadding(_compactNormal, padH, padV);
+		ApplyCompactPadding(_compactFocus, padH, padV);
+		_compactStyleScale = _scale;
+	}
+
+	/// <summary>
+	/// Copies fill/border from the Theme LineEdit StyleBox onto a C#-owned box.
+	/// Mutates in place so shell LineEdits can keep holding the same instances.
+	/// </summary>
+	private static void CopyLineEditVisuals(StyleBoxFlat dest, Theme theme, string styleName)
+	{
+		if (dest == null)
+			return;
+
+		if (theme != null && theme.HasStylebox(styleName, "LineEdit")
+		    && theme.GetStylebox(styleName, "LineEdit") is StyleBoxFlat src)
 		{
-			BgColor = new Color(0.12f, 0.12f, 0.12f, 0.55f),
-			ContentMarginLeft = padH,
-			ContentMarginRight = padH,
-			ContentMarginTop = padV,
-			ContentMarginBottom = padV
-		};
-		_compactNormal.SetCornerRadiusAll(3);
-		_compactFocus = (StyleBoxFlat)_compactNormal.Duplicate();
-		_compactFocus.SetBorderWidthAll(1);
-		_compactFocus.BorderColor = new Color(0.02f, 0.33f, 0.36f, 0.9f);
+			dest.BgColor = src.BgColor;
+			dest.DrawCenter = src.DrawCenter;
+			dest.BorderColor = src.BorderColor;
+			dest.BorderBlend = src.BorderBlend;
+			dest.BorderWidthLeft = src.BorderWidthLeft;
+			dest.BorderWidthTop = src.BorderWidthTop;
+			dest.BorderWidthRight = src.BorderWidthRight;
+			dest.BorderWidthBottom = src.BorderWidthBottom;
+			dest.CornerRadiusTopLeft = src.CornerRadiusTopLeft;
+			dest.CornerRadiusTopRight = src.CornerRadiusTopRight;
+			dest.CornerRadiusBottomLeft = src.CornerRadiusBottomLeft;
+			dest.CornerRadiusBottomRight = src.CornerRadiusBottomRight;
+			dest.AntiAliasing = src.AntiAliasing;
+			return;
+		}
+
+		dest.BgColor = new Color(0, 0, 0, 0);
+		dest.DrawCenter = true;
+		dest.SetBorderWidthAll(0);
+		dest.SetCornerRadiusAll(3);
+	}
+
+	private static void ApplyCompactPadding(StyleBoxFlat dest, float padH, float padV)
+	{
+		if (dest == null)
+			return;
+		dest.ContentMarginLeft = padH;
+		dest.ContentMarginRight = padH;
+		dest.ContentMarginTop = padV;
+		dest.ContentMarginBottom = padV;
 	}
 
 	// ── Scaled metrics ──────────────────────────────────────────────────────

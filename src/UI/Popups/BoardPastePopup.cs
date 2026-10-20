@@ -60,7 +60,7 @@ public partial class BoardPastePopup : Window
         _globalData = GetNodeOrNull<GlobalData>("/root/GlobalData");
         _globalSignals = GetNodeOrNull<GlobalSignals>("/root/GlobalSignals");
 
-        Theme = GD.Load<Theme>("res://src/UI/Assets/base_theme.tres");
+        Theme = GlobalStyles.ActiveUiTheme ?? GD.Load<Theme>(GlobalStyles.DefaultThemeResourcePath);
         UiUtilities.RescaleWindow(this, _globalData?.BaseDisplayScale ?? 1f);
         float userScale = _globalData?.UserDataManager?.UiScale ?? UserDataManager.DefaultUiScale;
         UiUtilities.RescaleUi(this, userScale, _globalData?.BaseDisplayScale ?? 1f);

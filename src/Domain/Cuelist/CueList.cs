@@ -248,8 +248,10 @@ public partial class CueList : Control
 		_globalSignals.CueListScaleChanged += OnCueListScaleChanged;
 		_globalSignals.NewSession += OnNewSession;
 		_globalSignals.LocaleChanged += OnLocaleChanged;
+		_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 		ApplyShowModeUi(_globalData?.Settings?.IsCueEditingLocked == true);
 		UiLocalizer.LocalizeTree(this);
+		ApplyHeaderLabelColours();
 
 		// _Input/_Process exist for reorder + marquee only. Leaving them always-on wraps every
 		// mouse motion in C# and leaks InputEventMouseMotion on quit (Godot Mono unsafe refs).
@@ -276,6 +278,7 @@ public partial class CueList : Control
 			_globalSignals.CueListScaleChanged -= OnCueListScaleChanged;
 			_globalSignals.NewSession -= OnNewSession;
 			_globalSignals.LocaleChanged -= OnLocaleChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 			_globalSignals.CreateCue -= CreateCue;
 			_globalSignals.DeleteSelectedCues -= DeleteSelectedCues;
 			_globalSignals.DuplicateSelectedCues -= DuplicateSelectedCues;
@@ -297,7 +300,6 @@ public partial class CueList : Control
 		}
 		UnwireHeaderScrollbarPad();
 		_boxSelectController?.DisposeResources();
-		ShellColumnLayout.DisposeCompactStyles();
 		if (Live == this)
 			Live = null;
 		base._ExitTree();
@@ -312,7 +314,39 @@ public partial class CueList : Control
 		if (!GodotObject.IsInstanceValid(this))
 			return;
 		UiLocalizer.LocalizeTree(this);
+		ApplyHeaderLabelColours();
 		_syncHotkeys();
+	}
+
+	/// <summary>
+	/// Applies <see cref="GlobalStyles.SoftFontColor"/> (from the Theme) to cuelist column headers.
+	/// </summary>
+	private void OnThemeColorsChanged()
+	{
+		if (!GodotObject.IsInstanceValid(this))
+			return;
+		ApplyHeaderLabelColours();
+	}
+
+	/// <summary>
+	/// Tints header labels from <c>Cue2/colors/soft_font</c> so they follow the active Theme.
+	/// </summary>
+	private void ApplyHeaderLabelColours()
+	{
+		Color color = GlobalStyles.SoftFontColor;
+		ApplyHeaderLabelColour(_numberHeaderLabel, color);
+		ApplyHeaderLabelColour(_nameHeaderLabel, color);
+		ApplyHeaderLabelColour(_preWaitHeaderLabel, color);
+		ApplyHeaderLabelColour(_durationHeaderLabel, color);
+		ApplyHeaderLabelColour(_postWaitHeaderLabel, color);
+		ApplyHeaderLabelColour(_followHeaderLabel, color);
+	}
+
+	private static void ApplyHeaderLabelColour(Label label, Color color)
+	{
+		if (label == null || !GodotObject.IsInstanceValid(label))
+			return;
+		label.AddThemeColorOverride("font_color", color);
 	}
 
 	/// <summary>

@@ -154,6 +154,7 @@ public partial class ShellBar : PanelContainer
 		_globalSignals.UpdateShellBar += OnUpdateShellBar;
 		_globalSignals.CueMediaHealthChanged += OnCueMediaHealthChanged;
 		_globalSignals.ShowModeChanged += OnShowModeChanged;
+		_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 
 		ShellColumnLayout.Changed += OnShellColumnLayoutChanged;
 		ApplyColumnLayout();
@@ -278,11 +279,11 @@ public partial class ShellBar : PanelContainer
 		_dragButton.IconAlignment = HorizontalAlignment.Center;
 		_dragButton.VerticalIconAlignment = VerticalAlignment.Center;
 		_dragButton.AddThemeConstantOverride("icon_max_width", ShellColumnLayout.IconMaxWidth);
-		// Brighter than the old dark-grey so the grabber is visible on shell chrome.
-		var grabberColor = new Color(0.72f, 0.78f, 0.82f, 0.95f);
-		_dragButton.AddThemeColorOverride("icon_normal_color", grabberColor);
-		_dragButton.AddThemeColorOverride("icon_hover_color", Colors.White);
-		_dragButton.AddThemeColorOverride("icon_pressed_color", new Color(0.55f, 0.85f, 0.9f, 1f));
+		_dragButton.RemoveThemeColorOverride("icon_normal_color");
+		_dragButton.RemoveThemeColorOverride("icon_hover_color");
+		_dragButton.RemoveThemeColorOverride("icon_pressed_color");
+		_dragButton.AddThemeColorOverride("icon_normal_color", GlobalStyles.IconNormalColor);
+		_dragButton.AddThemeColorOverride("icon_hover_color", GlobalStyles.IconHoverColor);
 
 		var icon = GetThemeIcon("Rearrange", "AtlasIcons");
 		if (icon != null)
@@ -337,6 +338,7 @@ public partial class ShellBar : PanelContainer
 			_globalSignals.UpdateShellBar -= OnUpdateShellBar;
 			_globalSignals.CueMediaHealthChanged -= OnCueMediaHealthChanged;
 			_globalSignals.ShowModeChanged -= OnShowModeChanged;
+			_globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
 		}
 		UnbindCue();
 		if (_issueIndicator != null && IsInstanceValid(_issueIndicator))
@@ -347,6 +349,7 @@ public partial class ShellBar : PanelContainer
 			_issueIndicator.RemoveThemeStyleboxOverride("disabled");
 			_issueIndicator.RemoveThemeStyleboxOverride("focus");
 		}
+		ClearCompactLineEditOverrides();
 		RemoveThemeStyleboxOverride("panel");
 		UiUtilities.DisposeRefCounted(_issueActiveStyle);
 		UiUtilities.DisposeRefCounted(_issueIdleStyle);
@@ -354,6 +357,42 @@ public partial class ShellBar : PanelContainer
 		_issueActiveStyle = null;
 		_issueIdleStyle = null;
 		_panelStyle = null;
+	}
+
+	/// <summary>
+	/// Drops shared compact LineEdit StyleBox overrides so those resources can be freed on quit.
+	/// </summary>
+	internal void ClearCompactLineEditOverrides()
+	{
+		ClearLineEditCompactOverrides(_cueNumLineEdit);
+		ClearLineEditCompactOverrides(_cueNameLineEdit);
+		ClearLineEditCompactOverrides(_memoLineEdit);
+		ClearLineEditCompactOverrides(_preWaitLineEdit);
+		ClearLineEditCompactOverrides(_durationLineEdit);
+		ClearLineEditCompactOverrides(_postWaitLineEdit);
+	}
+
+	private static void ClearLineEditCompactOverrides(LineEdit field)
+	{
+		if (field == null || !GodotObject.IsInstanceValid(field))
+			return;
+		field.RemoveThemeStyleboxOverride("normal");
+		field.RemoveThemeStyleboxOverride("read_only");
+		field.RemoveThemeStyleboxOverride("focus");
+	}
+
+	private void OnThemeColorsChanged()
+	{
+		if (!IsInstanceValid(this))
+			return;
+		ApplyCompactFieldStyle(_cueNumLineEdit);
+		ApplyCompactFieldStyle(_cueNameLineEdit);
+		ApplyCompactFieldStyle(_memoLineEdit);
+		ApplyCompactFieldStyle(_preWaitLineEdit);
+		ApplyCompactFieldStyle(_durationLineEdit);
+		ApplyCompactFieldStyle(_postWaitLineEdit);
+		ApplyDragGrabberStyle();
+		RefreshShellChrome();
 	}
 
 	private void OnShellColumnLayoutChanged()

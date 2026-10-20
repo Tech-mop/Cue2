@@ -132,6 +132,7 @@ public partial class AudioOutputPatchMatrix : Control
 
         _globalSignals.AudioDevicesChanged += SyncAudioDeviceDisplays;
         _globalSignals.LocaleChanged += OnLocaleChanged;
+        _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 
         UiLocalizer.LocalizeTree(this);
         ApplyChannelsExpandedUi();
@@ -147,6 +148,7 @@ public partial class AudioOutputPatchMatrix : Control
         {
             _globalSignals.AudioDevicesChanged -= SyncAudioDeviceDisplays;
             _globalSignals.LocaleChanged -= OnLocaleChanged;
+            _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
         }
 
         if (_patchName != null && GodotObject.IsInstanceValid(_patchName))
@@ -204,6 +206,14 @@ public partial class AudioOutputPatchMatrix : Control
         PopulateAddDeviceOption();
         ApplyCollapseButtonUi();
         RebuildRoutingList();
+        _columnHeader?.QueueRedraw();
+        _cells?.QueueRedraw();
+    }
+
+    private void OnThemeColorsChanged()
+    {
+        if (_isDisposed || !GodotObject.IsInstanceValid(this))
+            return;
         _columnHeader?.QueueRedraw();
         _cells?.QueueRedraw();
     }
