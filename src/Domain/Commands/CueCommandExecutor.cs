@@ -84,8 +84,8 @@ public partial class CueCommandExecutor : Node
     }
 
     /// <summary>
-    /// Logs and returns true when GO is blocked via <see cref="GlobalSignals.DisableGo"/>.
-    /// Session-load blocks are logged; double-GO protection stays silent.
+    /// Logs and returns true when operator GO is blocked via <see cref="GlobalSignals.DisableGo"/>.
+    /// Session-load and double-GO protection rejections are both logged.
     /// </summary>
     /// <param name="actionLabel">Short action name for logs.</param>
     /// <returns>True if the caller should abort.</returns>
@@ -94,13 +94,52 @@ public partial class CueCommandExecutor : Node
         if (_globalSignals == null || _globalSignals.IsGoEnabled)
             return false;
 
-        if (_globalSignals.IsGoDisabledBy(GlobalSignals.GoDisableReasonSessionLoad))
+        if (RejectIfSessionLoading(actionLabel))
+            return true;
+
+        if (_globalSignals.IsGoDisabledBy(GlobalSignals.GoDisableReasonDoubleGo))
         {
+            float remaining = _globalSignals.GoDisableRemainingSeconds;
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                $"Please wait — a showfile is still loading. Cannot {actionLabel}.", (int)LogType.Info);
-            GD.Print($"CueCommandExecutor:RejectIfGoDisabled - blocked {actionLabel} (session_load)");
+                $"{actionLabel} ignored: Double Go Protection is active ({remaining:0.0} s left).", (int)LogType.Info);
+            GD.Print($"CueCommandExecutor:RejectIfGoDisabled - blocked {actionLabel} (double_go, {remaining:0.0}s left)");
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// Logs and returns true only while a showfile is still loading. Programmatic GO (Control
+    /// components) uses this instead of <see cref="RejectIfGoDisabled"/> so the operator
+    /// double-GO cooldown never drops a programmed GO.
+    /// </summary>
+    /// <param name="actionLabel">Short action name for logs.</param>
+    /// <returns>True if the caller should abort.</returns>
+    private bool RejectIfSessionLoading(string actionLabel)
+    {
+        if (_globalSignals == null ||
+            !_globalSignals.IsGoDisabledBy(GlobalSignals.GoDisableReasonSessionLoad))
+            return false;
+
+        _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+            $"Please wait, a showfile is still loading. Cannot {actionLabel}.", (int)LogType.Info);
+        GD.Print($"CueCommandExecutor:RejectIfSessionLoading - blocked {actionLabel} (session_load)");
+        return true;
+    }
+
+    /// <summary>
+    /// Gate for an operator-initiated GO (GO button, mapped GO action, OSC GO and per-cue OSC
+    /// triggers). Rejects and logs while a showfile loads or Double Go Protection is active;
+    /// otherwise starts the cooldown. Call once per GO action, before starting its cues.
+    /// Main thread only.
+    /// </summary>
+    /// <param name="actionLabel">Short action name for logs.</param>
+    /// <returns>True if the GO may proceed.</returns>
+    public bool TryBeginOperatorGo(string actionLabel)
+    {
+        if (RejectIfGoDisabled(actionLabel))
+            return false;
+        ApplyDoubleGoProtection();
         return true;
     }
 
@@ -122,10 +161,8 @@ public partial class CueCommandExecutor : Node
     /// </summary>
     public void GoCommand()
     {
-        if (RejectIfGoDisabled("GO"))
+        if (!TryBeginOperatorGo("GO"))
             return;
-
-        ApplyDoubleGoProtection();
 
         if (!ShellSelection.SelectedCues.Any())
         {
@@ -505,9 +542,10 @@ public partial class CueCommandExecutor : Node
                     return;
                 }
 
-                if (RejectIfGoDisabled("GO"))
+                // Programmed GO: only the session-load gate applies. It neither waits for
+                // nor starts the operator double-GO cooldown.
+                if (RejectIfSessionLoading("Control GO"))
                     return;
-                ApplyDoubleGoProtection();
                 await ActivateSequenceFromAsync(cue, goFadeIn);
                 break;
             }

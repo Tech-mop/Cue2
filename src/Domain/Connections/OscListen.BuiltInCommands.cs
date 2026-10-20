@@ -393,6 +393,11 @@ public partial class OscListen
     {
         var cues = ResolveCues(parts, msg, lookup);
         if (cues.Count == 0) { LogBuiltIn($"Go{LookupLabel(lookup)}: no matching cue", LogType.Warning); return true; }
+        // OSC GO is an operator GO: same session-load gate and Double Go Protection as the GO
+        // button, applied once per message (a multi-cue match is one GO).
+        var executor = _globalData?.CueCommandExecutor;
+        if (executor != null && !executor.TryBeginOperatorGo($"OSC Go{LookupLabel(lookup)}"))
+            return true;
         foreach (var cue in cues)
             TryActivateCue(cue, $"Go{LookupLabel(lookup)}");
         return true;

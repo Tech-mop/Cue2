@@ -487,19 +487,28 @@ public partial class OscListen : Node
         var executor = _globalData?.CueCommandExecutor;
         if (executor == null) return false;
 
-        bool any = false;
+        var matches = new List<Cue>();
         foreach (Cue cue in CueList.CueIndex.Values)
         {
             if (cue == null || !cue.CanFireOscTrigger) continue;
             if (!cue.OscTriggerMatches(msg.Address)) continue;
+            matches.Add(cue);
+        }
+        if (matches.Count == 0) return false;
 
+        // A cue trigger is an operator GO from another system: same gates as the GO button,
+        // applied once per message. Rejected messages are still consumed (and logged).
+        if (!executor.TryBeginOperatorGo($"OSC cue trigger {msg.Address}"))
+            return true;
+
+        foreach (Cue cue in matches)
+        {
             GD.Print($"OscListen:TryFireCueOscTriggers - \"{cue.Name}\" ← {msg.Address}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"OSC cue trigger: \"{cue.Name}\" ← {msg.Address}", (int)LogType.Info);
             executor.ActivateSequenceFrom(cue);
-            any = true;
         }
-        return any;
+        return true;
     }
 
     // ── OSC Input Map ───────────────────────────────────────────────────────
