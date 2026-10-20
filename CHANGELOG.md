@@ -48,6 +48,7 @@
 - OSC GO commands and cue OSC triggers now respect Double Go Protection and the show-loading lock like the GO button, and any blocked GO is noted in the log.
 - Edits during a save will mark as saved when not actually saved. State-id dirty tracking; edits during a save stay unsaved
 - A Save-as failing could change the stored folder path. Failing Save As restores path, name and folders
+- Stop near the end of media no longer leaves a ghost row
 
 
 ### Changed

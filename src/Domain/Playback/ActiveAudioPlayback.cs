@@ -1006,7 +1006,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         bool completeSegment = false;
         lock (_lock)
         {
-            if (IsStopped || _completedEmitted || _isFadingOut)
+            if (IsStopped || _endScheduled || _isFadingOut)
                 return;
             if (_regions == null || _regionIndex < 0 || _regionIndex >= _regions.Count)
             {
@@ -1083,8 +1083,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         bool scheduleComplete = false;
         lock (_lock)
         {
-            // _completedEmitted also covers "already finishing"
-            if (IsStopped || _completedEmitted || _isFadingOut) return;
+            // _endScheduled covers "already finishing"
+            if (IsStopped || _endScheduled || _isFadingOut) return;
 
             bool morePlays = _audioComponent.Loop || _currentPlayCount < EffectivePlayCount;
             if (morePlays && _devampRequested)
@@ -1101,8 +1101,9 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             }
             else
             {
-                // Mark finishing so fill loop stops re-entering (IsStopped set in Clean)
-                _completedEmitted = true;
+                // Mark finishing so fill loop stops re-entering (IsStopped set in Clean).
+                // Not the Completed flag: a Stop in this window must still emit Completed.
+                _endScheduled = true;
                 scheduleComplete = true;
             }
         }
@@ -1155,7 +1156,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     {
         lock (_lock)
         {
-            if (IsStopped || IsPaused || _isFadingOut || _isFadingIn || _completedEmitted
+            if (IsStopped || IsPaused || _isFadingOut || _isFadingIn || _endScheduled
                 || _naturalEndFadeArmed)
                 return;
             // Only the last playcount of a finite cue ends with a fade (infinite loop never auto-fades
@@ -1198,7 +1199,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         double fadeDuration;
         lock (_lock)
         {
-            if (IsStopped || IsPaused || _isFadingOut || _completedEmitted)
+            if (IsStopped || IsPaused || _isFadingOut || _endScheduled)
             {
                 _naturalEndFadeArmed = false;
                 return;
@@ -1243,7 +1244,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             // Safety net if end was hit without early arm (seek into tail, timing miss).
             if (!_audioComponent.Loop && _currentPlayCount >= EffectivePlayCount)
                 residualFade = Math.Max(0, _audioComponent.FadeOutDuration);
-            _completedEmitted = false;
+            _endScheduled = false;
         }
 
         if (residualFade > 1e-9)
@@ -1943,7 +1944,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         }
     }
 
-    private bool _completedEmitted;
+    /// <summary>End of media reached and <see cref="CompleteFromEnd"/> deferred (set by the fill worker).</summary>
+    private bool _endScheduled;
+
+    /// <summary>True once <see cref="Completed"/> has been emitted. Set only where it is emitted.</summary>
+    private bool _completedSignalled;
 
     /// <inheritdoc />
     public void OnOutputDeviceLost(uint logicalDeviceId)
@@ -1974,18 +1979,15 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// <param name="freeImmediately">When true, <see cref="GodotObject.Free"/> runs before return (app quit).</param>
     public void Clean(bool freeImmediately = false)
     {
-        bool alreadyDone;
         lock (_lock)
         {
-            alreadyDone = _completedEmitted;
-            if (IsStopped && Decoder == null && _completedEmitted)
+            if (IsStopped && Decoder == null && _completedSignalled)
             {
                 if (freeImmediately && IsInstanceValid(this))
                     Free();
                 return;
             }
             IsStopped = true;
-            _completedEmitted = true;
         }
 
         StopFillLoop();
@@ -2025,7 +2027,15 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
         MediaMemory.ReclaimIfNeeded();
 
-        if (!alreadyDone)
+        // Emit exactly once, whichever path got here first (end of media, Stop, device loss).
+        bool emitCompleted;
+        lock (_lock)
+        {
+            emitCompleted = !_completedSignalled;
+            _completedSignalled = true;
+        }
+
+        if (emitCompleted)
         {
             try
             {
