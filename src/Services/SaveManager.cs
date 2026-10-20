@@ -74,6 +74,9 @@ public partial class SaveManager : Node
 	/// </summary>
 	private int _saveGeneration;
 
+	/// <summary>Showfile writes currently running (manual save, autosave or backup). Main thread only.</summary>
+	private int _savesInFlight;
+
 	/// <summary>
 	/// Serializes every showfile write (main file and autosave backups) so at most one
 	/// write runs at a time. Waited on inside the worker task, never on the main thread.
@@ -637,6 +640,7 @@ public partial class SaveManager : Node
 		_globalSignals.EmitSignal(nameof(GlobalSignals.Log), "Saving session…", 0);
 
 		(bool Ok, string Error) writeResult;
+		_savesInFlight++;
 		try
 		{
 			// Heavy work: stringify large JSON + atomic disk write (off main thread), one at a time.
@@ -661,6 +665,10 @@ public partial class SaveManager : Node
 		catch (Exception ex)
 		{
 			writeResult = (false, ex.Message);
+		}
+		finally
+		{
+			_savesInFlight--;
 		}
 
 		// Superseded by a newer Save/Save As — do not touch recents / UI for the stale job.
@@ -2190,15 +2198,32 @@ public partial class SaveManager : Node
 				return;
 			}
 
+			// Busy / clean gates (R1-P1-08): never race another write, never rewrite an unchanged show.
+			if (_savesInFlight > 0)
+			{
+				GD.Print("SaveManager:PerformAutosave - Autosave skipped (save in progress).");
+				return;
+			}
+			var history = _globalData.HistoryManager;
+			if (history != null && !history.HasUnsavedDocumentChanges)
+			{
+				GD.Print("SaveManager:PerformAutosave - Autosave skipped (no unsaved changes).");
+				return;
+			}
+
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "Performing autosave...", 0);
 			GD.Print("SaveManager:PerformAutosave - Autosave triggered.");
 
 			// First, update the main file (off-main stringify/write)
-			await SaveSessionAsync(_globalData.SessionPath);
+			if (!await SaveSessionAsync(_globalData.SessionPath))
+			{
+				GD.Print("SaveManager:PerformAutosave - Main save did not complete; no backup this time.");
+				return;
+			}
 			if (!GodotObject.IsInstanceValid(this))
 				return;
 
-			// Then create a timestamped backup in the session's Backups folder.
+			// Then copy the file just written into the session's Backups folder.
 			await CreateAutosaveBackupAsync();
 		}
 		catch (Exception ex)
@@ -2213,6 +2238,11 @@ public partial class SaveManager : Node
 	/// Creates a timestamped backup of the current session in the session's Backups folder.
 	/// Prunes old backups to respect the BackupDepth setting.
 	/// </summary>
+	/// <remarks>
+	/// Copies the main showfile that the autosave just wrote (off main, behind the write gate)
+	/// instead of building a second snapshot, so the backup always matches the main file. The copy
+	/// goes to a temp name and is then renamed, and pruning runs only after it succeeded (R1-P1-08).
+	/// </remarks>
 	private async Task CreateAutosaveBackupAsync()
 	{
 		if (string.IsNullOrEmpty(_globalData.SessionPath) || string.IsNullOrEmpty(_globalData.SessionName))
@@ -2235,20 +2265,28 @@ public partial class SaveManager : Node
 			string backupName = $"{_globalData.SessionName}_autosave_{timestamp}.c2";
 			string backupPath = backupDir + "/" + backupName;
 
-			// Snapshot on main; stringify + atomic write on worker, behind the same write gate as SaveSession.
-			var saveData = BuildSaveDataDictionary();
-			var writeResult = await Task.Run(async () =>
+			string mainPath = _globalData.SessionPath;
+			(bool Ok, string Error) writeResult;
+			_savesInFlight++;
+			try
 			{
-				await _writeGate.WaitAsync().ConfigureAwait(false);
-				try
+				writeResult = await Task.Run(async () =>
 				{
-					return WritePlainShowfile(backupPath, saveData);
-				}
-				finally
-				{
-					_writeGate.Release();
-				}
-			}).ConfigureAwait(true);
+					await _writeGate.WaitAsync().ConfigureAwait(false);
+					try
+					{
+						return CopyShowfileAtomically(mainPath, backupPath);
+					}
+					finally
+					{
+						_writeGate.Release();
+					}
+				}).ConfigureAwait(true);
+			}
+			finally
+			{
+				_savesInFlight--;
+			}
 
 			if (writeResult.Ok)
 			{
@@ -2262,13 +2300,40 @@ public partial class SaveManager : Node
 				GD.PrintErr($"SaveManager:CreateAutosaveBackup - Write failed: {writeResult.Error}");
 			}
 
-			// Prune old backups (directory listing on main)
-			PruneAutosaveBackups(backupDir, depth);
+			// Prune old backups (directory listing on main), only after a good backup.
+			if (writeResult.Ok)
+				PruneAutosaveBackups(backupDir, depth);
 		}
 		catch (Exception ex)
 		{
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Autosave backup failed: {ex.Message}", 2);
 			GD.PrintErr($"SaveManager:CreateAutosaveBackup - Error: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Copies <paramref name="sourcePath"/> to <paramref name="destPath"/> through a temp file and a
+	/// rename, so a failed copy never leaves a truncated file under the final name. Worker thread;
+	/// callers hold <see cref="_writeGate"/>.
+	/// </summary>
+	private static (bool Ok, string Error) CopyShowfileAtomically(string sourcePath, string destPath)
+	{
+		string tmpPath = destPath + ".tmp";
+		try
+		{
+			File.Copy(sourcePath, tmpPath, overwrite: true);
+			File.Move(tmpPath, destPath, overwrite: true);
+			return (true, null);
+		}
+		catch (Exception ex)
+		{
+			try
+			{
+				if (File.Exists(tmpPath))
+					File.Delete(tmpPath);
+			}
+			catch { /* best-effort */ }
+			return (false, ex.Message);
 		}
 	}
 
