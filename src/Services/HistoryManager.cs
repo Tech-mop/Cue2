@@ -60,11 +60,18 @@ public partial class HistoryManager : Node
 	private readonly List<HistoryEntry> _redoStack = new();
 	private bool _isRestoring;
 
-	/// <summary>Document-edit generation (cue / cuelist / settings). Selection is ignored.</summary>
-	private int _documentRevision;
+	/// <summary>
+	/// Id of the document state the model is in now (cue / cuelist / settings; selection is
+	/// ignored). Every document edit, including a coalesced one, moves to a fresh id from
+	/// <see cref="_nextStateId"/>, so a different edit after an undo can never match a saved id.
+	/// </summary>
+	private long _currentStateId;
 
-	/// <summary>Revision last written to disk (or 0 after New / Open).</summary>
-	private int _savedRevision;
+	/// <summary>Id of the document state last written to disk (or 0 after New / Open).</summary>
+	private long _savedStateId;
+
+	/// <summary>Source of fresh document state ids. Never reset, so ids are never reused.</summary>
+	private long _nextStateId = 1;
 
 	/// <summary>
 	/// Active continuous-edit session key (typing / drag / spin). Only merges while this is set
@@ -119,15 +126,29 @@ public partial class HistoryManager : Node
 	/// True when cue, cuelist, or show-settings data has changed since the last save (or New / Open).
 	/// Selection-only history does not count.
 	/// </summary>
-	public bool HasUnsavedDocumentChanges => _documentRevision != _savedRevision;
+	public bool HasUnsavedDocumentChanges => _currentStateId != _savedStateId;
 
 	/// <summary>
-	/// Marks the current document revision as matching disk (after a successful Save / Save As,
-	/// or after New / Open has loaded a clean session).
+	/// Id of the current document state. Read it right before taking a save snapshot and pass
+	/// it to <see cref="MarkSaved(long)"/> after the write, so edits made during the write stay dirty.
+	/// </summary>
+	public long CurrentStateId => _currentStateId;
+
+	/// <summary>
+	/// Marks the current document state as matching disk (after New / Open has loaded a clean session).
 	/// </summary>
 	public void MarkSaved()
 	{
-		_savedRevision = _documentRevision;
+		_savedStateId = _currentStateId;
+	}
+
+	/// <summary>
+	/// Marks <paramref name="stateIdAtSnapshot"/> (from <see cref="CurrentStateId"/>) as the state on disk.
+	/// </summary>
+	/// <param name="stateIdAtSnapshot">State id read before the save snapshot was built.</param>
+	public void MarkSaved(long stateIdAtSnapshot)
+	{
+		_savedStateId = stateIdAtSnapshot;
 	}
 
 	public override void _Ready()
@@ -198,7 +219,10 @@ public partial class HistoryManager : Node
 		}
 
 		if (ShouldCoalesce(coalesceKey))
+		{
+			NoteCoalescedDocumentChange();
 			return;
+		}
 
 		try
 		{
@@ -221,7 +245,7 @@ public partial class HistoryManager : Node
 		if (_isRestoring) return;
 		if (_globalData?.Settings?.IsCueEditingLocked == true) return;
 		if (_globalData?.Cuelist == null) return;
-		if (ShouldCoalesce(coalesceKey)) return;
+		if (ShouldCoalesce(coalesceKey)) { NoteCoalescedDocumentChange(); return; }
 
 		try
 		{
@@ -246,7 +270,7 @@ public partial class HistoryManager : Node
 		if (_globalData?.Settings?.IsCueEditingLocked == true) return;
 		if (_globalData?.Cuelist == null) return;
 		if (cueIds == null) return;
-		if (ShouldCoalesce(coalesceKey)) return;
+		if (ShouldCoalesce(coalesceKey)) { NoteCoalescedDocumentChange(); return; }
 
 		try
 		{
@@ -275,7 +299,7 @@ public partial class HistoryManager : Node
 	{
 		if (_isRestoring) return;
 		if (_globalData?.Settings == null) return;
-		if (ShouldCoalesce(coalesceKey)) return;
+		if (ShouldCoalesce(coalesceKey)) { NoteCoalescedDocumentChange(); return; }
 
 		if (keys == null || keys.Length == 0 || !HasAnyNonEmptyKey(keys))
 		{
@@ -447,7 +471,7 @@ public partial class HistoryManager : Node
 
 			RestoreEntry(target);
 			if (IsDocumentScope(target.Scope))
-				_documentRevision--;
+				MoveToRestoredState(target, redoEntry);
 
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
 				$"Undo: {target.Description}", (int)LogType.Info);
@@ -516,7 +540,7 @@ public partial class HistoryManager : Node
 
 			RestoreEntry(target);
 			if (IsDocumentScope(target.Scope))
-				_documentRevision++;
+				MoveToRestoredState(target, undoEntry);
 
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
 				$"Redo: {target.Description}", (int)LogType.Info);
@@ -552,8 +576,8 @@ public partial class HistoryManager : Node
 		_activeCoalesceKey = null;
 		_undoStack.Clear();
 		_redoStack.Clear();
-		_documentRevision = 0;
-		_savedRevision = 0;
+		_currentStateId = 0;
+		_savedStateId = 0;
 		EmitSignal(SignalName.HistoryChanged);
 		GD.Print("HistoryManager:Clear - History cleared.");
 	}
@@ -641,10 +665,50 @@ public partial class HistoryManager : Node
 		// Open or close continuous session: null key = discrete commit, seals any prior session.
 		_activeCoalesceKey = string.IsNullOrEmpty(coalesceKey) ? null : coalesceKey;
 		if (IsDocumentScope(entry.Scope))
-			_documentRevision++;
+		{
+			// Restoring this entry returns to the state before the edit; the edit itself is a new state.
+			entry.RestoresToStateId = _currentStateId;
+			_currentStateId = _nextStateId++;
+			entry.TopStateId = _currentStateId;
+		}
 		TrimToMaxDepth();
 		EmitSignal(SignalName.HistoryChanged);
 		GD.Print($"HistoryManager:Push - '{entry.Description}' scope={entry.Scope} (undo={_undoStack.Count})");
+	}
+
+	/// <summary>
+	/// A coalesced record (same continuous session) still changes the document: move to a fresh
+	/// state id and keep the top entry's <see cref="HistoryEntry.TopStateId"/> in step with it.
+	/// </summary>
+	private void NoteCoalescedDocumentChange()
+	{
+		if (_undoStack.Count == 0)
+			return;
+		var top = _undoStack[^1];
+		if (!IsDocumentScope(top.Scope))
+			return;
+		_currentStateId = _nextStateId++;
+		top.TopStateId = _currentStateId;
+	}
+
+	/// <summary>
+	/// Updates <see cref="_currentStateId"/> after Undo / Redo restored <paramref name="restored"/>,
+	/// and links the entry pushed onto the opposite stack (<paramref name="opposite"/>) back to the
+	/// state being left. If other steps were skipped (Show Mode), the result is a state that never
+	/// existed before, so it gets a fresh id (reads dirty, never wrongly clean).
+	/// </summary>
+	private void MoveToRestoredState(HistoryEntry restored, HistoryEntry opposite)
+	{
+		long leaving = _currentStateId;
+		long arriving = restored.TopStateId == leaving && restored.RestoresToStateId >= 0
+			? restored.RestoresToStateId
+			: _nextStateId++;
+		if (opposite != null)
+		{
+			opposite.RestoresToStateId = leaving;
+			opposite.TopStateId = arriving;
+		}
+		_currentStateId = arriving;
 	}
 
 	private static bool IsDocumentScope(HistoryScope scope) =>
@@ -1158,6 +1222,12 @@ public partial class HistoryManager : Node
 
 		/// <summary>Focused cue id at capture time, or -1.</summary>
 		public int FocusedCueId { get; }
+
+		/// <summary>Document state id the model returns to when this entry is restored (-1 = unknown).</summary>
+		public long RestoresToStateId { get; set; } = -1;
+
+		/// <summary>Document state id the model is in while this entry is the next one to restore.</summary>
+		public long TopStateId { get; set; } = -1;
 
 		/// <summary>
 		/// Visible cuelist tab index into <c>CuelistWorkspace.Lists</c> at capture time, or -1.

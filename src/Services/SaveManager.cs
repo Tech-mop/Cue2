@@ -613,6 +613,9 @@ public partial class SaveManager : Node
 		ApplySessionPaths(sessionPath, folderPaths);
 
 		// Snapshot on main thread (touches Cuelist / Settings / Godot nodes).
+		// Remember which document state the snapshot holds: edits made while the write runs
+		// must still read as unsaved afterwards (R1-P1-11).
+		long stateAtSnapshot = _globalData.HistoryManager?.CurrentStateId ?? 0;
 		Dictionary saveData;
 		try
 		{
@@ -707,7 +710,7 @@ public partial class SaveManager : Node
 		}
 
 		ConfigureAutosave();
-		_globalData.HistoryManager?.MarkSaved();
+		_globalData.HistoryManager?.MarkSaved(stateAtSnapshot);
 
 		// Update title (in case signal timing)
 		GetNodeOrNull<MainTitleBarUI>("/root/Cue2Base/MainWindowHandles/MainTitleBar")?.CallDeferred("UpdateTitle");
