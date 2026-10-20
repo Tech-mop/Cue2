@@ -1064,6 +1064,30 @@ public class Cue : ICue
     /// <returns>Max nested span in seconds, or -1 if any child has infinite content.</returns>
     private double DurationOfChildren()
     {
+        // Defence in depth against a ChildCues loop (R1-P1-03): bound the nested recursion.
+        if (_durationDepth >= CueList.MaxChildDepth)
+        {
+            GD.PrintErr($"Cue:DurationOfChildren - Group nesting over {CueList.MaxChildDepth} at cue {Id}; ignoring deeper children.");
+            return 0.0;
+        }
+
+        _durationDepth++;
+        try
+        {
+            return DurationOfChildrenCore();
+        }
+        finally
+        {
+            _durationDepth--;
+        }
+    }
+
+    /// <summary>Nesting depth of the current <see cref="DurationOfChildren"/> call chain.</summary>
+    [ThreadStatic]
+    private static int _durationDepth;
+
+    private double DurationOfChildrenCore()
+    {
         var longestDuration = 0.0;
         foreach (var childId in ChildCues)
         {

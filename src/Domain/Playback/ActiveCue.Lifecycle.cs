@@ -306,6 +306,15 @@ public partial class ActiveCue
             if (_childActiveCues.Any(c => c != null && IsInstanceValid(c) && c.Cue?.Id == childId))
                 continue;
 
+            // Never spawn this cue or one of its ancestors as its own child (R1-P1-03).
+            if (IsSelfOrModelAncestor(childId))
+            {
+                GD.PrintErr($"ActiveCue:StartChildCues - Child {childId} of {_cue.Name} is the cue or an ancestor; skipped.");
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"Child cue {childId} of {_cue.Name} would loop back to itself; skipped.", 1);
+                continue;
+            }
+
             var child = CueList.FetchCueFromId(childId);
             if (child == null)
             {
@@ -335,6 +344,24 @@ public partial class ActiveCue
 
             _ = activeCue.StartAsync();
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="cueId"/> is this cue or one of its model ancestors (by
+    /// <see cref="Cue.ParentId"/>). Bounded walk, so a bad ParentId chain cannot loop.
+    /// </summary>
+    private bool IsSelfOrModelAncestor(int cueId)
+    {
+        var current = _cue;
+        for (int i = 0; current != null && i <= CueList.MaxChildDepth; i++)
+        {
+            if (current.Id == cueId)
+                return true;
+            if (current.ParentId < 0)
+                return false;
+            current = CueList.FetchCueFromId(current.ParentId);
+        }
+        return false;
     }
 
     /// <summary>

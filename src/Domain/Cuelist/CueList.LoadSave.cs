@@ -140,6 +140,10 @@ public partial class CueList
 			visited.Add(id);
 		}
 
+		// Repair a malformed ChildCues graph (cycles, shared or missing children) before
+		// anything binds or walks it (R1-P1-03).
+		SanitizeChildGraph(visited);
+
 		SessionLoadTimer.Current?.Begin("cues.relink");
 		if (CueIndex != null)
 		{
@@ -150,6 +154,113 @@ public partial class CueList
 		var timer = SessionLoadTimer.Current;
 		timer?.Pause();
 		timer?.AnnotateLast(timer.FormatLinkNote());
+	}
+
+	/// <summary>Deepest group nesting accepted from a showfile; deeper children are detached.</summary>
+	internal const int MaxChildDepth = 256;
+
+	/// <summary>
+	/// Makes this list's loaded <see cref="Cue.ChildCues"/> graph a forest. Among the
+	/// cues in <paramref name="ownIds"/>, removes child entries that point back up the current
+	/// path (a loop, including a cue listing itself), that another group already claimed, or
+	/// that sit deeper than <see cref="MaxChildDepth"/>. Fixes <see cref="Cue.ParentId"/> to
+	/// match, removes grouped cues from <see cref="RootOrder"/>, and puts any cue left without a
+	/// parent back at top level. Child ids outside <paramref name="ownIds"/> (missing, or owned by
+	/// another list) are left as they are; the walks that follow them have their own depth caps.
+	/// Each repair is logged as a warning. The UI cannot create such a graph
+	/// (CueReorder.WouldCreateCycle); this guards hand-edited or tool-made files.
+	/// </summary>
+	/// <param name="ownIds">Ids of the cues constructed by this load.</param>
+	private void SanitizeChildGraph(HashSet<int> ownIds)
+	{
+		if (CueIndex == null || ownIds == null || ownIds.Count == 0)
+			return;
+
+		var claimed = new HashSet<int>();
+		var onPath = new HashSet<int>();
+		int repairs = 0;
+
+		void Repair(string message)
+		{
+			repairs++;
+			GD.PrintErr($"CueList:SanitizeChildGraph - {message}");
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				$"Repaired showfile: {message}", (int)LogType.Warning);
+		}
+
+		void Visit(Cue cue, int depth)
+		{
+			onPath.Add(cue.Id);
+			for (int i = 0; i < cue.ChildCues.Count; i++)
+			{
+				int id = cue.ChildCues[i];
+				if (!ownIds.Contains(id) || !CueIndex.TryGetValue(id, out var child) || child == null)
+					continue;
+
+				string reason = null;
+				if (onPath.Contains(id))
+					reason = "it would form a loop";
+				else if (claimed.Contains(id))
+					reason = "it already belongs to another group";
+				else if (depth >= MaxChildDepth)
+					reason = $"groups are nested deeper than {MaxChildDepth}";
+
+				if (reason != null)
+				{
+					cue.ChildCues.RemoveAt(i);
+					i--;
+					Repair($"removed child cue {id} from cue {cue.Id} ({reason}).");
+					continue;
+				}
+
+				claimed.Add(id);
+				child.ParentId = cue.Id;
+				Visit(child, depth + 1);
+			}
+			onPath.Remove(cue.Id);
+		}
+
+		// Roots first, in order; a cue listed both at top level and inside an earlier group
+		// keeps the group placement the loader already gave it.
+		foreach (int rootId in new List<int>(RootOrder))
+		{
+			if (!ownIds.Contains(rootId) || claimed.Contains(rootId))
+				continue;
+			if (!CueIndex.TryGetValue(rootId, out var root) || root == null)
+				continue;
+			claimed.Add(rootId);
+			root.ParentId = -1;
+			Visit(root, 0);
+		}
+
+		for (int i = RootOrder.Count - 1; i >= 0; i--)
+		{
+			int id = RootOrder[i];
+			if (ownIds.Contains(id) && CueIndex.TryGetValue(id, out var cue) && cue != null && cue.ParentId >= 0)
+			{
+				RootOrder.RemoveAt(i);
+				Repair($"cue {id} was listed both at top level and inside group {cue.ParentId}; kept it in the group.");
+			}
+		}
+
+		// Cues cut loose by a repair (only reachable through a removed entry) go back to top level.
+		foreach (int id in ownIds)
+		{
+			if (claimed.Contains(id) || !CueIndex.TryGetValue(id, out var cue) || cue == null)
+				continue;
+			claimed.Add(id);
+			cue.ParentId = -1;
+			RootOrder.Add(id);
+			Repair($"cue {id} had no valid parent after repair; moved it to top level.");
+			Visit(cue, 0);
+		}
+
+		if (repairs > 0)
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				$"Showfile had {repairs} group-structure problem(s) and was repaired in memory. Save to keep the fix.",
+				(int)LogType.Warning);
+		}
 	}
 
 	/// <summary>

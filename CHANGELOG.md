@@ -59,6 +59,7 @@
 - Timeline inspector zoom matches that: Fit is the whole show, max zoom is a 50ms window, the slider is logarithmic, and a readout shows the visible span. Long shows can zoom out to fit and in to 50ms; short cues can fill the view.
 - Audio output patch editor: unused devices stay off the grid (Add device). Choosing a device adds every hardware channel with no routes. The routing grid uses frozen headers, drawn cells (click-drag paint), collapsible groups of 8 on large devices, and a List view of bus → hardware routes.
 - Autosave no longer occurs when no changes have been made to the showfile. 
+- Nested children depth now capped at 256 (previously no limit)
 
 ## [0.1.1] - 2026-09-21
 

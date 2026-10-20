@@ -110,18 +110,24 @@ public partial class CueList
 	{
 		VisibleRowIds.Clear();
 		foreach (int id in RootOrder)
-			AppendVisibleRecursive(id);
+			AppendVisibleRecursive(id, 0);
 	}
 
-	private void AppendVisibleRecursive(int cueId)
+	private void AppendVisibleRecursive(int cueId, int depth)
 	{
 		if (!CueIndex.TryGetValue(cueId, out var cue) || cue == null)
 			return;
 		VisibleRowIds.Add(cueId);
 		if (!cue.Expanded || cue.ChildCues.Count == 0)
 			return;
+		// Defence in depth against a ChildCues loop the load-time repair could not see.
+		if (depth >= MaxChildDepth)
+		{
+			GD.PrintErr($"CueList:AppendVisibleRecursive - Group nesting over {MaxChildDepth} at cue {cueId}; children hidden.");
+			return;
+		}
 		foreach (int childId in cue.ChildCues)
-			AppendVisibleRecursive(childId);
+			AppendVisibleRecursive(childId, depth + 1);
 	}
 
 	/// <summary>
@@ -131,7 +137,7 @@ public partial class CueList
 	internal List<int> GetModelVisualOrder(bool includeCollapsed)
 	{
 		var result = new List<int>(CueIndex?.Count ?? 0);
-		void Walk(int id)
+		void Walk(int id, int depth)
 		{
 			if (CueIndex == null || !CueIndex.TryGetValue(id, out var cue) || cue == null)
 				return;
@@ -140,12 +146,17 @@ public partial class CueList
 				return;
 			if (!includeCollapsed && !cue.Expanded)
 				return;
+			if (depth >= MaxChildDepth)
+			{
+				GD.PrintErr($"CueList:GetModelVisualOrder - Group nesting over {MaxChildDepth} at cue {id}; stopping walk.");
+				return;
+			}
 			foreach (int childId in cue.ChildCues)
-				Walk(childId);
+				Walk(childId, depth + 1);
 		}
 
 		foreach (int id in RootOrder)
-			Walk(id);
+			Walk(id, 0);
 		return result;
 	}
 
