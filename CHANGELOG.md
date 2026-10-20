@@ -46,6 +46,9 @@
 - Saving is now safe from breaking interruptions. Cue2 writes the show to a temporary file and only swaps it in once it's fully on disk, so a crash, power cut or full drive mid-save can't leave a broken showfile. The previous version is kept as a .c2.bak file, and overlapping saves (like Ctrl+S during an autosave) no longer collide.
 - Control components that GO another cue now always fire, even with Double Go Protection on.
 - OSC GO commands and cue OSC triggers now respect Double Go Protection and the show-loading lock like the GO button, and any blocked GO is noted in the log.
+- Edits during a save will mark as saved when not actually saved. State-id dirty tracking; edits during a save stay unsaved
+- A Save-as failing could change the stored folder path. Failing Save As restores path, name and folders
+
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.

@@ -609,7 +609,9 @@ public partial class SaveManager : Node
 			return false;
 		}
 
-		// Session paths must be known before serializing so relative media URLs resolve correctly
+		// Session paths must be known before serializing so relative media URLs resolve correctly.
+		// Keep the current identity so a failed Save As can put it back (R1-P1-07).
+		var previousIdentity = CaptureSessionIdentity();
 		ApplySessionPaths(sessionPath, folderPaths);
 
 		// Snapshot on main thread (touches Cuelist / Settings / Godot nodes).
@@ -625,6 +627,7 @@ public partial class SaveManager : Node
 		{
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Failed to build save data: {ex.Message}", 2);
 			GD.PrintErr($"SaveManager:SaveSession - BuildSaveDataDictionary: {ex.Message}");
+			RestoreSessionIdentityAfterFailedSave(previousIdentity);
 			return false;
 		}
 
@@ -672,6 +675,8 @@ public partial class SaveManager : Node
 			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
 				$"Failed to write showfile: {selectedPath} ({writeResult.Error})", 2);
 			GD.PrintErr($"SaveManager:SaveSession - Write failed: {pathForWrite} Error: {writeResult.Error}");
+			// Newest save failed: do not leave Ctrl+S / autosave / title pointing at the failed target.
+			RestoreSessionIdentityAfterFailedSave(previousIdentity);
 			return false;
 		}
 
@@ -814,6 +819,51 @@ public partial class SaveManager : Node
 	/// </summary>
 	/// <param name="sessionFilePath">Absolute path to the .c2 file.</param>
 	/// <param name="folderPaths">Optional precomputed folder layout; derived from the session path when null.</param>
+	/// <summary>Session file and folder paths as one value, for undoing a failed Save As.</summary>
+	private readonly record struct SessionIdentity(
+		string Path,
+		string Name,
+		string Dir,
+		string AudioPath,
+		string VideoPath,
+		string ImagesPath,
+		string WaveformsPath);
+
+	private SessionIdentity CaptureSessionIdentity() => new(
+		_globalData.SessionPath,
+		_globalData.SessionName,
+		_globalData.SessionDir,
+		_globalData.SessionAudioPath,
+		_globalData.SessionVideoPath,
+		_globalData.SessionImagesPath,
+		_globalData.SessionWaveformsPath);
+
+	/// <summary>
+	/// Puts the session identity back after a failed save (R1-P1-07). A plain Save to the same
+	/// path is a no-op; after a failed Save As, title, Ctrl+S and autosave target the old file again.
+	/// </summary>
+	private void RestoreSessionIdentityAfterFailedSave(SessionIdentity previous)
+	{
+		if (previous == CaptureSessionIdentity())
+			return;
+
+		_globalData.SessionPath = previous.Path;
+		_globalData.SessionName = previous.Name;
+		_globalData.SessionDir = previous.Dir;
+		_globalData.SessionAudioPath = previous.AudioPath;
+		_globalData.SessionVideoPath = previous.VideoPath;
+		_globalData.SessionImagesPath = previous.ImagesPath;
+		_globalData.SessionWaveformsPath = previous.WaveformsPath;
+
+		if (!string.IsNullOrEmpty(previous.Path))
+		{
+			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+				$"Save As failed. The show is still saved at {previous.Path}", (int)LogType.Warning);
+		}
+		GD.Print($"SaveManager:RestoreSessionIdentityAfterFailedSave - Restored SessionPath={previous.Path}");
+		GetNodeOrNull<MainTitleBarUI>("/root/Cue2Base/MainWindowHandles/MainTitleBar")?.CallDeferred("UpdateTitle");
+	}
+
 	private void ApplySessionPaths(string sessionFilePath, SessionFolderPaths folderPaths = null)
 	{
 		if (string.IsNullOrEmpty(sessionFilePath))
