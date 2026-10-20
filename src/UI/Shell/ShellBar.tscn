@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://d207a67e3ebww"]
 
 [ext_resource type="Script" uid="uid://c5iiiivhxukfl" path="res://src/UI/Shell/ShellBar.cs" id="1_34bmx"]
-[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_o55rx"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_nqr4j"]
 
@@ -14,7 +13,6 @@ offset_bottom = 28.0
 size_flags_horizontal = 3
 size_flags_vertical = 0
 focus_mode = 1
-theme = ExtResource("1_o55rx")
 script = ExtResource("1_34bmx")
 
 [node name="GroupPanel" type="Panel" parent="." unique_id=983908998]

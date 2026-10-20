@@ -396,7 +396,7 @@ public partial class GlobalStyles : Node
 		if (tree?.Root != null)
 		{
 			tree.Root.Theme = theme;
-			ApplyThemeToNodeRecursive(tree.Root);
+			ApplyThemeToThemedRoots(tree.Root);
 		}
 
 		EnsureNodeAddedWired();
@@ -476,7 +476,7 @@ public partial class GlobalStyles : Node
 			if (!string.Equals(theme.Id, themeId, StringComparison.OrdinalIgnoreCase))
 				continue;
 			GD.Print($"GlobalStyles:LoadBuiltInTheme - Loading {theme.ResourcePath}");
-			var loaded = ResourceLoader.Load<Theme>(theme.ResourcePath, "", ResourceLoader.CacheMode.Replace);
+			var loaded = ResourceLoader.Load<Theme>(theme.ResourcePath, "", ResourceLoader.CacheMode.Reuse);
 			if (loaded != null)
 			{
 				_loadedBuiltInThemes[theme.Id] = loaded;
@@ -518,13 +518,17 @@ public partial class GlobalStyles : Node
 		ApplyThemeToNode(node);
 	}
 
-	private void ApplyThemeToNodeRecursive(Node node)
+	/// <summary>
+	/// Assigns the UI Theme only on windows and controls that already carry a Cue2 Theme.
+	/// Do not walk every shell/label — those inherit from Cue2Base / the viewport.
+	/// </summary>
+	private void ApplyThemeToThemedRoots(Node node)
 	{
 		if (node == null || !GodotObject.IsInstanceValid(node))
 			return;
 		ApplyThemeToNode(node);
 		foreach (Node child in node.GetChildren())
-			ApplyThemeToNodeRecursive(child);
+			ApplyThemeToThemedRoots(child);
 	}
 
 	private void ApplyThemeToNode(Node node)
@@ -538,12 +542,28 @@ public partial class GlobalStyles : Node
 			return;
 		}
 
-		if (node is Control control && control.Theme != null)
-		{
-			if (IsGoTheme(control.Theme))
-				return;
+		if (node is Control control && control.Theme != null && IsCue2UiTheme(control.Theme))
 			control.Theme = ActiveUiTheme;
-		}
+	}
+
+	/// <summary>
+	/// True when <paramref name="theme"/> is a Cue2 UI Theme (not GO_theme).
+	/// </summary>
+	public static bool IsCue2UiTheme(Theme theme)
+	{
+		if (theme == null)
+			return false;
+		if (ReferenceEquals(theme, ActiveUiTheme))
+			return true;
+		string path = theme.ResourcePath ?? string.Empty;
+		if (string.IsNullOrEmpty(path))
+			return false;
+		if (path.EndsWith("GO_theme.tres", StringComparison.OrdinalIgnoreCase))
+			return false;
+		return path.EndsWith("base_theme.tres", StringComparison.OrdinalIgnoreCase)
+			|| path.EndsWith("dark_theme.tres", StringComparison.OrdinalIgnoreCase)
+			|| path.EndsWith("light_theme.tres", StringComparison.OrdinalIgnoreCase)
+			|| path.EndsWith("neon_theme.tres", StringComparison.OrdinalIgnoreCase);
 	}
 
 	/// <summary>
