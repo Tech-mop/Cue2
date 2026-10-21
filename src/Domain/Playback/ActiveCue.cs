@@ -565,6 +565,24 @@ public partial class ActiveCue : GodotObject
     private bool _stopRequestedDuringSetup;
 
     /// <summary>
+    /// Stopwatch ticks of the moment this cue was told to start by something other than the
+    /// operator's GO: the parent's content start for a group child, or the arm (after post-wait)
+    /// for a continue/follow chain member. 0 when not set. Its pre-wait counts from this moment,
+    /// so media setup does not shift it against the cue that started it.
+    /// </summary>
+    private long _startAnchorTicks;
+
+    /// <summary>
+    /// Marks this cue as started by its parent group at <paramref name="anchorTicks"/>
+    /// (<see cref="System.Diagnostics.Stopwatch"/> ticks). Call before <see cref="StartAsync"/>.
+    /// </summary>
+    internal void SetStartAnchor(long anchorTicks)
+    {
+        if (!_contentStarted)
+            _startAnchorTicks = anchorTicks;
+    }
+
+    /// <summary>
     /// True when this instance was created/prepared by OSC Load (or equivalent) and has not
     /// entered content yet. GO reuses standby instances so preload work is not discarded.
     /// </summary>

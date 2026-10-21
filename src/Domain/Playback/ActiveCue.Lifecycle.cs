@@ -173,10 +173,17 @@ public partial class ActiveCue
 
         // Preload own media (or finish pending chain preload) before pre-wait / content.
         // Children still wait for content phase to spawn.
-        // Timing rule (current behaviour, kept on purpose): the pre-wait counts from the
-        // end of this setup, not from the GO press, so a slow load lengthens the GO-to-content
-        // time by the setup time. Whether it should count from GO is an open product decision.
+        // Timing rule (decided): a cue's pre-wait counts from when the cue itself starts,
+        // never from the GO press.
+        // - The GO head starts when its media is ready, so its pre-wait counts from the end of
+        //   this setup (a slow load moves the whole cue, and everything timed from it, later).
+        // - A group child or a continue/follow member starts when its trigger fires (parent
+        //   content start, or arm after post-wait). Its pre-wait counts from that moment, and its
+        //   own setup runs inside the pre-wait, so its offset from the trigger stays as programmed.
+        //   If setup outlasts the pre-wait, content starts as soon as media is ready (logged).
         long setupStartTicks = Stopwatch.GetTimestamp();
+        bool anchoredStart = _startAnchorTicks != 0 || _incomingMode != FollowType.None;
+        long anchorTicks = _startAnchorTicks != 0 ? _startAnchorTicks : setupStartTicks;
         // Autosave waits while a cue is starting.
         PlaybackActivity.BeginStart();
         try
@@ -188,6 +195,7 @@ public partial class ActiveCue
             PlaybackActivity.EndStart();
         }
         double setupSeconds = (Stopwatch.GetTimestamp() - setupStartTicks) / (double)Stopwatch.Frequency;
+        double sinceAnchorSeconds = (Stopwatch.GetTimestamp() - anchorTicks) / (double)Stopwatch.Frequency;
 
         // Stopped while setup was running: no pre-wait timer, no content. Late
         // components were discarded by IsSetupStillValid; free the row once the fade is done.
@@ -200,16 +208,39 @@ public partial class ActiveCue
         }
 
         bool doPreWait = includePreWait && !_skipPreWait && _cue.PreWait > 0;
+        // Anchored cues absorb setup time into the pre-wait. Not while paused (the pre-wait then
+        // starts paused with its full length) or when a playhead start position is queued.
+        bool absorbSetup = anchoredStart && doPreWait && !_isPaused
+                           && !_pendingTimelineSeekSeconds.HasValue && sinceAnchorSeconds > 1e-3;
+        if (absorbSetup && sinceAnchorSeconds >= _cue.PreWait - 1e-4)
+        {
+            double late = sinceAnchorSeconds - _cue.PreWait;
+            GD.Print(
+                $"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: media setup took {sinceAnchorSeconds:F3}s, " +
+                $"longer than the {_cue.PreWait:F3}s pre-wait; content starts {late:F3}s late");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"{_cue.Name}: media took {sinceAnchorSeconds:F2}s to load, longer than its pre-wait; started {late:F2}s late.",
+                (int)LogType.Warning);
+            doPreWait = false; // straight into content, below
+        }
+
         if (doPreWait)
         {
-            // Diagnostic only: show how much media setup delayed the pre-wait start.
-            if (setupSeconds > 0.05)
-            {
-                GD.Print(
-                    $"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: pre-wait starts {setupSeconds:F3}s after GO (media setup)");
-            }
             EnsureTimelineStarted();
             PreWait();
+            if (absorbSetup)
+            {
+                // Pre-wait already running since the trigger: show and count only what is left.
+                AdjustPreWaitElapsed(sinceAnchorSeconds);
+                SetTimelineSeconds(sinceAnchorSeconds);
+                UpdateHeadProgressUi();
+            }
+            else if (setupSeconds > 0.05)
+            {
+                // Diagnostic only: how much media setup delayed this cue's start.
+                GD.Print(
+                    $"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: cue starts {setupSeconds:F3}s after it was triggered (media setup)");
+            }
             ApplyPendingTimelineSeekIfAny();
             return;
         }
@@ -321,6 +352,10 @@ public partial class ActiveCue
             return;
         }
 
+        // One start moment for every child, so their pre-waits stay relative to this content
+        // start however long each child's media takes to open.
+        long childAnchorTicks = Stopwatch.GetTimestamp();
+
         // Parent content-local time for play-from-playhead (child body t == parent content t).
         double? contentTimeAtStart = null;
         if (_pendingTimelineSeekSeconds.HasValue)
@@ -373,6 +408,8 @@ public partial class ActiveCue
             // Nested children share parent content origin as body t=0.
             if (contentTimeAtStart.HasValue)
                 activeCue.QueueStartAtBodyTime(contentTimeAtStart.Value);
+            else
+                activeCue.SetStartAnchor(childAnchorTicks);
 
             _ = activeCue.StartAsync();
         }
