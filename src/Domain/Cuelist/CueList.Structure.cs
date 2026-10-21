@@ -424,7 +424,9 @@ public partial class CueList
 	}
 
 	/// <summary>
-	/// When media backup is enabled and a show is open, returns a show-relative path and queues copy.
+	/// When media backup is enabled and a show is open, returns the path to store: show-relative for
+	/// show-local media; for external media the absolute source while a copy is queued (the cue is
+	/// switched to the relative path when the copy has landed).
 	/// Otherwise returns the original absolute path. Metadata loading should still use the absolute source.
 	/// </summary>
 	private string ResolveMediaPathForNewCue(string absolutePath, bool isAudio)

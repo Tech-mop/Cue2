@@ -56,6 +56,7 @@
 - OSC cues keep sending after you undo or redo an OSC connection change, or recall a settings file that includes OSC connections. Before, every OSC cue went silent until the show was reopened.
 - Media backup no longer mixes up different files that share a name. Two files called door.wav from different folders now get their own copies (door.wav and door_1.wav), and a file is only reused when its content is identical, not just its size
 - Stopping a cue while it is still fading in now fades it out smoothly. Before, the level or picture could flutter, jump back to full, or keep changing after the cue was gone.
+- With media backup on, a newly added or saved cue keeps playing its original file until the copy into the show folder has fully finished, and a failed copy no longer leaves the cue pointing at a missing or half-copied file.
 - 
 
 ### Changed

@@ -526,7 +526,8 @@ public partial class MediaBackupManager : Node
     }
 
     /// <summary>
-    /// Ensures media is show-local (copy if needed) and rewrites the cue path to relative.
+    /// Rewrites the cue path to relative when the media is already show-local; otherwise queues a copy
+    /// and leaves the cue on its original path until the copy has landed (see <see cref="DeferredApplyRelativePath"/>).
     /// </summary>
     private bool TryRewriteOrEnqueue(string storedPath, MediaBackupKind kind, out bool wasQueued, bool force = false)
     {
@@ -538,19 +539,20 @@ public partial class MediaBackupManager : Node
 
         bool wasExternal = !IsPathUnderDirectory(resolvedSource, _globalData.SessionDir);
 
-        string relative = EnsureMediaBackedUp(storedPath, kind, force);
-        if (string.IsNullOrEmpty(relative))
+        string pathToStore = EnsureMediaBackedUp(storedPath, kind, force);
+        if (string.IsNullOrEmpty(pathToStore))
             return false;
 
-        if (ApplyRelativePathToCues(resolvedSource, storedPath, relative))
-            _pathsChangedThisBatch = true;
-
-        // External media that is not yet at dest (or still copying) counts as queued work
+        // External media: the copy is queued or already pending. Cues keep the original path
+        // until the worker reports success, so GO always finds a playable file.
         if (wasExternal)
         {
-            string destAbs = MediaPaths.Resolve(relative, _globalData.SessionDir);
-            wasQueued = IsBusy || !File.Exists(destAbs);
+            wasQueued = true;
+            return true;
         }
+
+        if (ApplyRelativePathToCues(resolvedSource, storedPath, pathToStore))
+            _pathsChangedThisBatch = true;
 
         return true;
     }
@@ -602,14 +604,17 @@ public partial class MediaBackupManager : Node
     }
 
     /// <summary>
-    /// When media backup is enabled and a show is open, returns the show-relative path to store on the cue
-    /// immediately (e.g. <c>Audio/song.wav</c>) and enqueues a background copy if the source is external.
+    /// When media backup is enabled and a show is open, returns the path to store on the cue now.
+    /// Media already under the show folder gets its show-relative path (e.g. <c>Audio/song.wav</c>).
+    /// External media gets a background copy and its absolute source path is returned: the cue keeps
+    /// playing the source until the copy has fully landed, then the cue is switched to the relative path.
     /// </summary>
     /// <param name="sourcePath">Absolute or relative source path of the media file.</param>
     /// <param name="kind">Optional media kind; detected from extension when null.</param>
     /// <param name="force">When true, ignore MediaBackupEnabled and always attempt show-local copy.</param>
     /// <returns>
-    /// Show-relative path when backup applies; <c>null</c> when backup is disabled, no session is open,
+    /// Show-relative path for show-local media, absolute source path for external media being copied;
+    /// <c>null</c> when backup is disabled, no session is open,
     /// or the path cannot be handled (caller should keep the original path).
     /// </returns>
     public string EnsureMediaBackedUp(string sourcePath, MediaBackupKind? kind = null, bool force = false)
@@ -665,12 +670,12 @@ public partial class MediaBackupManager : Node
         }
 
         if (alreadyReserved)
-            return relative;
+            return resolvedSource;
 
-        // Queue background copy; caller stores relative path immediately
+        // Queue background copy; the cue is moved to the relative path only when the copy succeeds.
         EnqueueCopyJob(resolvedSource, destPath, mediaKind);
         GD.Print($"MediaBackupManager:EnsureMediaBackedUp - Queued copy to {relative}");
-        return relative;
+        return resolvedSource;
     }
 
     /// <summary>
@@ -874,7 +879,8 @@ public partial class MediaBackupManager : Node
                     CallDeferred(nameof(DeferredLog),
                         $"Media backup failed: {Path.GetFileName(result.SourcePath)} — {result.Error}",
                         2);
-                    CallDeferred(nameof(DeferredReleaseReservations), job.SourceKey ?? string.Empty, epoch);
+                    CallDeferred(nameof(DeferredReleaseReservations), job.SourceKey ?? string.Empty, epoch,
+                        result.SourcePath ?? string.Empty);
                 }
 
                 EmitProgressDeferred();
@@ -990,7 +996,27 @@ public partial class MediaBackupManager : Node
                 relative = MediaPaths.TryMakeRelative(destPath, _globalData.SessionDir) ?? Path.GetFileName(destPath);
             }
 
-            File.Copy(job.SourcePath, destPath, overwrite: false);
+            // Copy under a temporary name and move it into place only when complete, so the
+            // final name never holds a partial file (failed copy, full disk, app closed mid-copy).
+            string partPath = destPath + ".part";
+            try
+            {
+                File.Copy(job.SourcePath, partPath, overwrite: true);
+                File.Move(partPath, destPath, overwrite: false);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(partPath))
+                        File.Delete(partPath);
+                }
+                catch
+                {
+                    // ignore; the next copy to this name overwrites it
+                }
+                throw;
+            }
 
             return new MediaBackupResult
             {
@@ -1111,12 +1137,36 @@ public partial class MediaBackupManager : Node
         }
     }
 
-    /// <summary>Releases a failed job's reserved names on main, unless the session changed.</summary>
-    private void DeferredReleaseReservations(string sourceKey, int epoch)
+    /// <summary>
+    /// Releases a failed job's reserved names on main, unless the session changed, and names the
+    /// cues that keep the original path (they were never pointed at the missing copy).
+    /// </summary>
+    private void DeferredReleaseReservations(string sourceKey, int epoch, string sourcePath)
     {
         if (!IsWorkerEpochCurrent(epoch))
             return;
         ReleaseReservations(sourceKey);
+
+        if (string.IsNullOrEmpty(sourcePath) || CueList.CueIndex == null)
+            return;
+
+        string key = MediaPaths.NormalizeKey(sourcePath);
+        var cueIds = new List<int>();
+        foreach (var cue in CueList.CueIndex.Values)
+        {
+            if (cue == null) continue;
+            var audio = cue.GetAudioComponent();
+            var video = cue.GetVideoComponent();
+            if ((audio != null && !string.IsNullOrEmpty(audio.AudioFile) && PathMatches(audio.AudioFile, key, sourcePath, sourcePath))
+                || (video != null && !string.IsNullOrEmpty(video.VideoFile) && PathMatches(video.VideoFile, key, sourcePath, sourcePath)))
+                cueIds.Add(cue.Id);
+        }
+
+        if (cueIds.Count > 0)
+        {
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"Media backup: cue(s) {string.Join(", ", cueIds)} still use the original file {sourcePath}; it was not copied into the show folder.", 1);
+        }
     }
 
     /// <summary>
@@ -1258,7 +1308,7 @@ public partial class MediaBackupManager : Node
         // Keep inspector labels in sync with new relative paths
         _globalSignals.EmitSignal(nameof(GlobalSignals.SyncShellInspector));
 
-        // Relative paths may have been set before copy finished — clear false "missing" flags
+        // Refresh media health now that copied cues point at their show-local files
         try
         {
             GetNodeOrNull<MediaHealthService>("/root/MediaHealthService")?.RecheckAllQuiet();

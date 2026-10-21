@@ -481,7 +481,8 @@ public partial class VideoInspector
 			return;
 		}
 
-		// Prefer show-relative path when media backup is enabled (copy runs in background)
+		// Show-local media gets its show-relative path. External media keeps its own path while a
+		// background copy runs, and is switched to the relative path when the copy has landed.
 		string pathToStore = filePath;
 		try
 		{
