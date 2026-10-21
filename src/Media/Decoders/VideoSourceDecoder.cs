@@ -197,16 +197,26 @@ public sealed class VideoSourceDecoder : IDisposable
     /// Decodes ahead until the ring has approximately <paramref name="targetFrames"/> frames.
     /// Intended for worker threads; can block for multiple decode cycles.
     /// </summary>
+    /// <remarks>
+    /// Takes the lock once per decoded frame, not once for the whole refill, so main-thread
+    /// ring calls (<see cref="TryPeekPtsBuffered"/>, <see cref="TryTakeFrame"/>) wait for at most
+    /// one frame's decode (Partial; the full decode/ring lock split is not done).
+    /// </remarks>
     public void Prefetch(int targetFrames = DefaultRingFrames / 2)
     {
-        lock (_lock)
+        while (true)
         {
-            if (!_isOpen || Info == null || _endOfStream) return;
-            targetFrames = Math.Clamp(targetFrames, 1, _ringCapacity);
-            while (_ready.Count < targetFrames && !_endOfStream)
+            lock (_lock)
             {
-                if (!DecodeMoreUnlocked()) break;
+                // Re-check each frame: a Seek, Flush or Dispose may have run between holds.
+                if (!_isOpen || Info == null || _endOfStream) return;
+                int target = Math.Clamp(targetFrames, 1, _ringCapacity);
+                if (_ready.Count >= target) return;
+                if (!DecodeMoreUnlocked()) return;
             }
+
+            // Give a waiting present call a chance at the lock before the next frame.
+            Thread.Yield();
         }
     }
 
