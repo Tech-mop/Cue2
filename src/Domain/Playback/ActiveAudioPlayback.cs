@@ -95,6 +95,15 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     private CancellationTokenSource _fillCts;
     private Task _fillTask;
 
+    /// <summary>
+    /// A cancelled fill worker that may still be running. Teardown that the worker
+    /// still touches (decoder, mix buffers, Free) waits for it without blocking main. Main only.
+    /// </summary>
+    private Task _retiringFillTask;
+
+    /// <summary>True once the deferred decoder/buffer release and free are queued. Main only.</summary>
+    private bool _teardownQueued;
+
     /// <summary>Cancels in-flight seek+prefetch workers when a newer seek supersedes them.</summary>
     private CancellationTokenSource _seekCts;
     private volatile bool _seekInProgress;
@@ -497,12 +506,15 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// <returns>Completes once the first prefill is done (at once without prefill).</returns>
     private Task StartFillLoop(bool prefillFirst = false)
     {
-        _fillCts?.Cancel();
+        // A previous worker is cancelled, not awaited on main; the new worker waits for it on
+        // its own thread, so two fill loops never write to the streams at once.
+        var previous = StopFillLoop();
         _fillCts = new CancellationTokenSource();
         var token = _fillCts.Token;
         var primed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _fillTask = Task.Run(() =>
         {
+            PlaybackWorkers.WaitBounded(500, previous);
             try
             {
                 if (prefillFirst && !token.IsCancellationRequested)
@@ -521,23 +533,28 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         return primed.Task;
     }
 
-    private void StopFillLoop()
+    /// <summary>
+    /// Cancels the fill worker without waiting for it. Main thread only.
+    /// </summary>
+    /// <returns>The worker if it (or an earlier cancelled one) is still running, else null.</returns>
+    private Task StopFillLoop()
     {
-        try
+        var task = _fillTask;
+        var cts = _fillCts;
+        _fillTask = null;
+        _fillCts = null;
+        try { cts?.Cancel(); } catch { /* ignore */ }
+
+        if (PlaybackWorkers.IsRunning(task))
         {
-            _fillCts?.Cancel();
-            if (_fillTask != null)
-            {
-                try { _fillTask.Wait(500); } catch { /* ignore */ }
-            }
+            _retiringFillTask = task;
+            // Dispose the token source only once the worker can no longer read it.
+            task.ContinueWith(_ => { try { cts?.Dispose(); } catch { /* ignore */ } }, TaskScheduler.Default);
+            return task;
         }
-        catch { /* ignore */ }
-        finally
-        {
-            _fillCts?.Dispose();
-            _fillCts = null;
-            _fillTask = null;
-        }
+
+        try { cts?.Dispose(); } catch { /* ignore */ }
+        return PlaybackWorkers.IsRunning(_retiringFillTask) ? _retiringFillTask : null;
     }
 
     /// <summary>
@@ -2020,42 +2037,27 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             IsStopped = true;
         }
 
-        StopFillLoop();
+        // Non-blocking stop: cancel the worker; never Task.Wait on main for an
+        // operator Stop. App quit (freeImmediately) still waits briefly, because it frees now.
+        var worker = StopFillLoop();
+        if (freeImmediately)
+        {
+            PlaybackWorkers.WaitBounded(500, worker);
+            worker = null;
+        }
         CancelSeekWorker();
         _fadeCts?.Cancel();
 
-        // Detach every stream before destroying it, so a fill worker that outlived
-        // StopFillLoop's wait skips the handles instead of writing to freed streams.
+        // Detach every stream, then destroy it. Safe while the worker still runs: after the
+        // detach (under IoLock) the worker skips the handles.
         if (DeviceStreams != null)
             _audioDevices?.NotifyPlaybackCompleted(this);
         AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
 
-        if (Decoder != null)
-        {
-            try
-            {
-                Decoder.Dispose();
-            }
-            catch (Exception ex)
-            {
-                GD.PrintErr($"ActiveAudioPlayback:Clean - Decoder dispose: {ex.Message}");
-            }
-            Decoder = null;
-        }
-
-        // Drop mix buffers
-        if (_srcBuffer != null)
-        {
-            MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_srcBuffer));
-            _srcBuffer = null;
-        }
-        if (_mixBuffer != null)
-        {
-            MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_mixBuffer));
-            _mixBuffer = null;
-        }
-
-        MediaMemory.ReclaimIfNeeded();
+        // The worker still reads the decoder and mix buffers: release them only once it exits.
+        bool workerRunning = PlaybackWorkers.IsRunning(worker);
+        if (!workerRunning)
+            ReleaseDecoderAndBuffers();
 
         // Emit exactly once, whichever path got here first (end of media, Stop, device loss).
         bool emitCompleted;
@@ -2083,10 +2085,60 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             {
                 if (freeImmediately)
                     Free();
-                else
+                else if (!workerRunning)
                     Callable.From(FreeDeferred).CallDeferred();
             }
         }
+
+        // App quit on a repeat call (Completed already sent): free now, as the caller expects.
+        if (freeImmediately && !emitCompleted && IsInstanceValid(this))
+            Free();
+
+        // Worker still running: release and free once it has exited, on main.
+        // Completed has already fired above, at the same point as before.
+        if (workerRunning && !_teardownQueued)
+        {
+            _teardownQueued = true;
+            PlaybackWorkers.RunAfter(() =>
+            {
+                ReleaseDecoderAndBuffers();
+                FreeDeferred();
+            }, worker);
+        }
+    }
+
+    /// <summary>
+    /// Disposes the decoder and drops the mix buffers. Main thread, only once no fill worker can
+    /// use them. Idempotent; uses no Godot API on this object, so it is safe after a Free.
+    /// </summary>
+    private void ReleaseDecoderAndBuffers()
+    {
+        if (Decoder != null)
+        {
+            try
+            {
+                Decoder.Dispose();
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"ActiveAudioPlayback:Clean - Decoder dispose: {ex.Message}");
+            }
+            Decoder = null;
+        }
+
+        // Drop mix buffers
+        if (_srcBuffer != null)
+        {
+            MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_srcBuffer));
+            _srcBuffer = null;
+        }
+        if (_mixBuffer != null)
+        {
+            MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_mixBuffer));
+            _mixBuffer = null;
+        }
+
+        MediaMemory.ReclaimIfNeeded();
     }
 
     /// <summary>

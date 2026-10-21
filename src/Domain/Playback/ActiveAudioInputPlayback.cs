@@ -169,10 +169,15 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
         }
 
         try { _fillCts?.Cancel(); } catch { /* already done */ }
-        // Wait for the worker like the other playbacks do. If it outlives the wait, the
-        // detach below and the IoLock in CloseCaptures / ReadMonoChunk still keep it off
-        // destroyed handles.
-        try { _fillTask?.Wait(500); } catch { /* cancelled or faulted */ }
+        // Non-blocking stop: do not wait for the worker on main. The detach below
+        // and the IoLock in CloseCaptures / ReadMonoChunk keep a still-exiting worker off
+        // destroyed handles; only freeing this object waits for it. App quit still waits briefly.
+        var worker = _fillTask;
+        if (freeImmediately)
+        {
+            PlaybackWorkers.WaitBounded(500, worker);
+            worker = null;
+        }
         CloseCaptures();
         try { _audioDevices?.NotifyPlaybackCompleted(this); } catch { /* device map */ }
         AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
@@ -187,7 +192,11 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
             if (freeImmediately)
                 Free();
             else
-                Callable.From(FreeDeferred).CallDeferred();
+                PlaybackWorkers.RunAfter(() =>
+                {
+                    if (GodotObject.IsInstanceValid(this))
+                        Callable.From(FreeDeferred).CallDeferred();
+                }, worker);
         }
     }
 

@@ -93,6 +93,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private CancellationTokenSource _videoPrefetchCts;
     private Task _videoPrefetchTask;
 
+    /// <summary>
+    /// Cancelled workers that may still be running. Teardown they still touch
+    /// (decoders, mix buffers, free) waits for them without blocking main. Main only.
+    /// </summary>
+    private Task _retiringPrefetchTask;
+    private Task _retiringAudioFillTask;
+
     /// <summary>Cancels in-flight seek+prefetch workers when a newer seek supersedes them.</summary>
     private CancellationTokenSource _seekCts;
     private Task _seekTask;
@@ -805,17 +812,23 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// </summary>
     public void DisableEmbeddedAudio()
     {
-        StopAudioFillLoop();
+        var fillWorker = StopAudioFillLoop();
 
         if (DeviceStreams != null)
         {
             try { _audioDevices?.NotifyPlaybackCompleted(this); } catch { /* ignore */ }
         }
-        // Detach before destroy so a fill worker that outlived the stop wait skips the handles.
+        // Detach before destroy so a fill worker that is still exiting skips the handles.
         AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
 
-        try { _audioDecoder?.Dispose(); } catch { /* ignore */ }
+        // Wall-clock master from now on; dispose the decoder once the worker has let go of it
+        // (the worker reads the field once per pass, so clearing it now is safe).
+        var audioDecoder = _audioDecoder;
         _audioDecoder = null;
+        PlaybackWorkers.RunAfter(() =>
+        {
+            try { audioDecoder?.Dispose(); } catch { /* ignore */ }
+        }, fillWorker);
 
         GD.Print("ActiveVideoPlayback:DisableEmbeddedAudio - Audio path disabled; using wall-clock master.");
     }
@@ -1359,11 +1372,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
     private void StartVideoPrefetchLoop()
     {
-        StopVideoPrefetchLoop();
+        // The new worker waits for a cancelled one on its own thread, not on main.
+        var previous = StopVideoPrefetchLoop();
         _videoPrefetchCts = new CancellationTokenSource();
         var token = _videoPrefetchCts.Token;
         _videoPrefetchTask = Task.Run(() =>
         {
+            PlaybackWorkers.WaitBounded(500, previous);
             try
             {
                 while (!token.IsCancellationRequested)
@@ -1393,44 +1408,61 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }, token);
     }
 
-    private void StopVideoPrefetchLoop()
+    /// <summary>
+    /// Cancels the video prefetch worker without waiting. Main thread only.
+    /// </summary>
+    /// <returns>The worker if it (or an earlier cancelled one) is still running, else null.</returns>
+    private Task StopVideoPrefetchLoop()
     {
-        try
-        {
-            _videoPrefetchCts?.Cancel();
-            _videoPrefetchTask?.Wait(500);
-        }
-        catch { /* ignore */ }
-        finally
-        {
-            _videoPrefetchCts?.Dispose();
-            _videoPrefetchCts = null;
-            _videoPrefetchTask = null;
-        }
+        var task = _videoPrefetchTask;
+        var cts = _videoPrefetchCts;
+        _videoPrefetchTask = null;
+        _videoPrefetchCts = null;
+        return RetireWorker(task, cts, ref _retiringPrefetchTask);
     }
 
     private void StartAudioFillLoop()
     {
-        StopAudioFillLoop();
+        // Never two fill loops on the same streams: the new one waits on its own thread.
+        var previous = StopAudioFillLoop();
         _audioFillCts = new CancellationTokenSource();
         var token = _audioFillCts.Token;
-        _audioFillTask = Task.Run(() => AudioFillLoop(token), token);
+        _audioFillTask = Task.Run(() =>
+        {
+            PlaybackWorkers.WaitBounded(500, previous);
+            AudioFillLoop(token);
+        }, token);
     }
 
-    private void StopAudioFillLoop()
+    /// <summary>
+    /// Cancels the embedded-audio fill worker without waiting. Main thread only.
+    /// </summary>
+    /// <returns>The worker if it (or an earlier cancelled one) is still running, else null.</returns>
+    private Task StopAudioFillLoop()
     {
-        try
+        var task = _audioFillTask;
+        var cts = _audioFillCts;
+        _audioFillTask = null;
+        _audioFillCts = null;
+        return RetireWorker(task, cts, ref _retiringAudioFillTask);
+    }
+
+    /// <summary>
+    /// Cancels <paramref name="task"/> and disposes its token source once it has exited.
+    /// Remembers a still-running worker in <paramref name="retiring"/>.
+    /// </summary>
+    private static Task RetireWorker(Task task, CancellationTokenSource cts, ref Task retiring)
+    {
+        try { cts?.Cancel(); } catch { /* ignore */ }
+        if (PlaybackWorkers.IsRunning(task))
         {
-            _audioFillCts?.Cancel();
-            _audioFillTask?.Wait(500);
+            retiring = task;
+            task.ContinueWith(_ => { try { cts?.Dispose(); } catch { /* ignore */ } }, TaskScheduler.Default);
+            return task;
         }
-        catch { /* ignore */ }
-        finally
-        {
-            _audioFillCts?.Dispose();
-            _audioFillCts = null;
-            _audioFillTask = null;
-        }
+
+        try { cts?.Dispose(); } catch { /* ignore */ }
+        return PlaybackWorkers.IsRunning(retiring) ? retiring : null;
     }
 
     private void AudioFillLoop(CancellationToken token)
@@ -1451,7 +1483,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 }
 
                 var bindings = _streamBindings.Snapshot;
-                if (bindings.Length == 0 || _audioDecoder == null)
+                var audioDecoder = _audioDecoder; // one read per pass; main may clear the field
+                if (bindings.Length == 0 || audioDecoder == null)
                 {
                     Thread.Sleep(AudioFillSleepMs);
                     continue;
@@ -1486,14 +1519,14 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 int framesToRead = Math.Min(maxNeedFrames, maxFrames);
 
                 // Don't fill audio past video end region
-                long pos = _audioDecoder.PositionUs;
+                long pos = audioDecoder.PositionUs;
                 if (pos >= _endTimeUs)
                 {
                     Thread.Sleep(AudioFillSleepMs);
                     continue;
                 }
 
-                int frames = _audioDecoder.Read(_audioSrcBuffer.AsSpan(), framesToRead, token);
+                int frames = audioDecoder.Read(_audioSrcBuffer.AsSpan(), framesToRead, token);
                 if (frames <= 0)
                 {
                     Thread.Sleep(AudioFillSleepMs);
@@ -1775,7 +1808,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }
         SetProcess(false);
         CancelSeekWorker();
-        StopVideoPrefetchLoop();
+        StopVideoPrefetchLoop(); // non-blocking; Clean picks up the still-running workers
         StopAudioFillLoop();
         _wallClock.Stop();
 
@@ -2007,41 +2040,58 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }
 
         SetProcess(false);
+        var seekWorker = _seekTask;
         CancelSeekWorker();
-        StopVideoPrefetchLoop();
-        StopAudioFillLoop();
+        // Non-blocking stop: cancel, never Task.Wait on main.
+        var prefetchWorker = StopVideoPrefetchLoop();
+        var fillWorker = StopAudioFillLoop();
         _wallClock.Stop();
 
         if (DeviceStreams != null)
         {
             try { _audioDevices?.NotifyPlaybackCompleted(this); } catch { /* ignore */ }
         }
-        // Detach before destroy so a fill worker that outlived the stop wait skips the handles.
+        // Detach, then destroy. Safe while the fill worker is still exiting: after the detach
+        // (under IoLock) it skips the handles.
         AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
 
         // Prefer signaling completion before tearing down the display when Clean is the
         // first completion path (user Stop). Natural end already emitted while holding frame.
         EmitCompletedIfNeeded();
 
-        ReleaseMediaBuffers();
+        // Display, layers and subtitles are main-thread only: release now, after Completed.
+        ReleaseDisplayResources();
 
         lock (_lock)
         {
             _isDisposed = true;
         }
 
-        // Return LOH memory after large frame/PCM releases
-        MediaMemory.ReclaimIfNeeded();
+        bool inTree = IsInstanceValid(this) && IsInsideTree();
 
-        // Defer free — Clean often runs inside signal/method dispatch (object locked).
-        // QueueFree is safe for Nodes in the tree; otherwise use C# Free via Callable.
-        if (IsInstanceValid(this))
+        // Decoders and mix buffers are read by the workers: release them, return LOH memory
+        // and free this object once every worker has exited. Inline when none is running.
+        PlaybackWorkers.RunAfter(() =>
         {
-            if (IsInsideTree())
-                CallDeferred(Node.MethodName.QueueFree);
-            else
-                Callable.From(FreeDeferred).CallDeferred();
-        }
+            ReleaseWorkerResources();
+            MediaMemory.ReclaimIfNeeded();
+            FreeAfterTeardown(inTree);
+        }, seekWorker, prefetchWorker, fillWorker);
+    }
+
+    /// <summary>
+    /// Frees this playback after teardown. In the tree it uses QueueFree (Clean often runs inside
+    /// signal dispatch); otherwise C# Free via a deferred Callable. Skips if already freed
+    /// (for example with its ActiveCue bar).
+    /// </summary>
+    private void FreeAfterTeardown(bool wasInTree)
+    {
+        if (!IsInstanceValid(this))
+            return;
+        if (wasInTree)
+            CallDeferred(Node.MethodName.QueueFree);
+        else
+            Callable.From(FreeDeferred).CallDeferred();
     }
 
     /// <summary>
@@ -2140,20 +2190,22 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
     private void ReleaseMediaBuffers()
     {
-        ClearLinkedSubtitles();
-        try { _subtitleDecoder?.Dispose(); } catch { /* ignore */ }
-        _subtitleDecoder = null;
+        ReleaseWorkerResources();
+        ReleaseDisplayResources();
+    }
 
+    /// <summary>
+    /// Disposes the decoders and drops the audio mix buffers. Only once no prefetch, fill or
+    /// seek worker can use them. Idempotent; uses no Godot API on this object, so it
+    /// is safe after the node was freed with its parent.
+    /// </summary>
+    private void ReleaseWorkerResources()
+    {
         try { _audioDecoder?.Dispose(); } catch { /* ignore */ }
         _audioDecoder = null;
         try { _videoDecoder?.Dispose(); } catch { /* ignore */ }
         _videoDecoder = null;
 
-        if (_displayRgba != null)
-        {
-            MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_displayRgba));
-            _displayRgba = null;
-        }
         if (_audioSrcBuffer != null)
         {
             MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_audioSrcBuffer));
@@ -2163,6 +2215,23 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         {
             MediaMemory.NoteReleased(MediaMemory.FloatBufferBytes(_audioMixBuffer));
             _audioMixBuffer = null;
+        }
+    }
+
+    /// <summary>
+    /// Releases main-thread display state: subtitles, the display copy buffer, layer textures
+    /// and the Godot image/texture. Main thread only.
+    /// </summary>
+    private void ReleaseDisplayResources()
+    {
+        ClearLinkedSubtitles();
+        try { _subtitleDecoder?.Dispose(); } catch { /* ignore */ }
+        _subtitleDecoder = null;
+
+        if (_displayRgba != null)
+        {
+            MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_displayRgba));
+            _displayRgba = null;
         }
 
         // Detach textures from output layers so Godot can free GPU resources
@@ -2198,9 +2267,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         IsStopped = true;
         _isPlaying = false;
         SetProcess(false);
+        var seekWorker = _seekTask;
         CancelSeekWorker();
-        StopVideoPrefetchLoop();
-        StopAudioFillLoop();
+        var prefetchWorker = StopVideoPrefetchLoop();
+        var fillWorker = StopAudioFillLoop();
+        // Leaving the tree without Clean (app quit, parent freed): teardown must finish before
+        // this returns, so a bounded wait is kept here only.
+        PlaybackWorkers.WaitBounded(500, seekWorker, prefetchWorker, fillWorker);
         AudioStreamBindingSet.Destroy(_streamBindings.DetachAll(DeviceStreams, DeviceStreamChannels));
         ReleaseMediaBuffers();
         MediaMemory.ReclaimIfNeeded();
