@@ -53,6 +53,12 @@ public sealed class MediaBackupResult
 
     /// <summary>Error message when <see cref="Success"/> is false.</summary>
     public string Error { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Show-relative path handed out when the job was queued. Differs from
+    /// <see cref="RelativePath"/> when an identical file was already in the show folder.
+    /// </summary>
+    public string ProvisionalRelativePath { get; init; } = string.Empty;
 }
 
 /// <summary>
@@ -70,6 +76,19 @@ public partial class MediaBackupManager : Node
     private readonly object _queueLock = new object();
     private readonly Queue<BackupJob> _queue = new Queue<BackupJob>();
     private readonly HashSet<string> _queuedSourceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Show-folder destinations handed out for copies that have not been applied yet
+    /// (destination key to source key). A reserved name is never given to a different source,
+    /// even before its file exists. Guarded by <see cref="_queueLock"/>; released on main once the
+    /// job's result is applied, or by <see cref="ClearPendingJobs"/>.
+    /// </summary>
+    private readonly Dictionary<string, string> _reservedDestinations =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Source key to the destination reserved for it (see <see cref="_reservedDestinations"/>).</summary>
+    private readonly Dictionary<string, string> _reservedBySource =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     private int _totalJobs;
     private int _completedJobs;
@@ -111,6 +130,8 @@ public partial class MediaBackupManager : Node
         {
             _queue.Clear();
             _queuedSourceKeys.Clear();
+            _reservedDestinations.Clear();
+            _reservedBySource.Clear();
             _totalJobs = 0;
             _completedJobs = 0;
             _currentOriginPath = string.Empty;
@@ -628,43 +649,76 @@ public partial class MediaBackupManager : Node
             return null;
         }
 
+        // A name is only reused for the same source. An existing file is never assumed to be
+        // this source (equal size is not equal content): the worker compares content off main
+        // and points the cues at an identical file already in the show folder if it finds one.
         string fileName = Path.GetFileName(resolvedSource);
-        string destPath = Path.Combine(destDir, fileName);
-
-        if (File.Exists(destPath))
-        {
-            try
-            {
-                long srcLen = new FileInfo(resolvedSource).Length;
-                long dstLen = new FileInfo(destPath).Length;
-                if (srcLen != dstLen)
-                    destPath = AllocateUniquePath(destDir, fileName);
-            }
-            catch
-            {
-                destPath = AllocateUniquePath(destDir, fileName);
-            }
-        }
+        string sourceKey = MediaPaths.NormalizeKey(resolvedSource);
+        string destPath = ReserveDestination(destDir, fileName, sourceKey, out bool alreadyReserved);
 
         string relative = MediaPaths.TryMakeRelative(destPath, _globalData.SessionDir);
         if (string.IsNullOrEmpty(relative))
-            return null;
-
-        // Dest already has identical content — no copy needed
-        if (File.Exists(destPath))
         {
-            try
-            {
-                if (new FileInfo(resolvedSource).Length == new FileInfo(destPath).Length)
-                    return relative;
-            }
-            catch { /* fall through to copy */ }
+            if (!alreadyReserved)
+                ReleaseReservations(sourceKey);
+            return null;
         }
+
+        if (alreadyReserved)
+            return relative;
 
         // Queue background copy; caller stores relative path immediately
         EnqueueCopyJob(resolvedSource, destPath, mediaKind);
-        GD.Print($"MediaBackupManager:EnsureMediaBackedUp - Queued copy → {relative}");
+        GD.Print($"MediaBackupManager:EnsureMediaBackedUp - Queued copy to {relative}");
         return relative;
+    }
+
+    /// <summary>
+    /// Returns the show-folder destination for <paramref name="sourceKey"/>: the one already
+    /// reserved for it, otherwise the first of <c>name.ext</c>, <c>name_1.ext</c>, ... that neither
+    /// exists nor is reserved, which is then reserved.
+    /// </summary>
+    private string ReserveDestination(string destDir, string fileName, string sourceKey, out bool alreadyReserved)
+    {
+        lock (_queueLock)
+        {
+            if (_reservedBySource.TryGetValue(sourceKey, out var existing)
+                && string.Equals(Path.GetDirectoryName(existing), Path.GetDirectoryName(Path.Combine(destDir, fileName)),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                alreadyReserved = true;
+                return existing;
+            }
+
+            alreadyReserved = false;
+            string destPath = AllocateUniquePathUnlocked(destDir, fileName);
+            _reservedDestinations[MediaPaths.NormalizeKey(destPath)] = sourceKey;
+            _reservedBySource[sourceKey] = destPath;
+            return destPath;
+        }
+    }
+
+    /// <summary>Drops every destination reserved for <paramref name="sourceKey"/>.</summary>
+    private void ReleaseReservations(string sourceKey)
+    {
+        if (string.IsNullOrEmpty(sourceKey))
+            return;
+        lock (_queueLock)
+        {
+            _reservedBySource.Remove(sourceKey);
+            var keys = _reservedDestinations
+                .Where(kv => string.Equals(kv.Value, sourceKey, StringComparison.OrdinalIgnoreCase))
+                .Select(kv => kv.Key)
+                .ToList();
+            foreach (var key in keys)
+                _reservedDestinations.Remove(key);
+        }
+    }
+
+    private bool IsDestinationReserved(string path)
+    {
+        lock (_queueLock)
+            return _reservedDestinations.ContainsKey(MediaPaths.NormalizeKey(path));
     }
 
     /// <summary>
@@ -812,13 +866,15 @@ public partial class MediaBackupManager : Node
 
                     // Epoch argument so deferred apply is a no-op after session wipe.
                     CallDeferred(nameof(DeferredApplyRelativePath),
-                        result.SourcePath, result.RelativePath, epoch);
+                        result.SourcePath, result.RelativePath, epoch,
+                        result.ProvisionalRelativePath ?? string.Empty, job.SourceKey ?? string.Empty);
                 }
                 else
                 {
                     CallDeferred(nameof(DeferredLog),
                         $"Media backup failed: {Path.GetFileName(result.SourcePath)} — {result.Error}",
                         2);
+                    CallDeferred(nameof(DeferredReleaseReservations), job.SourceKey ?? string.Empty, epoch);
                 }
 
                 EmitProgressDeferred();
@@ -890,6 +946,7 @@ public partial class MediaBackupManager : Node
             string relative = !string.IsNullOrEmpty(job.RelativePath)
                 ? job.RelativePath
                 : MediaPaths.TryMakeRelative(destPath, _globalData.SessionDir) ?? Path.GetFileName(destPath);
+            string provisional = relative;
 
             // Same path after normalization (already local edge case)
             if (string.Equals(MediaPaths.NormalizeKey(job.SourcePath), MediaPaths.NormalizeKey(destPath), StringComparison.OrdinalIgnoreCase))
@@ -899,36 +956,48 @@ public partial class MediaBackupManager : Node
                     SourcePath = job.SourcePath,
                     DestinationPath = destPath,
                     RelativePath = relative,
+                    ProvisionalRelativePath = provisional,
                     Copied = false,
                     Success = true
                 };
             }
 
-            // If destination exists with same size, treat as already backed up
-            if (File.Exists(destPath))
+            // Same content already in the show folder under this name or a numbered variant:
+            // reuse it instead of copying again. Sizes are compared first; content only when equal.
+            string identical = FindIdenticalShowFile(job.SourcePath, destDir, Path.GetFileName(job.SourcePath), destPath);
+            if (identical != null)
             {
-                long srcLen = new FileInfo(job.SourcePath).Length;
-                long dstLen = new FileInfo(destPath).Length;
-                if (srcLen == dstLen)
+                return new MediaBackupResult
                 {
-                    return new MediaBackupResult
-                    {
-                        SourcePath = job.SourcePath,
-                        DestinationPath = destPath,
-                        RelativePath = relative,
-                        Copied = false,
-                        Success = true
-                    };
-                }
+                    SourcePath = job.SourcePath,
+                    DestinationPath = identical,
+                    RelativePath = MediaPaths.TryMakeRelative(identical, _globalData.SessionDir) ?? relative,
+                    ProvisionalRelativePath = provisional,
+                    Copied = false,
+                    Success = true
+                };
             }
 
-            File.Copy(job.SourcePath, destPath, overwrite: true);
+            // Never overwrite a file that appeared at the reserved name since it was handed out:
+            // reserve another free name for this source instead.
+            if (File.Exists(destPath))
+            {
+                lock (_queueLock)
+                {
+                    destPath = AllocateUniquePathUnlocked(destDir, Path.GetFileName(job.SourcePath));
+                    _reservedDestinations[MediaPaths.NormalizeKey(destPath)] = job.SourceKey;
+                }
+                relative = MediaPaths.TryMakeRelative(destPath, _globalData.SessionDir) ?? Path.GetFileName(destPath);
+            }
+
+            File.Copy(job.SourcePath, destPath, overwrite: false);
 
             return new MediaBackupResult
             {
                 SourcePath = job.SourcePath,
                 DestinationPath = destPath,
                 RelativePath = relative,
+                ProvisionalRelativePath = provisional,
                 Copied = true,
                 Success = true
             };
@@ -1007,7 +1076,8 @@ public partial class MediaBackupManager : Node
         return false;
     }
 
-    private void DeferredApplyRelativePath(string sourceAbsolute, string relativePath, int epoch)
+    private void DeferredApplyRelativePath(string sourceAbsolute, string relativePath, int epoch,
+        string provisionalRelative, string sourceKey)
     {
         if (!IsWorkerEpochCurrent(epoch))
         {
@@ -1017,7 +1087,23 @@ public partial class MediaBackupManager : Node
             return;
         }
 
-        if (ApplyRelativePathToCues(sourceAbsolute, sourceAbsolute, relativePath))
+        // Cues that already store the provisional name (set when the copy was queued) are moved too.
+        // That name was reserved for this source only, so no other cue can be using it.
+        string originalStored = string.IsNullOrEmpty(provisionalRelative) ? sourceAbsolute : provisionalRelative;
+        bool changed = ApplyRelativePathToCues(sourceAbsolute, originalStored, relativePath);
+
+        // Release only after the apply, so the provisional name cannot be handed to another
+        // source while cues still point at it.
+        ReleaseReservations(sourceKey);
+
+        if (!string.IsNullOrEmpty(provisionalRelative)
+            && !string.Equals(provisionalRelative, relativePath, StringComparison.OrdinalIgnoreCase))
+        {
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                $"Media backup: {Path.GetFileName(sourceAbsolute)} is already in the show as {relativePath}; no second copy made.", 0);
+        }
+
+        if (changed)
         {
             _pathsChangedThisBatch = true;
             // Update inspector URL fields while the same cue remains selected
@@ -1025,18 +1111,102 @@ public partial class MediaBackupManager : Node
         }
     }
 
-    private static string AllocateUniquePath(string destDir, string fileName)
+    /// <summary>Releases a failed job's reserved names on main, unless the session changed.</summary>
+    private void DeferredReleaseReservations(string sourceKey, int epoch)
     {
+        if (!IsWorkerEpochCurrent(epoch))
+            return;
+        ReleaseReservations(sourceKey);
+    }
+
+    /// <summary>
+    /// First of <c>name.ext</c>, <c>name_1.ext</c>, ... that neither exists nor is reserved.
+    /// Caller must hold <see cref="_queueLock"/>.
+    /// </summary>
+    private string AllocateUniquePathUnlocked(string destDir, string fileName)
+    {
+        string first = Path.Combine(destDir, fileName);
+        if (!File.Exists(first) && !_reservedDestinations.ContainsKey(MediaPaths.NormalizeKey(first)))
+            return first;
+
         string name = Path.GetFileNameWithoutExtension(fileName);
         string ext = Path.GetExtension(fileName);
         for (int i = 1; i < 1000; i++)
         {
             string candidate = Path.Combine(destDir, $"{name}_{i}{ext}");
-            if (!File.Exists(candidate))
+            if (!File.Exists(candidate) && !_reservedDestinations.ContainsKey(MediaPaths.NormalizeKey(candidate)))
                 return candidate;
         }
 
         return Path.Combine(destDir, $"{name}_{Guid.NewGuid():N}{ext}");
+    }
+
+    /// <summary>
+    /// Worker thread. Returns a file in <paramref name="destDir"/> named <c>name.ext</c> or
+    /// <c>name_N.ext</c> whose content equals <paramref name="sourcePath"/>, or null. Skips
+    /// <paramref name="excludePath"/> and names reserved for copies still in progress.
+    /// Only files of the same size are read.
+    /// </summary>
+    private string FindIdenticalShowFile(string sourcePath, string destDir, string fileName, string excludePath)
+    {
+        if (string.IsNullOrEmpty(destDir) || !Directory.Exists(destDir))
+            return null;
+
+        string name = Path.GetFileNameWithoutExtension(fileName);
+        string ext = Path.GetExtension(fileName);
+        long sourceLength = new FileInfo(sourcePath).Length;
+        string excludeKey = MediaPaths.NormalizeKey(excludePath);
+
+        foreach (string candidate in Directory.EnumerateFiles(destDir, name + "*" + ext))
+        {
+            string candidateName = Path.GetFileNameWithoutExtension(candidate);
+            bool numbered = candidateName.Length > name.Length + 1
+                            && candidateName.StartsWith(name + "_", StringComparison.OrdinalIgnoreCase)
+                            && candidateName.Substring(name.Length + 1).All(char.IsDigit);
+            if (!string.Equals(candidateName, name, StringComparison.OrdinalIgnoreCase) && !numbered)
+                continue;
+            if (!string.Equals(Path.GetExtension(candidate), ext, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (string.Equals(MediaPaths.NormalizeKey(candidate), excludeKey, StringComparison.OrdinalIgnoreCase)
+                || IsDestinationReserved(candidate))
+                continue;
+
+            try
+            {
+                if (new FileInfo(candidate).Length == sourceLength && FilesHaveSameContent(sourcePath, candidate))
+                    return candidate;
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"MediaBackupManager:FindIdenticalShowFile - {Path.GetFileName(candidate)}: {ex.Message}");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Byte-for-byte comparison of two files of equal length; stops at the first difference.</summary>
+    private static bool FilesHaveSameContent(string pathA, string pathB)
+    {
+        const int bufferSize = 1 << 20;
+        using var a = new FileStream(pathA, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite, bufferSize, FileOptions.SequentialScan);
+        using var b = new FileStream(pathB, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite, bufferSize, FileOptions.SequentialScan);
+        if (a.Length != b.Length)
+            return false;
+
+        var bufA = new byte[bufferSize];
+        var bufB = new byte[bufferSize];
+        while (true)
+        {
+            int readA = a.ReadAtLeast(bufA, bufferSize, throwOnEndOfStream: false);
+            int readB = b.ReadAtLeast(bufB, bufferSize, throwOnEndOfStream: false);
+            if (readA != readB)
+                return false;
+            if (readA == 0)
+                return true;
+            if (!bufA.AsSpan(0, readA).SequenceEqual(bufB.AsSpan(0, readB)))
+                return false;
+        }
     }
 
     private string GetDestinationDir(MediaBackupKind kind)

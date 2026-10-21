@@ -54,7 +54,7 @@
 - More accurate fingerprint checking of used video displays. Better alerting if changes detected (ie unplug / replug)
 - Prewaits now account for potential delays is cue activation, allowing prewaits to stay syncronous to parents and peers.
 - OSC cues keep sending after you undo or redo an OSC connection change, or recall a settings file that includes OSC connections. Before, every OSC cue went silent until the show was reopened.
-
+- Media backup no longer mixes up different files that share a name. Two files called door.wav from different folders now get their own copies (door.wav and door_1.wav), and a file is only reused when its content is identical, not just its size
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.
