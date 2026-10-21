@@ -20,19 +20,35 @@ public partial class ActiveCue
 {
 
 
+    // Reused per-tick snapshots for UpdateUi: a component may complete mid-tick and
+    // change its map, so loops still iterate a copy, just not a newly allocated one each frame.
+    // UpdateUi is main-thread and not re-entrant, so one list per element type is enough.
+    private readonly List<PanelContainer> _uiPanelScratch = new();
+    private readonly List<KeyValuePair<PanelContainer, ActiveAudioInputPlayback>> _uiInputScratch = new();
+    private readonly List<KeyValuePair<PanelContainer, ActiveVideoPlayback>> _uiVideoScratch = new();
+    private readonly List<KeyValuePair<PanelContainer, ControlComponent>> _uiControlScratch = new();
+    private readonly List<KeyValuePair<PanelContainer, TimecodeControlComponent>> _uiTimecodeScratch = new();
+
+    private static List<T> RefillScratch<T>(List<T> scratch, ICollection<T> source)
+    {
+        scratch.Clear();
+        scratch.AddRange(source);
+        return scratch;
+    }
+
     private void UpdateUi()
     {
         if (_isCleaned) return;
 
         // Snapshot keys — dictionary may change if a component completes mid-tick.
-        foreach (var panel in _activeAudioComponents.Keys.ToList())
+        foreach (var panel in RefillScratch(_uiPanelScratch, _activeAudioComponents.Keys))
         {
             if (!IsInstanceValid(panel)) continue;
             if (!_componentToAudio.TryGetValue(panel, out var audioComponent) || audioComponent == null)
                 continue;
             UpdateComponentUiState(panel, audioComponent);
         }
-        foreach (var kv in _activeAudioInputs.ToList())
+        foreach (var kv in RefillScratch(_uiInputScratch, _activeAudioInputs))
         {
             if (!IsInstanceValid(kv.Key) || kv.Value == null)
                 continue;
@@ -63,7 +79,7 @@ public partial class ActiveCue
                 time.Text = UiUtilities.FormatTime(kv.Value.ElapsedSeconds);
             bar.Value = hold > 1e-4 ? Mathf.Clamp((float)(kv.Value.ElapsedSeconds / hold * 100.0), 0f, 100f) : 0f;
         }
-        foreach (var kv in _activeVideoComponents.ToList())
+        foreach (var kv in RefillScratch(_uiVideoScratch, _activeVideoComponents))
         {
             if (!IsInstanceValid(kv.Key) || kv.Value == null)
                 continue;
@@ -72,13 +88,13 @@ public partial class ActiveCue
 
         // Video progress is updated via TimeUpdated event for real-time updates
 
-        foreach (var kv in _activeControlComponents.ToList())
+        foreach (var kv in RefillScratch(_uiControlScratch, _activeControlComponents))
         {
             if (!IsInstanceValid(kv.Key) || kv.Value == null) continue;
             UpdateControlComponentUiState(kv.Key, kv.Value);
         }
 
-        foreach (var kv in _activeTimecodeControlComponents.ToList())
+        foreach (var kv in RefillScratch(_uiTimecodeScratch, _activeTimecodeControlComponents))
         {
             if (!IsInstanceValid(kv.Key)) continue;
             UpdateTimecodeControlComponentUiState(kv.Key, kv.Value);
