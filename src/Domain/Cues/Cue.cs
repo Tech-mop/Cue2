@@ -708,6 +708,12 @@ public class Cue : ICue
                     "TimecodeControl" => new TimecodeControlComponent(),
                     _ => null
                 };
+                if (comp is AudioInputComponent && GetAudioInputComponent() != null)
+                {
+                    // UI allows one audio input per cue; a second one in the file would collide at runtime.
+                    GD.PrintErr($"Cue:Constructor - Cue {Id} has more than one AudioInput component; extra one skipped.");
+                    continue;
+                }
                 if (comp != null)
                 {
                     try
@@ -2007,6 +2013,12 @@ public class Cue : ICue
                 if (comp == null)
                 {
                     GD.PrintErr($"Cue:ApplyFromData - Unknown or unsupported component type '{type}' (skipped).");
+                    continue;
+                }
+                if (comp is AudioInputComponent && GetAudioInputComponent() != null)
+                {
+                    // One audio input per cue, as in the UI.
+                    GD.PrintErr($"Cue:ApplyFromData - Cue {Id} has more than one AudioInput component; extra one skipped.");
                     continue;
                 }
                 try
