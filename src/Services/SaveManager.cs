@@ -79,6 +79,12 @@ public partial class SaveManager : Node
 	private int _savesInFlight;
 
 	/// <summary>
+	/// Bumped whenever the loaded show is cleared (open, New Session, failed open). A save that
+	/// finishes after this changed must not act on whatever show is loaded now. Main thread only.
+	/// </summary>
+	private int _sessionGeneration;
+
+	/// <summary>
 	/// Serializes every showfile write (main file and autosave backups) so at most one
 	/// write runs at a time. Waited on inside the worker task, never on the main thread.
 	/// </summary>
@@ -564,6 +570,13 @@ public partial class SaveManager : Node
 			return;
 		}
 
+		// Never write a show that is still being loaded; the next save stores the paths.
+		if (IsSessionLoading)
+		{
+			GD.Print("SaveManager:ResaveSessionAfterMediaPathUpdate - Show is loading; skip.");
+			return;
+		}
+
 		if (_openedFromNewerFormat)
 		{
 			GD.Print(
@@ -611,6 +624,10 @@ public partial class SaveManager : Node
 			GD.Print("SaveManager:SaveSession - Blocked overwrite of newer-format session path.");
 			return false;
 		}
+
+		// The show this save belongs to. If it is cleared before the write finishes, the
+		// completion steps below must not run against the newly loaded show.
+		int sessionGen = _sessionGeneration;
 
 		// Capture before Prepare/Apply so Save As can copy show-local media out of the old folder.
 		// Relative URLs (Audio/…, Video/…) resolve against SessionDir; if we switch SessionDir first,
@@ -685,6 +702,21 @@ public partial class SaveManager : Node
 		finally
 		{
 			_savesInFlight--;
+		}
+
+		// The show was closed or replaced (open, New Session) while this write ran. The file
+		// written belongs to the old show; skip every follow-up step (identity restore, recents,
+		// media backup, autosave, saved state), because they would act on the show loaded now.
+		if (sessionGen != _sessionGeneration)
+		{
+			GD.Print($"SaveManager:SaveSession - Show changed while saving {pathForWrite} " +
+			         $"(write ok={writeResult.Ok}); follow-up steps skipped.");
+			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+				writeResult.Ok
+					? $"Saved {pathForWrite} (it finished after that show was closed)."
+					: $"Failed to write showfile: {selectedPath} ({writeResult.Error})",
+				writeResult.Ok ? 0 : 2);
+			return false;
 		}
 
 		// Superseded by a newer Save/Save As — do not touch recents / UI for the stale job.
@@ -2021,6 +2053,7 @@ public partial class SaveManager : Node
 	/// </remarks>
 	private void ClearSessionForOpen()
 	{
+		_sessionGeneration++;
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.StopAll));
 		_openedFromNewerFormat = false;
 
@@ -2060,6 +2093,7 @@ public partial class SaveManager : Node
 	/// <param name="logAsNewSession">When true, logs the user-facing "New session" message.</param>
 	private void ResetSession(bool clearSessionIdentity, bool logAsNewSession)
 	{
+		_sessionGeneration++;
 		// Stop live playback before tearing down cues / devices
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.StopAll));
 
@@ -2243,6 +2277,7 @@ public partial class SaveManager : Node
 
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "Performing autosave...", 0);
 			GD.Print("SaveManager:PerformAutosave - Autosave triggered.");
+			int sessionGen = _sessionGeneration;
 
 			// First, update the main file (off-main stringify/write)
 			if (!await SaveSessionAsync(_globalData.SessionPath))
@@ -2252,6 +2287,11 @@ public partial class SaveManager : Node
 			}
 			if (!GodotObject.IsInstanceValid(this))
 				return;
+			if (sessionGen != _sessionGeneration)
+			{
+				GD.Print("SaveManager:PerformAutosave - Show changed after the save; no backup this time.");
+				return;
+			}
 
 			// Then copy the file just written into the session's Backups folder.
 			await CreateAutosaveBackupAsync();
