@@ -51,6 +51,7 @@
 - Stop near the end of media no longer leaves a ghost row
 - Stop during setup discards late components
 - Audio seek, prefetch and first prefill off main thread
+- More accurate fingerprint checking of used video displays. Better alerting if changes detected (ie unplug / replug)
 
 
 ### Changed

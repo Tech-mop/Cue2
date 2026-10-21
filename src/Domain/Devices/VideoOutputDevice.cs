@@ -1451,6 +1451,34 @@ public partial class VideoOutputDevice : Window, IDisposable
     }
 
     /// <summary>
+    /// Logs when the display now at <see cref="TargetMonitor"/> differs in size or position from
+    /// the one saved with the show. Detection only; no remap. Files without a
+    /// fingerprint are skipped.
+    /// </summary>
+    private void WarnIfTargetMonitorChanged(Godot.Collections.Dictionary data)
+    {
+        if (TargetMonitor < 0
+            || !data.ContainsKey("TargetMonitorSizeX") || !data.ContainsKey("TargetMonitorSizeY")
+            || !data.ContainsKey("TargetMonitorPositionX") || !data.ContainsKey("TargetMonitorPositionY"))
+            return;
+
+        var savedSize = new Vector2I((int)data["TargetMonitorSizeX"], (int)data["TargetMonitorSizeY"]);
+        var savedPos = new Vector2I((int)data["TargetMonitorPositionX"], (int)data["TargetMonitorPositionY"]);
+        if (TargetMonitor >= DisplayServer.GetScreenCount())
+            return; // Out-of-range indices are already reported where the window is placed.
+
+        var nowSize = DisplayServer.ScreenGetSize(TargetMonitor);
+        var nowPos = DisplayServer.ScreenGetPosition(TargetMonitor);
+        if (nowSize == savedSize && nowPos == savedPos)
+            return;
+
+        GD.PrintErr(
+            $"VideoOutputDevice:LoadFromData - Output '{OutputName}': display {TargetMonitor} was " +
+            $"{savedSize.X}x{savedSize.Y} at {savedPos}, now {nowSize.X}x{nowSize.Y} at {nowPos}. " +
+            "The display order may have changed; check the output assignment.");
+    }
+
+    /// <summary>
     /// Serializes the output device data.
     /// </summary>
     /// <returns>Dictionary containing output data.</returns>
@@ -1464,6 +1492,17 @@ public partial class VideoOutputDevice : Window, IDisposable
         data.Add("OutputSizeX", OutputSize.X);
         data.Add("OutputSizeY", OutputSize.Y);
         data.Add("TargetMonitor", TargetMonitor);
+        // Fingerprint of the physical display at save time (step 1). Informational:
+        // load compares it and logs a mismatch; outputs are still bound by index.
+        if (TargetMonitor >= 0 && TargetMonitor < DisplayServer.GetScreenCount())
+        {
+            var monSize = DisplayServer.ScreenGetSize(TargetMonitor);
+            var monPos = DisplayServer.ScreenGetPosition(TargetMonitor);
+            data.Add("TargetMonitorSizeX", monSize.X);
+            data.Add("TargetMonitorSizeY", monSize.Y);
+            data.Add("TargetMonitorPositionX", monPos.X);
+            data.Add("TargetMonitorPositionY", monPos.Y);
+        }
         data.Add("Transparent", OutputTransparent);
         data.Add("DisplayOffsetX", DisplayOffset.X);
         data.Add("DisplayOffsetY", DisplayOffset.Y);
@@ -1486,6 +1525,7 @@ public partial class VideoOutputDevice : Window, IDisposable
         OutputId = (int)data["OutputId"];
         OutputName = (string)data["OutputName"];
         TargetMonitor = (int)data["TargetMonitor"];
+        WarnIfTargetMonitorChanged(data);
 
         var canvPosX = data.ContainsKey("CanvasPositionX") ? (int)data["CanvasPositionX"] : 0;
         var canvPosY = data.ContainsKey("CanvasPositionY") ? (int)data["CanvasPositionY"] : 0;
