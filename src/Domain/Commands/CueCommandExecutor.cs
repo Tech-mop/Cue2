@@ -75,8 +75,6 @@ public partial class CueCommandExecutor : Node
         _activeCueList = GetNode("/root/Cue2Base").GetNode<PanelContainer>("%ActiveCueContainer").GetNode<VBoxContainer>("%ActiveCueList");
         GD.Print("CueCommandExecutor:_Ready - Cue Command Executor Successfully added");
         
-        GD.Print("Cue Command Executor Successfully added");
-        
         _globalSignals.Go += GoCommand;
         _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 
@@ -479,18 +477,6 @@ public partial class CueCommandExecutor : Node
     }
 
     /// <summary>
-    /// Applies a control-component action to the target cue (by id).
-    /// </summary>
-    /// <param name="action">GO, Pause, Stop, Resume, or Start Now.</param>
-    /// <param name="targetCueId">Id of the cue to control.</param>
-    /// <param name="stopFadeDuration">
-    /// Optional fade-out seconds for Stop. When null, uses session <see cref="Settings.StopFadeDuration"/>.
-    /// When 0, stops immediately.
-    /// </param>
-    /// <param name="goFadeInDuration">
-    /// Optional fade-in seconds for GO. When null or 0, target component fade-ins are used as-is.
-    /// </param>
-    /// <summary>
     /// Applies a full control component (including Fade property animation), awaiting completion.
     /// </summary>
     /// <param name="control">Control component to execute.</param>
@@ -841,31 +827,6 @@ public partial class CueCommandExecutor : Node
                     $"CueCommandExecutor:ApplyPropertyFadeAsync - Unknown property {control.FadeProperty}");
                 break;
         }
-    }
-
-    /// <summary>
-    /// Interpolates a single float over <paramref name="duration"/> seconds, applying <paramref name="apply"/> each tick.
-    /// </summary>
-    private static async Task RunScalarFadeAsync(
-        double duration,
-        (float start, float end) range,
-        Action<float> apply)
-    {
-        if (duration <= 1e-9)
-        {
-            apply(range.end);
-            return;
-        }
-
-        var timer = Stopwatch.StartNew();
-        while (timer.Elapsed.TotalSeconds < duration)
-        {
-            float t = (float)Math.Clamp(timer.Elapsed.TotalSeconds / duration, 0.0, 1.0);
-            apply(Mathf.Lerp(range.start, range.end, t));
-            await Task.Delay(16);
-        }
-
-        apply(range.end);
     }
 
     private static async Task FadeRuntimeVolumeAsync(
@@ -1366,41 +1327,6 @@ public partial class CueCommandExecutor : Node
         {
             GD.Print(
                 $"CueCommandExecutor:StopOtherActiveCuesForSolo - {head.Name}: stopped {stopped} other cue(s) ({head.SoloMode})");
-        }
-    }
-
-    /// <summary>
-    /// Stops live root <see cref="ActiveCue"/> instances whose cue id matches
-    /// <paramref name="cueId"/> (used when <see cref="Cue.OnlyOneActiveInstance"/> is set).
-    /// Nested group-child activations of other parents are also stopped when they share the id.
-    /// </summary>
-    /// <param name="cueId">Cue document id.</param>
-    /// <param name="hardStop">When true, stop with zero fade so re-GO can start immediately.</param>
-    private void StopExistingRootInstancesOfCue(int cueId, bool hardStop)
-    {
-        double? fade = hardStop ? 0.0 : null;
-        var matches = FindActiveCuesById(cueId).ToList();
-        if (matches.Count == 0)
-            return;
-
-        GD.Print(
-            $"CueCommandExecutor:StopExistingRootInstancesOfCue - Stopping {matches.Count} instance(s) of cue id {cueId} " +
-            $"(OnlyOneActiveInstance)");
-
-        foreach (var active in matches)
-        {
-            if (active == null || !GodotObject.IsInstanceValid(active))
-                continue;
-            try
-            {
-                // Root list entries: full stop. Nested instances also receive StopAll.
-                active.StopAll(propagateToChildren: true, fadeDurationOverride: fade);
-            }
-            catch (Exception ex)
-            {
-                GD.PrintErr(
-                    $"CueCommandExecutor:StopExistingRootInstancesOfCue - {active.Cue?.Name}: {ex.Message}");
-            }
         }
     }
 

@@ -510,12 +510,9 @@ public partial class ActiveCue
     }
 
     /// <summary>
-    /// True when the control action's <see cref="ControlComponent.ExecuteAsync"/> may take
-    /// many seconds (property animation). These must not gate media or later transport controls.
-    /// </summary>
-    /// <summary>
-    /// True when the control may occupy wall-clock time (progress bar / non-blocking of media).
-    /// Includes Stop/GO when they have a non-zero fade duration.
+    /// True when the control may occupy wall-clock time (progress bar / non-blocking of media):
+    /// property animation, and Stop/GO with a non-zero fade duration. These must not gate media
+    /// or later transport controls.
     /// </summary>
     private bool IsLongRunningControlAction(ControlComponent control)
     {
