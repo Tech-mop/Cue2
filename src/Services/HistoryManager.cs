@@ -393,7 +393,7 @@ public partial class HistoryManager : Node
 	/// <param name="keys">Settings keys that were applied (used to decide whether to relink patches).</param>
 	public void NotifySettingsApplied(params string[] keys)
 	{
-		if (keys != null && keys.Any(k => string.Equals(k, "AudioPatch", StringComparison.Ordinal)))
+		if (NeedsCueRelink(keys))
 			RelinkAllCueComponents();
 
 		EmitSignal(SignalName.HistoryChanged);
@@ -1126,9 +1126,10 @@ public partial class HistoryManager : Node
 						settingsData = CloneScalarSettingsSlice(settingsData);
 
 					_globalData.Settings.ApplyPartialFromHistory(settingsData);
-					// Patches are freed and recreated — re-link cue components and refresh inspectors
-					// that list patch names / hold live AudioOutputPatch references.
-					if (entry.SettingsData != null && entry.SettingsData.ContainsKey("AudioPatch"))
+					// Patches, OSC connections and cue lights are freed or replaced on apply: re-link
+					// cue components so they hold the live objects. A full snapshot carries all keys.
+					if (entry.SettingsData != null
+						&& NeedsCueRelink(entry.SettingsData.Keys.Select(k => k.AsString())))
 						RelinkAllCueComponents();
 					// Displays / AudioPatch inspector refresh happens via RestoreSelection → ShellFocused.
 					break;
@@ -1148,6 +1149,16 @@ public partial class HistoryManager : Node
 			_isRestoring = false;
 		}
 	}
+
+	/// <summary>
+	/// Settings keys whose apply replaces runtime objects that cue components hold by reference
+	/// (output patches, OSC connections, cue lights). Restoring any of them needs a relink.
+	/// </summary>
+	private static readonly string[] CueRelinkKeys = { "AudioPatch", "OscConnections", "CueLights" };
+
+	/// <summary>True when <paramref name="keys"/> contains a key from <see cref="CueRelinkKeys"/>.</summary>
+	private static bool NeedsCueRelink(IEnumerable<string> keys) =>
+		keys != null && keys.Any(k => CueRelinkKeys.Contains(k, StringComparer.Ordinal));
 
 	private void RelinkAllCueComponents()
 	{

@@ -53,6 +53,7 @@
 - Audio seek, prefetch and first prefill off main thread
 - More accurate fingerprint checking of used video displays. Better alerting if changes detected (ie unplug / replug)
 - Prewaits now account for potential delays is cue activation, allowing prewaits to stay syncronous to parents and peers.
+- OSC cues keep sending after you undo or redo an OSC connection change, or recall a settings file that includes OSC connections. Before, every OSC cue went silent until the show was reopened.
 
 
 ### Changed

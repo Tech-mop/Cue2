@@ -991,6 +991,12 @@ public partial class ActiveCue
             if (!IsSetupStillValid())
                 return Task.CompletedTask;
 
+            // Settings restore replaces cue light objects: use the live one for this id.
+            var liveCueLight = _activeCueList.GetNodeOrNull<GlobalData>("/root/GlobalData")?
+                .CueLightManager?.GetCueLight(cueLightComponent.CueLightId);
+            if (liveCueLight != null)
+                cueLightComponent.CueLight = liveCueLight;
+
             PanelContainer componentPanel = CreateStyledComponentProgressBar();
             _componentContainer.AddChild(componentPanel);
             var labelText = $"{cueLightComponent.CueLight.Name} : {cueLightComponent.Action.ToString()}";
@@ -1027,10 +1033,13 @@ public partial class ActiveCue
             if (!IsSetupStillValid() || oscComponent == null)
                 return Task.CompletedTask;
 
-            // Relink if the live connection was dropped after load / settings restore.
-            if (oscComponent.OscConnection == null && oscComponent.OscConnectionId != 0)
+            // Relink if the live connection was dropped or replaced (load, settings undo, redo or
+            // recall rebuild the connections with the same ids and free the old objects).
+            if (oscComponent.OscConnectionId != 0)
             {
-                oscComponent.OscConnection = OscConnections.GetCueOscConnection(oscComponent.OscConnectionId);
+                var liveConnection = OscConnections.GetCueOscConnection(oscComponent.OscConnectionId);
+                if (liveConnection != null || !IsInstanceValid(oscComponent.OscConnection))
+                    oscComponent.OscConnection = liveConnection;
             }
 
             if (oscComponent.OscConnection == null)
