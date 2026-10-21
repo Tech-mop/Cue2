@@ -881,8 +881,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             if (_videoComponent.IsImage)
                 _imageFramePresented = false;
 
-            // Reveal at full level only when not mid fade-in (FadeInAsync pre-arms alpha/volume to 0).
-            if (!_isFadingIn)
+            // Reveal at full level only when no fade owns the level (FadeInAsync pre-arms alpha/volume
+            // to 0; a Stop during the fade-in's PlayAsync has a fade-out in charge).
+            if (!_isFadingIn && !_isFadingOut)
             {
                 _fadeAlpha = 1f;
                 _volume = 1f;
@@ -1873,13 +1874,26 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         Clean();
     }
 
+    /// <summary>
+    /// True while the fade-in that owns <paramref name="cts"/> is still the active fade:
+    /// not cancelled, and not replaced by a Stop or fade-out. Each fade owns its own token
+    /// source; <see cref="_fadeCts"/> is only the handle Stop and Clean cancel.
+    /// </summary>
+    private bool IsFadeInCurrent(CancellationTokenSource cts)
+    {
+        lock (_lock)
+            return _isFadingIn && ReferenceEquals(_fadeCts, cts) && !cts.IsCancellationRequested;
+    }
+
     public async Task FadeInAsync(double duration)
     {
+        CancellationTokenSource cts;
         lock (_lock)
         {
             if (_isFadingIn || _isFadingOut) return;
             _isFadingIn = true;
-            _fadeCts = new CancellationTokenSource();
+            cts = new CancellationTokenSource();
+            _fadeCts = cts;
             // Arm silent state before PlayAsync presents or prefills audio.
             _fadeAlpha = 0f;
             _volume = 0f;
@@ -1889,21 +1903,24 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         float endVol = 1.0f;
         float startAlpha = 0f;
         ApplyOpacityModulate();
+        var token = cts.Token;
         Stopwatch timer = Stopwatch.StartNew();
         await PlayAsync();
 
         try
         {
-            while (timer.Elapsed.TotalSeconds < duration && !_fadeCts.Token.IsCancellationRequested)
+            // Re-checked after PlayAsync and every delay: a Stop or fade-out may have taken over
+            // meanwhile, and this loop must then never write level or opacity again.
+            while (timer.Elapsed.TotalSeconds < duration && IsFadeInCurrent(cts))
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
                 float shaped = FadeCurve.Evaluate(t, _videoComponent?.FadeInCurve ?? FadeCurveType.Linear);
                 SetVolume(Mathf.Lerp(startVol, endVol, shaped));
                 _fadeAlpha = Mathf.Lerp(startAlpha, 1.0f, shaped);
                 ApplyOpacityModulate();
-                await Task.Delay(FadeUpdateIntervalMs, _fadeCts.Token);
+                await Task.Delay(FadeUpdateIntervalMs, token);
             }
-            if (!_fadeCts.Token.IsCancellationRequested)
+            if (IsFadeInCurrent(cts))
             {
                 SetVolume(endVol);
                 _fadeAlpha = 1.0f;
@@ -1917,12 +1934,16 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }
         finally
         {
+            // Only clear state this fade still owns; a newer fade keeps its own token.
             lock (_lock)
             {
-                _isFadingIn = false;
-                _fadeCts?.Dispose();
-                _fadeCts = null;
+                if (ReferenceEquals(_fadeCts, cts))
+                {
+                    _isFadingIn = false;
+                    _fadeCts = null;
+                }
             }
+            cts.Dispose();
         }
     }
 
@@ -1934,20 +1955,24 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             return;
         }
 
+        CancellationTokenSource cts;
         lock (_lock)
         {
             if (IsStopped) return;
             if (_isFadingOut) return;
             _isFadingIn = false;
             _isFadingOut = true;
-            _fadeCts?.Dispose();
-            _fadeCts = new CancellationTokenSource();
+            // Cancel (not dispose) a running fade-in: it still reads its own token and
+            // disposes it itself.
+            _fadeCts?.Cancel();
+            cts = new CancellationTokenSource();
+            _fadeCts = cts;
         }
 
         var shape = curve ?? _videoComponent?.FadeOutCurve ?? FadeCurveType.Linear;
         float startVol = _volume;
         float startAlpha = _fadeAlpha;
-        var token = _fadeCts.Token;
+        var token = cts.Token;
         Stopwatch timer = Stopwatch.StartNew();
 
         try
@@ -1981,12 +2006,10 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             lock (_lock)
             {
                 _isFadingOut = false;
-                if (_fadeCts != null)
-                {
-                    try { _fadeCts.Dispose(); } catch { /* ignore */ }
+                if (ReferenceEquals(_fadeCts, cts))
                     _fadeCts = null;
-                }
             }
+            try { cts.Dispose(); } catch { /* ignore */ }
         }
     }
 

@@ -1417,15 +1417,29 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         Clean();
     }
 
+    /// <summary>
+    /// True while the fade-in that owns <paramref name="cts"/> is still the active fade:
+    /// not cancelled, and not replaced by a Stop or fade-out. Each fade owns its own token
+    /// source; <see cref="_fadeCts"/> is only the handle Stop and Clean cancel.
+    /// </summary>
+    private bool IsFadeInCurrent(CancellationTokenSource cts)
+    {
+        lock (_lock)
+            return _isFadingIn && ReferenceEquals(_fadeCts, cts) && !cts.IsCancellationRequested;
+    }
+
     public async Task FadeInAsync(double duration)
     {
+        CancellationTokenSource cts;
         lock (_lock)
         {
             if (_isFadingIn || _isFadingOut) return;
             _isFadingIn = true;
-            _fadeCts = new CancellationTokenSource();
+            cts = new CancellationTokenSource();
+            _fadeCts = cts;
             _volume = 0f;
         }
+        var token = cts.Token;
 
         float startVol = 0f;
         float endVol = 1.0f;
@@ -1437,14 +1451,16 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
         try
         {
-            while (timer.Elapsed.TotalSeconds < duration && !_fadeCts.Token.IsCancellationRequested)
+            // Re-checked after every await: a Stop or fade-out may have taken over meanwhile,
+            // and this loop must then never write the level again.
+            while (timer.Elapsed.TotalSeconds < duration && IsFadeInCurrent(cts))
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
                 float shaped = FadeCurve.Evaluate(t, _audioComponent?.FadeInCurve ?? FadeCurveType.Linear);
                 SetVolume(Mathf.Lerp(startVol, endVol, shaped));
-                await Task.Delay(16, _fadeCts.Token);
+                await Task.Delay(16, token);
             }
-            if (!_fadeCts.Token.IsCancellationRequested)
+            if (IsFadeInCurrent(cts))
                 SetVolume(endVol);
         }
         catch (OperationCanceledException) { }
@@ -1454,12 +1470,16 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         }
         finally
         {
+            // Only clear state this fade still owns; a newer fade keeps its own token.
             lock (_lock)
             {
-                _isFadingIn = false;
-                _fadeCts?.Dispose();
-                _fadeCts = null;
+                if (ReferenceEquals(_fadeCts, cts))
+                {
+                    _isFadingIn = false;
+                    _fadeCts = null;
+                }
             }
+            cts.Dispose();
         }
     }
 
@@ -1471,19 +1491,23 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             return;
         }
 
+        CancellationTokenSource cts;
         lock (_lock)
         {
             if (IsStopped) return;
             if (_isFadingOut) return;
             _isFadingIn = false;
             _isFadingOut = true;
-            _fadeCts?.Dispose();
-            _fadeCts = new CancellationTokenSource();
+            // Cancel (not dispose) a running fade-in: it still reads its own token and
+            // disposes it itself.
+            _fadeCts?.Cancel();
+            cts = new CancellationTokenSource();
+            _fadeCts = cts;
         }
 
         var shape = curve ?? _audioComponent?.FadeOutCurve ?? FadeCurveType.Linear;
         float startVol = _volume;
-        var token = _fadeCts.Token;
+        var token = cts.Token;
         Stopwatch timer = Stopwatch.StartNew();
 
         try
@@ -1511,12 +1535,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             lock (_lock)
             {
                 _isFadingOut = false;
-                if (_fadeCts != null)
-                {
-                    try { _fadeCts.Dispose(); } catch { /* ignore */ }
+                if (ReferenceEquals(_fadeCts, cts))
                     _fadeCts = null;
-                }
             }
+            try { cts.Dispose(); } catch { /* ignore */ }
         }
     }
 
