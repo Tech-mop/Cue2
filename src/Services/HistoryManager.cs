@@ -151,6 +151,17 @@ public partial class HistoryManager : Node
 		_savedStateId = stateIdAtSnapshot;
 	}
 
+	/// <summary>
+	/// Marks the document as differing from disk without adding an undo step, for changes the
+	/// app made itself while loading (for example a repaired showfile). The current
+	/// state gets a fresh id, so it reads dirty until the next save.
+	/// </summary>
+	public void MarkUnsavedWithoutHistory()
+	{
+		_currentStateId = _nextStateId++;
+		EmitSignal(SignalName.HistoryChanged);
+	}
+
 	public override void _Ready()
 	{
 		_globalData = GetParent() as GlobalData ?? GetNode<GlobalData>("/root/GlobalData");

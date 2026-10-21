@@ -1329,6 +1329,7 @@ public partial class SaveManager : Node
 			_loadTimer.Begin("reset");
 			ClearSessionForOpen();
 			sessionWiped = true;
+			CueList.TakeLoadRepairCount(); // drop counts from earlier loads or cuelist undo
 
 			ApplySessionPaths(selectedPath);
 
@@ -1344,6 +1345,9 @@ public partial class SaveManager : Node
 			// Success only: history, recents, autosave, title. Housekeeping after overlay hides.
 			_openedFromNewerFormat = fileVersion.IsNewerFormat;
 			_globalData.HistoryManager?.Clear();
+			// A repaired showfile differs from disk: mark it unsaved so close prompts.
+			if (CueList.TakeLoadRepairCount() > 0)
+				_globalData.HistoryManager?.MarkUnsavedWithoutHistory();
 			_globalData.UserDataManager?.AddRecentShowFile(selectedPath, persistImmediately: false);
 			ConfigureAutosave();
 			GetNodeOrNull<MainTitleBarUI>("/root/Cue2Base/MainWindowHandles/MainTitleBar")

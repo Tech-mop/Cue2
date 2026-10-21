@@ -160,6 +160,25 @@ public partial class CueList
 	internal const int MaxChildDepth = 256;
 
 	/// <summary>
+	/// Group-structure repairs made by <see cref="SanitizeChildGraph"/> since the last
+	/// <see cref="TakeLoadRepairCount"/>. Shared by all lists, because one showfile open loads
+	/// several. Main thread only.
+	/// </summary>
+	private static int _loadRepairCount;
+
+	/// <summary>
+	/// Returns the number of showfile repairs since the last call and resets it. The open path
+	/// calls it once before loading (to drop stale counts) and once after history is cleared,
+	/// so a repaired show can be marked unsaved.
+	/// </summary>
+	public static int TakeLoadRepairCount()
+	{
+		int count = _loadRepairCount;
+		_loadRepairCount = 0;
+		return count;
+	}
+
+	/// <summary>
 	/// Makes this list's loaded <see cref="Cue.ChildCues"/> graph a forest. Among the
 	/// cues in <paramref name="ownIds"/>, removes child entries that point back up the current
 	/// path (a loop, including a cue listing itself), that another group already claimed, or
@@ -257,8 +276,9 @@ public partial class CueList
 
 		if (repairs > 0)
 		{
+			_loadRepairCount += repairs;
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				$"Showfile had {repairs} group-structure problem(s) and was repaired in memory. Save to keep the fix.",
+				$"Showfile had {repairs} group-structure problem(s) and was repaired in memory. The show is marked unsaved; save to keep the fix.",
 				(int)LogType.Warning);
 		}
 	}
