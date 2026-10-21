@@ -50,6 +50,7 @@
 - A Save-as failing could change the stored folder path. Failing Save As restores path, name and folders
 - Stop near the end of media no longer leaves a ghost row
 - Stop during setup discards late components
+- Audio seek, prefetch and first prefill off main thread
 
 
 ### Changed

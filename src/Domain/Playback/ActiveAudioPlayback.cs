@@ -214,13 +214,19 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             if (!_useCustomEnd && Decoder.Info.DurationUs > 0)
                 _endTimeUs = Decoder.Info.DurationUs;
 
-            if (_startTimeUs > 0)
-                Decoder.Seek(_startTimeUs);
-            else
-                Decoder.Prefetch(_audioTuning.PrefetchMs);
-
-            // Prefetch after seek as well
-            Decoder.Prefetch(_audioTuning.PrefetchMs);
+            // Seek / prefetch can demux and decode (streaming ring): keep it off main.
+            // Decoder calls stay serialized through the decoder's own lock.
+            long startUs = _startTimeUs;
+            int prefetchMs = _audioTuning.PrefetchMs;
+            var decoder = Decoder;
+            await Task.Run(() =>
+            {
+                if (startUs > 0)
+                    decoder.Seek(startUs);
+                decoder.Prefetch(prefetchMs);
+            });
+            if (IsStopped || !ReferenceEquals(Decoder, decoder))
+                throw new InvalidOperationException("Playback was cleaned while the decoder was priming.");
 
             int maxFrames = Math.Max(SourceSampleRate / 10, 1024); // ~100 ms chunk
             _srcBuffer = new float[maxFrames * SourceChannels];
@@ -473,8 +479,8 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             {
                 SetVolume(1f);
                 ArmDeclickRamp();
-                PrefillStreams();
-                StartFillLoop();
+                // First prefill runs on the fill worker, not on main.
+                _ = StartFillLoop(prefillFirst: true);
                 GD.Print("ActiveAudioPlayback:PlayAsync - Fill loop started");
             }
         }
@@ -484,12 +490,35 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         }
     }
 
-    private void StartFillLoop()
+    /// <summary>
+    /// Starts the fill worker. With <paramref name="prefillFirst"/>, the worker primes the
+    /// streams with <see cref="PrefillStreams"/> before its loop, so the decode never runs on main.
+    /// </summary>
+    /// <returns>Completes once the first prefill is done (at once without prefill).</returns>
+    private Task StartFillLoop(bool prefillFirst = false)
     {
         _fillCts?.Cancel();
         _fillCts = new CancellationTokenSource();
         var token = _fillCts.Token;
-        _fillTask = Task.Run(() => FillLoop(token), token);
+        var primed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _fillTask = Task.Run(() =>
+        {
+            try
+            {
+                if (prefillFirst && !token.IsCancellationRequested)
+                    PrefillStreams();
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"ActiveAudioPlayback:StartFillLoop - Prefill failed: {ex.Message}");
+            }
+            finally
+            {
+                primed.TrySetResult();
+            }
+            FillLoop(token);
+        }, token);
+        return primed.Task;
     }
 
     private void StopFillLoop()
@@ -1383,9 +1412,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
         float startVol = 0f;
         float endVol = 1.0f;
-        // Master level is already 0 — prefill silence-level PCM, then ramp after the queue is armed.
-        PrefillStreams();
-        StartFillLoop();
+        // Master level is already 0. The fill worker primes the queue first; wait
+        // briefly for it so the ramp starts with audio queued, without holding main.
+        var primed = StartFillLoop(prefillFirst: true);
+        await Task.WhenAny(primed, Task.Delay(50));
         Stopwatch timer = Stopwatch.StartNew();
 
         try
