@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -172,7 +173,12 @@ public partial class ActiveCue
 
         // Preload own media (or finish pending chain preload) before pre-wait / content.
         // Children still wait for content phase to spawn.
+        // Timing rule (current behaviour, kept on purpose): the pre-wait counts from the
+        // end of this setup, not from the GO press, so a slow load lengthens the GO-to-content
+        // time by the setup time. Whether it should count from GO is an open product decision.
+        long setupStartTicks = Stopwatch.GetTimestamp();
         await EnsureComponentsSetupAsync();
+        double setupSeconds = (Stopwatch.GetTimestamp() - setupStartTicks) / (double)Stopwatch.Frequency;
 
         // Stopped while setup was running: no pre-wait timer, no content. Late
         // components were discarded by IsSetupStillValid; free the row once the fade is done.
@@ -187,6 +193,12 @@ public partial class ActiveCue
         bool doPreWait = includePreWait && !_skipPreWait && _cue.PreWait > 0;
         if (doPreWait)
         {
+            // Diagnostic only: show how much media setup delayed the pre-wait start.
+            if (setupSeconds > 0.05)
+            {
+                GD.Print(
+                    $"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: pre-wait starts {setupSeconds:F3}s after GO (media setup)");
+            }
             EnsureTimelineStarted();
             PreWait();
             ApplyPendingTimelineSeekIfAny();

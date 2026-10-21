@@ -182,8 +182,8 @@ public partial class HeaderUI : Control
 			return;
 
 		_goStylePressed.BgColor = GlobalStyles.HighColor1;
-		_goStyleHover.BgColor = GlobalStyles.HighColor2;
-		_goStyleNormal.BgColor = GlobalStyles.HighColor3;
+		_goStyleHover.BgColor = GlobalStyles.HighColor3;
+		_goStyleNormal.BgColor = GlobalStyles.HighColor2;
 	}
 
 	/// <summary>
