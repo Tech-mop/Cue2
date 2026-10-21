@@ -464,6 +464,34 @@ public partial class ActiveCue : GodotObject
     /// </summary>
     public ActiveCue NextInChain { get; set; }
 
+    /// <summary>All top-level instances started by the same GO (head first), or null.</summary>
+    public IReadOnlyList<ActiveCue> ChainPeers { get; set; }
+
+    /// <summary>
+    /// Called when this instance starts and its cue has Solo on. Set by the executor on
+    /// top-level instances and passed down to group children.
+    /// </summary>
+    public Action<ActiveCue> SoloStartHandler { get; set; }
+
+    /// <summary>True when Solo already ran for this start at GO time (the GO head).</summary>
+    public bool SoloAppliedAtGo { get; set; }
+
+    /// <summary>Parent instance when this is a group child; null at top level.</summary>
+    public ActiveCue ParentActive { get; private set; }
+
+    /// <summary>Top-level instance this one plays under (itself when not a child).</summary>
+    public ActiveCue RootActive
+    {
+        get
+        {
+            var node = this;
+            // Bounded walk so a bad parent link cannot loop.
+            for (int i = 0; i < 64 && node.ParentActive != null; i++)
+                node = node.ParentActive;
+            return node;
+        }
+    }
+
     /// <summary>
     /// True after natural content completion has been reported (or suppressed by stop).
     /// </summary>

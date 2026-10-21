@@ -209,7 +209,7 @@ text = "Solo:"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
-tooltip_text = "When this cue is activated, stop other playing cues using the session stop fade.
+tooltip_text = "When this cue starts (GO, continue/follow, or as a group child), stop other playing cues using the session stop fade. Its own sequence and parent group keep playing.
 Off: do not stop others.
 Stop all: stop every other playing cue.
 Stop current list: stop other playing cues from this cue's cuelist or Button Board."

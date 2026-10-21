@@ -50,7 +50,8 @@ public enum FollowType
 }
 
 /// <summary>
-/// How activating this cue stops other currently playing cues (session stop fade).
+/// How starting this cue (GO, continue/follow, or as a group child) stops other currently
+/// playing cues (session stop fade).
 /// </summary>
 public enum CueSoloMode
 {
@@ -267,9 +268,12 @@ public class Cue : ICue
     private CueSoloMode _soloMode = CueSoloMode.Off;
 
     /// <summary>
-    /// When not <see cref="CueSoloMode.Off"/>, a GO/activate of this cue runs Stop on other
-    /// playing cues using the session stop fade. Existing instances of this cue are left
-    /// alone (see <see cref="OnlyOneActiveInstance"/>).
+    /// When not <see cref="CueSoloMode.Off"/>, this cue runs Stop on other playing cues
+    /// (session stop fade) whenever it starts: on GO or a control GO, as a continue/follow
+    /// member when it is armed, or as a group child when its parent's content starts.
+    /// Left playing: other instances of this cue (see <see cref="OnlyOneActiveInstance"/>),
+    /// OSC Load standbys, and, for a follow/continue member or group child, the rest of
+    /// its own sequence and its parent group. A disarmed cue does not start, so it does not solo.
     /// </summary>
     /// <value>Default is <see cref="CueSoloMode.Off"/>.</value>
     public CueSoloMode SoloMode

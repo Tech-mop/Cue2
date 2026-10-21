@@ -171,6 +171,24 @@ public partial class ActiveCue
             return;
         }
 
+        // Solo applies whenever the cue starts: a continue/follow member when it is armed (or
+        // started early), and a group child when its parent's content starts. The GO head
+        // already ran its solo in the executor.
+        if (!SoloAppliedAtGo && _cue != null && _cue.SoloMode != CueSoloMode.Off)
+        {
+            SoloAppliedAtGo = true;
+            try
+            {
+                SoloStartHandler?.Invoke(this);
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: solo failed: {ex.Message}");
+            }
+            if (_isCleaned || _suppressContentCompleted)
+                return;
+        }
+
         // Preload own media (or finish pending chain preload) before pre-wait / content.
         // Children still wait for content phase to spawn.
         // Timing rule (decided): a cue's pre-wait counts from when the cue itself starts,
@@ -404,6 +422,9 @@ public partial class ActiveCue
             var activeCue = new ActiveCue(child, childCueList, _mediaEngine, _audioDevices, _globalSignals);
             _childActiveCues.Add(activeCue);
             activeCue.Completed += () => OnChildCompleted(activeCue);
+            // Child solo keeps this group's whole sequence playing (see RootActive).
+            activeCue.ParentActive = this;
+            activeCue.SoloStartHandler = SoloStartHandler;
 
             // Nested children share parent content origin as body t=0.
             if (contentTimeAtStart.HasValue)

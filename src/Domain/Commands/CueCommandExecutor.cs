@@ -410,6 +410,15 @@ public partial class CueCommandExecutor : Node
             actives.Add(active);
         }
 
+        // Solo for cues that start later (continue/follow members, group children). The head's
+        // solo already ran above, so its own start is marked as handled.
+        for (int mi = 0; mi < actives.Count; mi++)
+        {
+            actives[mi].ChainPeers = actives;
+            actives[mi].SoloStartHandler = ApplySoloForStartingInstance;
+            actives[mi].SoloAppliedAtGo = mi == 0;
+        }
+
         // Control GO fade-in applies to the head instance only (not continue/follow peers).
         if (controlGoFadeIn.HasValue && controlGoFadeIn.Value > 1e-9 && actives.Count > 0)
             actives[0].SetControlFadeInDuration(controlGoFadeIn.Value);
@@ -1286,12 +1295,41 @@ public partial class CueCommandExecutor : Node
     }
 
     /// <summary>
-    /// Stops other playing root cues when the activating cue has Solo enabled.
-    /// Uses the session stop fade. Leaves instances of <paramref name="head"/> itself
-    /// and OSC Load standbys untouched.
+    /// Solo for a cue that starts after the GO: a continue/follow chain member or a group child.
+    /// Keeps the sequence it belongs to (head and members) and, for a child, its parent group
+    /// and ancestors, which sit under the same top-level instance.
+    /// </summary>
+    /// <param name="starting">Instance that is starting its own pre-wait or content.</param>
+    private void ApplySoloForStartingInstance(ActiveCue starting)
+    {
+        if (starting == null || !GodotObject.IsInstanceValid(starting))
+            return;
+        var cue = starting.Cue;
+        if (cue == null || cue.SoloMode == CueSoloMode.Off)
+            return;
+
+        var root = starting.RootActive;
+        var keep = new HashSet<ActiveCue> { root };
+        if (root.ChainPeers != null)
+        {
+            foreach (var peer in root.ChainPeers)
+            {
+                if (peer != null)
+                    keep.Add(peer);
+            }
+        }
+
+        StopOtherActiveCuesForSolo(cue, keep);
+    }
+
+    /// <summary>
+    /// Stops other playing root cues when the starting cue has Solo enabled.
+    /// Uses the session stop fade. Leaves instances of <paramref name="head"/> itself,
+    /// OSC Load standbys, and the instances in <paramref name="keep"/> untouched.
     /// </summary>
     /// <param name="head">Cue that is about to start.</param>
-    private void StopOtherActiveCuesForSolo(Cue head)
+    /// <param name="keep">Top-level instances that must keep playing (the cue's own sequence), or null.</param>
+    private void StopOtherActiveCuesForSolo(Cue head, ISet<ActiveCue> keep = null)
     {
         if (head == null)
             return;
@@ -1305,6 +1343,8 @@ public partial class CueCommandExecutor : Node
             if (active == null || !GodotObject.IsInstanceValid(active))
                 continue;
             if (active.IsStandbyPreloaded)
+                continue;
+            if (keep != null && keep.Contains(active))
                 continue;
 
             var other = active.Cue;
