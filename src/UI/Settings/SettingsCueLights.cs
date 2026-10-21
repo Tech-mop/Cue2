@@ -97,21 +97,29 @@ public partial class SettingsCueLights : ScrollContainer
         
         _idleColour.PopupClosed += () => 
         {
+            if (_settings.CueLightIdleColour != _idleColour.Color)
+                RecordHistory("Change cue light idle colour", "CueLightIdleColour");
             _settings.CueLightIdleColour = _idleColour.Color;
             _ = UpdateAllCueLightSettingsAsync();
         };
         _goColour.PopupClosed += () => 
         {
+            if (_settings.CueLightGoColour != _goColour.Color)
+                RecordHistory("Change cue light GO colour", "CueLightGoColour");
             _settings.CueLightGoColour = _goColour.Color;
             _ = UpdateAllCueLightSettingsAsync();
         };
         _standbyColour.PopupClosed += () => 
         {
+            if (_settings.CueLightStandbyColour != _standbyColour.Color)
+                RecordHistory("Change cue light standby colour", "CueLightStandbyColour");
             _settings.CueLightStandbyColour = _standbyColour.Color;
             _ = UpdateAllCueLightSettingsAsync();
         };
         _countInColour.PopupClosed += () => 
         {
+            if (_settings.CueLightCountInColour != _countInColour.Color)
+                RecordHistory("Change cue light count-in colour", "CueLightCountInColour");
             _settings.CueLightCountInColour = _countInColour.Color;
             _ = UpdateAllCueLightSettingsAsync();
         };
@@ -149,6 +157,8 @@ public partial class SettingsCueLights : ScrollContainer
             return;
         RebuildCueLightList();
         OnVisible();
+        // Undone colours or brightness reach the connected lights too.
+        _ = UpdateAllCueLightSettingsAsync();
     }
 
     /// <summary>
@@ -205,6 +215,7 @@ public partial class SettingsCueLights : ScrollContainer
                 _brightnessLineEdit.ReleaseFocus();
                 return;
             }
+            RecordHistory("Change cue light brightness", "CueLightBrightness");
             _settings.CueLightBrightness = next;
             _brightnessLineEdit.Text = percent.ToString();
             _ = UpdateAllCueLightSettingsAsync();
@@ -220,8 +231,21 @@ public partial class SettingsCueLights : ScrollContainer
         _brightnessLineEdit.ReleaseFocus();
     }
 
+    /// <summary>
+    /// Records a settings undo step before a cue light edit, so the edit is undoable and
+    /// marks the show as changed.
+    /// </summary>
+    /// <param name="description">Readable undo description.</param>
+    /// <param name="key">Settings key the edit changes (the light table or one colour/brightness).</param>
+    private void RecordHistory(string description, string key = "CueLights")
+    {
+        if (_historyManager == null || _historyManager.IsRestoring) return;
+        _historyManager.RecordSettingsChange(description, null, key);
+    }
+
     private void NewCueLightButton()
     {
+        RecordHistory("Add cue light");
         var cueLight = _cueLightManager.CreateCueLight();
         PanelContainer instance = _cueLightInstanceScene.Instantiate<PanelContainer>();
         _cueLightsContainer.AddChild(instance);
@@ -244,6 +268,7 @@ public partial class SettingsCueLights : ScrollContainer
                 nameLineEdit.ReleaseFocus();
                 return;
             }
+            RecordHistory("Rename cue light");
             cueLight.Name = text;
             _ = UpdateAllCueLightSettingsAsync();
             nameLineEdit.ReleaseFocus();
@@ -257,7 +282,10 @@ public partial class SettingsCueLights : ScrollContainer
             if (cleanedIp != null)
             {
                 if (cueLight.IpAddress != cleanedIp)
+                {
+                    RecordHistory("Change cue light IP address");
                     cueLight.SetIpAddress(cleanedIp);
+                }
                 ipLineEdit.Text = cleanedIp;
             }
             else
@@ -282,11 +310,14 @@ public partial class SettingsCueLights : ScrollContainer
         
         var checkConnectionButton = instance.GetNode<Button>("%CheckConnectionButton");
         checkConnectionButton.Icon = GetThemeIcon("Refresh", "AtlasIcons");
-        checkConnectionButton.Pressed += () =>
+        checkConnectionButton.Pressed += async () =>
         {
-            _ = cueLight.PingAsync();
-            connectionStatusColourRect.Color = cueLight.CueLightIsConnected ? Colors.Green : Colors.Red;
-            connectionStatusColourRect.TooltipText = cueLight.CueLightIsConnected
+            // Show the result of this check, not the previous one.
+            bool connected = await cueLight.PingAsync();
+            if (!GodotObject.IsInstanceValid(connectionStatusColourRect))
+                return;
+            connectionStatusColourRect.Color = connected ? Colors.Green : Colors.Red;
+            connectionStatusColourRect.TooltipText = connected
                 ? UiLocalizer.T("Connected")
                 : UiLocalizer.T("Disconnected");
         };
@@ -298,6 +329,8 @@ public partial class SettingsCueLights : ScrollContainer
         enabledToggle.ButtonPressed = cueLight.IsEnabled; 
         enabledToggle.Toggled += (bool pressed) => 
         { 
+            if (cueLight.IsEnabled == pressed) return;
+            RecordHistory(pressed ? "Enable cue light" : "Disable cue light");
             cueLight.IsEnabled = pressed; 
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),  
                 $"CueLight {cueLight.Id} ({cueLight.Name}) {(pressed ? "enabled" : "disabled")}", 0); 
@@ -335,6 +368,8 @@ public partial class SettingsCueLights : ScrollContainer
                 _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
                     $"Disconnected CueLight {cueLight.Id} ({cueLight.Name})", 0);
             }
+            RecordHistory("Delete cue light");
+
             // Remove UI instance
             instance.QueueFree(); // Marks the UI instance for deletion
 
@@ -390,23 +425,26 @@ public partial class SettingsCueLights : ScrollContainer
             var discoveredIps = await _cueLightManager.DiscoverCueLightsAsync();
         
             var existingIps = new HashSet<string>(_cueLightManager.GetCueLights().Select(cl => cl.IpAddress));
-        
-            foreach (var ip in discoveredIps)
+            var newIps = discoveredIps.Distinct().Where(ip => !existingIps.Contains(ip)).ToList();
+            foreach (var ip in discoveredIps.Where(existingIps.Contains))
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Skipped duplicate cue light at {ip}", 1);
+
+            // Add every new light in one undo step, then ping them (no await between adds,
+            // so an undo cannot land halfway through the scan).
+            if (newIps.Count > 0)
+                RecordHistory("Add discovered cue lights");
+            var added = new List<CueLight>();
+            foreach (var ip in newIps)
             {
-                if (!existingIps.Contains(ip))
-                {
-                    var cueLight = _cueLightManager.CreateCueLightWithIp(ip);
-                    var instance = _cueLightInstanceScene.Instantiate<PanelContainer>();
-                    _cueLightsContainer.AddChild(instance);
-                    SetUpInstance(instance, cueLight);
-                    await cueLight.PingAsync();
-                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Added discovered cue light at {ip}", 0);
-                }
-                else
-                {
-                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Skipped duplicate cue light at {ip}", 1);
-                }
+                var cueLight = _cueLightManager.CreateCueLightWithIp(ip);
+                var instance = _cueLightInstanceScene.Instantiate<PanelContainer>();
+                _cueLightsContainer.AddChild(instance);
+                instance.Name = cueLight.Id.ToString();
+                SetUpInstance(instance, cueLight);
+                added.Add(cueLight);
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Added discovered cue light at {ip}", 0);
             }
+            await Task.WhenAll(added.Select(cueLight => cueLight.PingAsync()));
         }
         catch (Exception ex)
         {

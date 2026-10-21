@@ -94,51 +94,50 @@ public partial class CueLightManager : Node
         return result;
     }
 
+    // Broadcasts go to every light at once, so one offline light does not delay the others
+    // by its timeout.
     public async void AllGo(string cueNum = "")
     {
-        foreach (var cueLight in _cueLights.Values)
-        {
-            await cueLight.GoAsync(cueNum);
-        }
+        await Task.WhenAll(_cueLights.Values.ToList()
+            .Select(cueLight => cueLight.GoAsync(cueNum)));
     }
 
     public async void AllStandby(string cueNum = "")
     {
-        foreach (var cueLight in _cueLights.Values)
-        {
-            if (cueLight.CueLightIsConnected)
-                await cueLight.StandbyAsync(cueNum);
-        }
+        await Task.WhenAll(_cueLights.Values.Where(cueLight => cueLight.CueLightIsConnected).ToList()
+            .Select(cueLight => cueLight.StandbyAsync(cueNum)));
     }
     
     public async void AllCancel()
     {
-        foreach (var cueLight in _cueLights.Values)
-        {
-            if (cueLight.CueLightIsConnected)
-                await cueLight.CancelAsync();
-        }
+        await Task.WhenAll(_cueLights.Values.Where(cueLight => cueLight.CueLightIsConnected).ToList()
+            .Select(cueLight => cueLight.CancelAsync()));
     }
 
     public async void AllCountIn(int timeUntilGo = 3, string cueNum = "")
     {
-        foreach (var cueLight in _cueLights.Values)
-        {
-            if (cueLight.CueLightIsConnected)
-                await cueLight.CountInAsync(timeUntilGo, cueNum);
-        }
+        await Task.WhenAll(_cueLights.Values.Where(cueLight => cueLight.CueLightIsConnected).ToList()
+            .Select(cueLight => cueLight.CountInAsync(timeUntilGo, cueNum)));
     }
 
     public async void AllIdentify(bool state)
     {
-        foreach (var cueLight in _cueLights.Values)
-        {
-            if (cueLight.CueLightIsConnected)
-                await cueLight.IdentifyAsync(state);
-        }
+        await Task.WhenAll(_cueLights.Values.Where(cueLight => cueLight.CueLightIsConnected).ToList()
+            .Select(cueLight => cueLight.IdentifyAsync(state)));
     }
     
     
+
+    /// <summary>
+    /// Closes the sockets of every current light and empties the table. Cue components that
+    /// still hold an old light are relinked to the new one by id after a restore.
+    /// </summary>
+    private void DisposeAll()
+    {
+        foreach (var cueLight in _cueLights.Values.ToList())
+            cueLight.Dispose();
+        _cueLights.Clear();
+    }
 
     private void Clean()
     {
@@ -243,7 +242,7 @@ public partial class CueLightManager : Node
     /// </summary>
     public void Reset()
     {
-        _cueLights.Clear();
+        DisposeAll();
         _nextId = 0;
         GD.Print("CueLightManager:Reset - All cue lights cleared.");
     }
@@ -255,7 +254,7 @@ public partial class CueLightManager : Node
     public void LoadData(Dictionary data)
     {
         // Replace, do not merge — required for session load and document undo/redo restore.
-        _cueLights.Clear();
+        DisposeAll();
         _nextId = 0;
 
         if (data == null) return;

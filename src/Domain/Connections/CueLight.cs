@@ -4,8 +4,10 @@
 #nullable enable
 using Godot;
 using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Cue2.Services;
 
@@ -18,6 +20,9 @@ namespace Cue2.Domain.Connections;
 public partial class CueLight : GodotObject, IDisposable
 {
     private UdpClient? _udpClient;
+    // One request at a time per light: a reply cannot be taken by another request, and a
+    // timeout cannot close the socket under another request's receive.
+    private readonly SemaphoreSlim _requestLock = new(1, 1);
     private bool _disposed = false;
     private readonly int _connectionTimeoutMs = 1000;
 
@@ -60,6 +65,20 @@ public partial class CueLight : GodotObject, IDisposable
     public async Task<bool> PingAsync()
     {
         if (_disposed) return false;
+        await _requestLock.WaitAsync();
+        try
+        {
+            return await PingCoreAsync();
+        }
+        finally
+        {
+            _requestLock.Release();
+        }
+    }
+
+    private async Task<bool> PingCoreAsync()
+    {
+        if (_disposed) return false;
         try
         {
             if (_udpClient == null)
@@ -73,6 +92,7 @@ public partial class CueLight : GodotObject, IDisposable
                 }
             }
 
+            DiscardStaleReplies();
             string pingCommand = "PING";
             byte[] sendBytes = Encoding.UTF8.GetBytes(pingCommand);
             await _udpClient.SendAsync(sendBytes, sendBytes.Length, IpAddress, Port);
@@ -107,8 +127,7 @@ public partial class CueLight : GodotObject, IDisposable
             else
             {
                 GD.PrintErr($"CueLight:PingAsync - Timeout pinging {Name}");
-                _udpClient.Close();
-                _udpClient = null;
+                CloseAfterTimeout(receiveTask);
                 CueLightIsConnected = false;
                 EmitSignal(SignalName.ConnectionChanged, false);
                 return false;
@@ -134,6 +153,21 @@ public partial class CueLight : GodotObject, IDisposable
     public async Task<bool> SendCommandAsync(string command)
     {
         if (_disposed || !IsEnabled)
+            return await SendCommandCoreAsync(command); // logs the skip, no socket use
+        await _requestLock.WaitAsync();
+        try
+        {
+            return await SendCommandCoreAsync(command);
+        }
+        finally
+        {
+            _requestLock.Release();
+        }
+    }
+
+    private async Task<bool> SendCommandCoreAsync(string command)
+    {
+        if (_disposed || !IsEnabled)
         {
             if (!IsEnabled)
             {
@@ -151,6 +185,7 @@ public partial class CueLight : GodotObject, IDisposable
                 CueLightIsConnected = false;
             }
 
+            DiscardStaleReplies();
             byte[] sendBytes = Encoding.UTF8.GetBytes(command);
             await _udpClient.SendAsync(sendBytes, sendBytes.Length, IpAddress, Port);
             GD.Print($"CueLight:SendCommandAsync - Sent {command} to {Name} at {IpAddress}:{Port}");
@@ -176,8 +211,7 @@ public partial class CueLight : GodotObject, IDisposable
             else 
             { 
                 GD.PrintErr($"CueLight:SendCommandAsync - Timeout sending command to {Name}"); 
-                _udpClient.Close(); 
-                _udpClient = null; 
+                CloseAfterTimeout(receiveTask);
                 CueLightIsConnected = false; 
                 EmitSignal(SignalName.ConnectionChanged, false);
                 return false; 
@@ -194,6 +228,36 @@ public partial class CueLight : GodotObject, IDisposable
         }
     }
     
+    /// <summary>
+    /// Drops replies that arrived after an earlier request had already given up, so this
+    /// request reads its own reply. Only reads what is already queued, so it never blocks.
+    /// </summary>
+    private void DiscardStaleReplies()
+    {
+        if (_udpClient == null) return;
+        var from = new IPEndPoint(IPAddress.Any, 0);
+        try
+        {
+            while (_udpClient.Available > 0)
+                _udpClient.Receive(ref from);
+        }
+        catch (SocketException)
+        {
+            // A queued error (e.g. port unreachable from the last request) is not this request's reply.
+        }
+    }
+
+    /// <summary>
+    /// Closes the socket after a timeout. The abandoned receive faults when its socket
+    /// closes, so its exception is observed here.
+    /// </summary>
+    private void CloseAfterTimeout(Task receiveTask)
+    {
+        _ = receiveTask.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        _udpClient?.Close();
+        _udpClient = null;
+    }
+
     /// <summary>
     /// Sets the cue light IP address.
     /// </summary>
