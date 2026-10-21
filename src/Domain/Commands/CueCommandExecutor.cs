@@ -332,6 +332,7 @@ public partial class CueCommandExecutor : Node
             GD.PrintErr("CueCommandExecutor:ActivateSequenceFromAsync - Cue is null");
             return;
         }
+        PlaybackActivity.Touch(); // autosave waits for a quiet moment after a GO
 
         // Optional per-cue gate: hard-stop existing instances of this cue before a new GO.
         // Default is off (multiple concurrent instances allowed). Chain peers are not

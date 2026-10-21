@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Cue2.Domain.Cuelist;
 using Cue2.Domain.Cues;
+using Cue2.Domain.Playback;
 using Cue2.Media.Audio;
 using Cue2.UI.Popups;
 using Cue2.UI.Shell;
@@ -91,6 +92,21 @@ public partial class SaveManager : Node
 	private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _latestGenByPath = new();
 
 	private Godot.Timer _autosaveTimer;
+
+	/// <summary>How long after a GO or content start autosave waits before it runs.</summary>
+	private const double AutosaveQuietSeconds = 2.0;
+
+	/// <summary>Seconds between retries while autosave is deferred.</summary>
+	private const double AutosaveRetrySeconds = 1.0;
+
+	/// <summary>Longest autosave deferral; after this the save runs even if cues keep starting.</summary>
+	private const double AutosaveMaxDeferSeconds = 120.0;
+
+	/// <summary>True while a deferred-autosave retry timer is pending (at most one at a time).</summary>
+	private bool _autosaveRetryPending;
+
+	/// <summary>Stopwatch ticks when the current run of deferrals began, or 0 when none.</summary>
+	private long _autosaveDeferStartTicks;
 
 	/// <summary>P0 stage timings for the in-flight open (null when idle).</summary>
 	private SessionLoadTimer _loadTimer;
@@ -2212,6 +2228,16 @@ public partial class SaveManager : Node
 			if (history != null && !history.HasUnsavedDocumentChanges)
 			{
 				GD.Print("SaveManager:PerformAutosave - Autosave skipped (no unsaved changes).");
+				_autosaveDeferStartTicks = 0;
+				return;
+			}
+
+			// High-load gate: while a cue is starting, or within a short quiet window
+			// after a GO, retry shortly instead of taking a snapshot on main. The save is never
+			// dropped: after AutosaveMaxDeferSeconds of deferral it runs anyway.
+			if (ShouldDeferAutosaveForPlayback())
+			{
+				ScheduleAutosaveRetry();
 				return;
 			}
 
@@ -2236,6 +2262,53 @@ public partial class SaveManager : Node
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
 				$"Autosave failed: {ex.Message}", 2);
 		}
+	}
+
+	/// <summary>
+	/// True when autosave should wait because cues are starting (see <see cref="PlaybackActivity"/>),
+	/// unless it has already waited <see cref="AutosaveMaxDeferSeconds"/>. Main thread only.
+	/// </summary>
+	private bool ShouldDeferAutosaveForPlayback()
+	{
+		if (!PlaybackActivity.IsBusy(AutosaveQuietSeconds))
+		{
+			_autosaveDeferStartTicks = 0;
+			return false;
+		}
+
+		long now = System.Diagnostics.Stopwatch.GetTimestamp();
+		if (_autosaveDeferStartTicks == 0)
+		{
+			_autosaveDeferStartTicks = now;
+			GD.Print("SaveManager:PerformAutosave - Autosave deferred (cue starting); retrying shortly.");
+			return true;
+		}
+
+		double waited = (now - _autosaveDeferStartTicks) / (double)System.Diagnostics.Stopwatch.Frequency;
+		if (waited < AutosaveMaxDeferSeconds)
+			return true;
+
+		GD.Print($"SaveManager:PerformAutosave - Autosave deferred {waited:F0}s; saving now.");
+		_autosaveDeferStartTicks = 0;
+		return false;
+	}
+
+	/// <summary>
+	/// Retries autosave after <see cref="AutosaveRetrySeconds"/>. At most one retry is pending;
+	/// the regular interval timer keeps running alongside it.
+	/// </summary>
+	private void ScheduleAutosaveRetry()
+	{
+		if (_autosaveRetryPending || !IsInsideTree())
+			return;
+		_autosaveRetryPending = true;
+		var retry = GetTree().CreateTimer(AutosaveRetrySeconds, processAlways: true, processInPhysics: false, ignoreTimeScale: true);
+		retry.Timeout += () =>
+		{
+			_autosaveRetryPending = false;
+			if (GodotObject.IsInstanceValid(this) && _autosaveTimer != null && !_autosaveTimer.IsStopped())
+				PerformAutosave();
+		};
 	}
 
 	/// <summary>

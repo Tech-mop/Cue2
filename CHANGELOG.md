@@ -29,7 +29,7 @@
 - OSC timecode send/receive on `/timecode` (string plus h/m/s/f).
 - MIDI Timecode (MTC) send and receive (quarter-frame and full-frame).
 - Shell inspector Solo option: Off (default), Stop all, or Stop current list.
-- Settings → Cue2 Preferences → Theme. Choose **Cue2 (Default)**, **Dark**, **Light**, or **Neon**, or **Add Theme** for a Godot Theme `.tres`. 
+- Settings → Cue2 Preferences → Theme. Choose **Cue2 (Default)**, **Dark**, **Light**, or **Neon**, or **Add Theme** for a Godot Theme `.tres`.
 
 ### Fixed
 - Closing Cue2 no longer logs a parent-busy `remove_child` error from the cue-move preview overlay.
@@ -64,6 +64,7 @@
 - Autosave no longer occurs when no changes have been made to the showfile. 
 - Nested children depth now capped at 256 (previously no limit)
 - Multiple control fades on one target cue no longer fight - newest fade takes priority.
+- Autosaves no longer fire during moment of high-load. If cues are activating auto-save will wait for them to begin running. 
 
 ## [0.1.1] - 2026-09-21
 

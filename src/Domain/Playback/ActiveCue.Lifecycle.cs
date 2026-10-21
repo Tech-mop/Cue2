@@ -177,7 +177,16 @@ public partial class ActiveCue
         // end of this setup, not from the GO press, so a slow load lengthens the GO-to-content
         // time by the setup time. Whether it should count from GO is an open product decision.
         long setupStartTicks = Stopwatch.GetTimestamp();
-        await EnsureComponentsSetupAsync();
+        // Autosave waits while a cue is starting.
+        PlaybackActivity.BeginStart();
+        try
+        {
+            await EnsureComponentsSetupAsync();
+        }
+        finally
+        {
+            PlaybackActivity.EndStart();
+        }
         double setupSeconds = (Stopwatch.GetTimestamp() - setupStartTicks) / (double)Stopwatch.Frequency;
 
         // Stopped while setup was running: no pre-wait timer, no content. Late
@@ -225,6 +234,7 @@ public partial class ActiveCue
 
         RaiseContentPhaseStarted();
         EnsureTimelineStarted();
+        PlaybackActivity.Touch();
 
         // _preWaitSecondsHonored set by FinishPreWait / skip path before we get here.
         _contentPlaybackActive = true;
