@@ -26,7 +26,15 @@ public sealed class VideoSourceDecoder : IDisposable
     private const int DefaultRingFrames = 8;
     private const double FallbackFps = 30.0;
 
-    private readonly object _lock = new object();
+    // Two locks. Lock order is always _decodeLock, then _ringLock; never the reverse.
+    // _decodeLock: FFmpeg contexts, the scratch RGBA buffer and _lastDecodedPtsUs (read, decode,
+    // scale, seek, open, close). Held by workers for a whole frame decode.
+    // _ringLock: _ready, _bufferPool and _lastPtsUs. Held for microseconds, so the main-thread
+    // present path (TryTakeFrame, TryPeekPtsBuffered, ReleaseFrameBuffer) never waits on FFmpeg.
+    // State flags (_isOpen, _isDisposed, _endOfStream, Info, _rgbaBufferSize, _ringCapacity) are
+    // written only while holding both locks, so either lock is enough to read them.
+    private readonly object _decodeLock = new object();
+    private readonly object _ringLock = new object();
     private unsafe AVFormatContext* _formatCtx;
     private unsafe AVCodecContext* _codecCtx;
     private unsafe SwsContext* _swsCtx;
@@ -47,6 +55,7 @@ public sealed class VideoSourceDecoder : IDisposable
     private readonly Stack<byte[]> _bufferPool = new Stack<byte[]>();
     private int _ringCapacity = DefaultRingFrames;
     private long _lastPtsUs;
+    private long _lastDecodedPtsUs;
     private double _fps = FallbackFps;
 
     /// <summary>Stream info after successful open. Null before open.</summary>
@@ -59,7 +68,7 @@ public sealed class VideoSourceDecoder : IDisposable
     {
         get
         {
-            lock (_lock)
+            lock (_ringLock)
             {
                 if (_ready.Count > 0)
                     return _ready.Peek().PtsUs;
@@ -73,7 +82,7 @@ public sealed class VideoSourceDecoder : IDisposable
     {
         get
         {
-            lock (_lock) return _endOfStream && _ready.Count == 0;
+            lock (_ringLock) return _endOfStream && _ready.Count == 0;
         }
     }
 
@@ -82,7 +91,7 @@ public sealed class VideoSourceDecoder : IDisposable
     {
         get
         {
-            lock (_lock) return _ready.Count;
+            lock (_ringLock) return _ready.Count;
         }
     }
 
@@ -94,7 +103,8 @@ public sealed class VideoSourceDecoder : IDisposable
 
         return Task.Run(() =>
         {
-            lock (_lock)
+            lock (_decodeLock)
+            lock (_ringLock)
             {
                 if (_isDisposed) throw new ObjectDisposedException(nameof(VideoSourceDecoder));
                 CloseInternal();
@@ -123,20 +133,24 @@ public sealed class VideoSourceDecoder : IDisposable
     public bool ReadFrame(out VideoFrame frame, CancellationToken ct = default)
     {
         frame = null;
-        lock (_lock)
+        lock (_decodeLock)
         {
             if (_isDisposed || !_isOpen || Info == null) return false;
 
-            while (_ready.Count == 0)
+            while (RingCount() == 0)
             {
                 ct.ThrowIfCancellationRequested();
                 if (_endOfStream) return false;
                 if (!DecodeMoreUnlocked()) return false;
             }
 
-            frame = _ready.Dequeue();
-            _lastPtsUs = frame.PtsUs;
-            return true;
+            lock (_ringLock)
+            {
+                if (_ready.Count == 0) return false; // taken by a concurrent TryTakeFrame
+                frame = _ready.Dequeue();
+                _lastPtsUs = frame.PtsUs;
+                return true;
+            }
         }
     }
 
@@ -148,7 +162,7 @@ public sealed class VideoSourceDecoder : IDisposable
     public bool TryTakeFrame(out VideoFrame frame)
     {
         frame = null;
-        lock (_lock)
+        lock (_ringLock)
         {
             if (_isDisposed || !_isOpen || _ready.Count == 0) return false;
             frame = _ready.Dequeue();
@@ -164,16 +178,19 @@ public sealed class VideoSourceDecoder : IDisposable
     public bool TryPeekPts(out long ptsUs)
     {
         ptsUs = 0;
-        lock (_lock)
+        lock (_decodeLock)
         {
-            if (_ready.Count == 0)
+            if (RingCount() == 0)
             {
                 if (_endOfStream || Info == null) return false;
                 if (!DecodeMoreUnlocked()) return false;
-                if (_ready.Count == 0) return false;
             }
-            ptsUs = _ready.Peek().PtsUs;
-            return true;
+            lock (_ringLock)
+            {
+                if (_ready.Count == 0) return false;
+                ptsUs = _ready.Peek().PtsUs;
+                return true;
+            }
         }
     }
 
@@ -185,7 +202,7 @@ public sealed class VideoSourceDecoder : IDisposable
     public bool TryPeekPtsBuffered(out long ptsUs)
     {
         ptsUs = 0;
-        lock (_lock)
+        lock (_ringLock)
         {
             if (_ready.Count == 0) return false;
             ptsUs = _ready.Peek().PtsUs;
@@ -198,24 +215,25 @@ public sealed class VideoSourceDecoder : IDisposable
     /// Intended for worker threads; can block for multiple decode cycles.
     /// </summary>
     /// <remarks>
-    /// Takes the lock once per decoded frame, not once for the whole refill, so main-thread
-    /// ring calls (<see cref="TryPeekPtsBuffered"/>, <see cref="TryTakeFrame"/>) wait for at most
-    /// one frame's decode (Partial; the full decode/ring lock split is not done).
+    /// Decodes under the decode lock only, one frame per hold. The ring lock is taken just to
+    /// read the ring size and to enqueue the finished frame, so main-thread ring calls
+    /// (<see cref="TryPeekPtsBuffered"/>, <see cref="TryTakeFrame"/>,
+    /// <see cref="ReleaseFrameBuffer"/>) never wait on FFmpeg work.
     /// </remarks>
     public void Prefetch(int targetFrames = DefaultRingFrames / 2)
     {
         while (true)
         {
-            lock (_lock)
+            lock (_decodeLock)
             {
                 // Re-check each frame: a Seek, Flush or Dispose may have run between holds.
                 if (!_isOpen || Info == null || _endOfStream) return;
                 int target = Math.Clamp(targetFrames, 1, _ringCapacity);
-                if (_ready.Count >= target) return;
+                if (RingCount() >= target) return;
                 if (!DecodeMoreUnlocked()) return;
             }
 
-            // Give a waiting present call a chance at the lock before the next frame.
+            // Let a waiting Seek or Dispose (decode lock) in between frames.
             Thread.Yield();
         }
     }
@@ -226,7 +244,7 @@ public sealed class VideoSourceDecoder : IDisposable
     /// </summary>
     public unsafe void Seek(long timestampUs)
     {
-        lock (_lock)
+        lock (_decodeLock)
         {
             if (!_isOpen || Info == null) return;
             if (timestampUs < 0) timestampUs = 0;
@@ -255,15 +273,20 @@ public sealed class VideoSourceDecoder : IDisposable
             ffmpeg.avformat_flush(_formatCtx);
             ffmpeg.avcodec_flush_buffers(_codecCtx);
 
-            // Return ready frames to pool
-            while (_ready.Count > 0)
+            // Return ready frames to pool; one ring hold so main never sees old frames after
+            // the flush, or a stale end-of-stream.
+            lock (_ringLock)
             {
-                var f = _ready.Dequeue();
-                if (f.Rgba != null) _bufferPool.Push(f.Rgba);
-            }
+                while (_ready.Count > 0)
+                {
+                    var f = _ready.Dequeue();
+                    if (f.Rgba != null) _bufferPool.Push(f.Rgba);
+                }
 
-            _endOfStream = false;
-            _lastPtsUs = timestampUs;
+                _endOfStream = false;
+                _lastPtsUs = timestampUs;
+            }
+            _lastDecodedPtsUs = timestampUs;
 
             // Discard until first frame with PTS >= target
             DiscardUntilUnlocked(timestampUs);
@@ -287,7 +310,8 @@ public sealed class VideoSourceDecoder : IDisposable
     /// <summary>Clears the frame ring without seeking.</summary>
     public void FlushBuffers()
     {
-        lock (_lock)
+        lock (_decodeLock)
+        lock (_ringLock)
         {
             while (_ready.Count > 0)
             {
@@ -304,7 +328,7 @@ public sealed class VideoSourceDecoder : IDisposable
     public void ReleaseFrameBuffer(byte[] rgba)
     {
         if (rgba == null) return;
-        lock (_lock)
+        lock (_ringLock)
         {
             if (_rgbaBufferSize > 0 && rgba.Length >= _rgbaBufferSize)
                 _bufferPool.Push(rgba);
@@ -314,7 +338,8 @@ public sealed class VideoSourceDecoder : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        lock (_lock)
+        lock (_decodeLock)
+        lock (_ringLock)
         {
             if (_isDisposed) return;
             CloseInternal();
@@ -441,6 +466,7 @@ public sealed class VideoSourceDecoder : IDisposable
         };
 
         _lastPtsUs = 0;
+        _lastDecodedPtsUs = 0;
         _endOfStream = false;
         _isOpen = true;
 
@@ -478,7 +504,7 @@ public sealed class VideoSourceDecoder : IDisposable
             }
             if (ret == ffmpeg.AVERROR_EOF)
             {
-                _endOfStream = true;
+                SetEndOfStreamUnderDecode();
                 return;
             }
 
@@ -491,7 +517,7 @@ public sealed class VideoSourceDecoder : IDisposable
             if (ret < 0)
             {
                 GD.PrintErr($"VideoSourceDecoder:DiscardUntil - read: {MediaEngine.GetFFmpegError(ret)}");
-                _endOfStream = true;
+                SetEndOfStreamUnderDecode();
                 return;
             }
 
@@ -519,14 +545,15 @@ public sealed class VideoSourceDecoder : IDisposable
 
     private unsafe bool DecodeMoreUnlocked()
     {
+        // Caller holds _decodeLock. Only this lock's holder adds to the ring, so the ring can
+        // only shrink while we decode (main takes frames).
         if (_endOfStream) return false;
-        if (_ready.Count >= _ringCapacity) return true;
+        if (RingCount() >= _ringCapacity) return true;
 
         int iterations = 0;
         const int maxIterations = 128;
-        int before = _ready.Count;
 
-        while (iterations++ < maxIterations && _ready.Count < _ringCapacity)
+        while (iterations++ < maxIterations && RingCount() < _ringCapacity)
         {
             int ret = ffmpeg.avcodec_receive_frame(_codecCtx, _frame);
             if (ret >= 0)
@@ -534,19 +561,18 @@ public sealed class VideoSourceDecoder : IDisposable
                 long ptsUs = FramePtsUsUnlocked(_frame);
                 EnqueueConvertedUnlocked(_frame, ptsUs);
                 ffmpeg.av_frame_unref(_frame);
-                if (_ready.Count > before) return true;
-                continue;
+                return true;
             }
             if (ret != ffmpeg.AVERROR(ffmpeg.EAGAIN) && ret != ffmpeg.AVERROR_EOF)
             {
                 GD.PrintErr($"VideoSourceDecoder:DecodeMore - receive: {MediaEngine.GetFFmpegError(ret)}");
-                _endOfStream = true;
+                SetEndOfStreamUnderDecode();
                 return false;
             }
             if (ret == ffmpeg.AVERROR_EOF)
             {
-                _endOfStream = true;
-                return _ready.Count > before;
+                SetEndOfStreamUnderDecode();
+                return false;
             }
 
             ret = ffmpeg.av_read_frame(_formatCtx, _packet);
@@ -558,7 +584,7 @@ public sealed class VideoSourceDecoder : IDisposable
             if (ret < 0)
             {
                 GD.PrintErr($"VideoSourceDecoder:DecodeMore - read: {MediaEngine.GetFFmpegError(ret)}");
-                _endOfStream = true;
+                SetEndOfStreamUnderDecode();
                 return false;
             }
 
@@ -574,7 +600,19 @@ public sealed class VideoSourceDecoder : IDisposable
                 continue;
         }
 
-        return _ready.Count > before;
+        return false;
+    }
+
+    /// <summary>Ring size, read under the ring lock. Safe while holding the decode lock.</summary>
+    private int RingCount()
+    {
+        lock (_ringLock) return _ready.Count;
+    }
+
+    /// <summary>Sets end of stream. Caller holds _decodeLock; takes _ringLock for the write.</summary>
+    private void SetEndOfStreamUnderDecode()
+    {
+        lock (_ringLock) _endOfStream = true;
     }
 
     private unsafe void EnqueueConvertedUnlocked(AVFrame* src, long ptsUs)
@@ -584,22 +622,34 @@ public sealed class VideoSourceDecoder : IDisposable
         byte*[] dstSlice = { _rgbaFrame->data[0], null, null, null };
         int[] dstStride = { _rgbaFrame->linesize[0], 0, 0, 0 };
 
+        // Scale and copy under the decode lock only (caller holds it); the ring lock is taken
+        // just to pop a pool buffer and to enqueue.
         ffmpeg.sws_scale(_swsCtx, srcSlice, srcStride, 0, Info.Height, dstSlice, dstStride);
 
-        byte[] buf = _bufferPool.Count > 0 ? _bufferPool.Pop() : new byte[_rgbaBufferSize];
-        if (buf.Length < _rgbaBufferSize)
+        byte[] buf = null;
+        lock (_ringLock)
+        {
+            if (_bufferPool.Count > 0)
+                buf = _bufferPool.Pop();
+        }
+        if (buf == null || buf.Length < _rgbaBufferSize)
             buf = new byte[_rgbaBufferSize];
 
         Marshal.Copy((IntPtr)_rgbaBuffer, buf, 0, _rgbaBufferSize);
 
-        _ready.Enqueue(new VideoFrame
+        var frame = new VideoFrame
         {
             Rgba = buf,
             PtsUs = ptsUs,
             Width = Info.Width,
             Height = Info.Height
-        });
-        _lastPtsUs = ptsUs;
+        };
+        lock (_ringLock)
+        {
+            _ready.Enqueue(frame);
+            _lastPtsUs = ptsUs;
+        }
+        _lastDecodedPtsUs = ptsUs;
     }
 
     private unsafe long FramePtsUsUnlocked(AVFrame* frame)
@@ -612,8 +662,8 @@ public sealed class VideoSourceDecoder : IDisposable
 
         if (pts == ffmpeg.AV_NOPTS_VALUE)
         {
-            // Advance by one frame from last known
-            return _lastPtsUs + (Info?.FrameDurationUs ?? 33_333);
+            // Advance by one frame from the last decoded frame (decode lock state).
+            return _lastDecodedPtsUs + (Info?.FrameDurationUs ?? 33_333);
         }
 
         return PacketPtsToUsUnlocked(pts);
