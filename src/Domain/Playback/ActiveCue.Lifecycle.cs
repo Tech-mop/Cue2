@@ -174,6 +174,16 @@ public partial class ActiveCue
         // Children still wait for content phase to spawn.
         await EnsureComponentsSetupAsync();
 
+        // Stopped while setup was running: no pre-wait timer, no content. Late
+        // components were discarded by IsSetupStillValid; free the row once the fade is done.
+        if (_isCleaned || !IsInstanceValid(this))
+            return;
+        if (_suppressContentCompleted || _stopRequestedDuringSetup)
+        {
+            TryCleanupAfterStop();
+            return;
+        }
+
         bool doPreWait = includePreWait && !_skipPreWait && _cue.PreWait > 0;
         if (doPreWait)
         {

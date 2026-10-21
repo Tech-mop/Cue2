@@ -90,6 +90,9 @@ public partial class ActiveCue
     {
         if (_isCleaned)
             return false;
+        // Stop (fade path) during setup: late components must not register.
+        if (_stopRequestedDuringSetup)
+            return false;
         if (!IsInstanceValid(this))
             return false;
         if (_activeCueBar == null || !IsInstanceValid(_activeCueBar))

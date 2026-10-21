@@ -49,6 +49,7 @@
 - Edits during a save will mark as saved when not actually saved. State-id dirty tracking; edits during a save stay unsaved
 - A Save-as failing could change the stored folder path. Failing Save As restores path, name and folders
 - Stop near the end of media no longer leaves a ghost row
+- Stop during setup discards late components
 
 
 ### Changed

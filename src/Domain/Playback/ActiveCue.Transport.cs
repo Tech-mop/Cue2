@@ -188,6 +188,10 @@ public partial class ActiveCue
                 // Second Stop while a fade is in progress → hard stop.
                 hardStop = _isStopFading;
                 _isStopFading = true;
+
+                // Setup still running: components that finish later are discarded.
+                if (!_componentsSetup)
+                    _stopRequestedDuringSetup = true;
             }
 
             // Stop child cues if propagating (same fade override).

@@ -559,6 +559,12 @@ public partial class ActiveCue : GodotObject
     private bool _componentsSetup;
 
     /// <summary>
+    /// Set when a fading Stop arrives while <see cref="SetupComponents"/> is still running.
+    /// Components that finish setup afterwards are discarded instead of registered.
+    /// </summary>
+    private bool _stopRequestedDuringSetup;
+
+    /// <summary>
     /// True when this instance was created/prepared by OSC Load (or equivalent) and has not
     /// entered content yet. GO reuses standby instances so preload work is not discarded.
     /// </summary>
