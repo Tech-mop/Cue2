@@ -1535,9 +1535,11 @@ public partial class MediaBackupManager : Node
             }
 
             GD.Print("MediaBackupManager:RequestSilentResaveIfNeeded - Re-saving session with relative media paths.");
-            _saveManager.ResaveSessionAfterMediaPathUpdate();
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                "Media backup: cue paths updated to show-relative; session re-saved.", 0);
+            if (_saveManager.ResaveSessionAfterMediaPathUpdate())
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    "Media backup: cue paths updated to show-relative; session re-saved.", 0);
+            }
         }
         catch (Exception ex)
         {

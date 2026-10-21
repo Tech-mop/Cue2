@@ -562,19 +562,32 @@ public partial class SaveManager : Node
 	/// Re-saves the current session after media paths were rewritten to show-relative URLs.
 	/// Skips media-backup enqueue to avoid a recursive copy loop.
 	/// </summary>
-	public void ResaveSessionAfterMediaPathUpdate()
+	/// <returns>True when a re-save was started; false when it was skipped.</returns>
+	public bool ResaveSessionAfterMediaPathUpdate()
 	{
 		if (string.IsNullOrEmpty(_globalData.SessionPath))
 		{
 			GD.Print("SaveManager:ResaveSessionAfterMediaPathUpdate - No SessionPath; skip.");
-			return;
+			return false;
 		}
 
 		// Never write a show that is still being loaded; the next save stores the paths.
 		if (IsSessionLoading)
 		{
 			GD.Print("SaveManager:ResaveSessionAfterMediaPathUpdate - Show is loading; skip.");
-			return;
+			return false;
+		}
+
+		// The re-save writes the whole live show. With edits the operator has not saved, it would
+		// persist them and mark the show clean, so leave both for the operator's next save.
+		if (HasUnsavedChanges)
+		{
+			GD.Print("SaveManager:ResaveSessionAfterMediaPathUpdate - Unsaved edits; skip.");
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				"Media paths updated to show-relative. The show has unsaved changes, so it was not re-saved " +
+				"automatically; save to keep the new paths.",
+				(int)LogType.Info);
+			return false;
 		}
 
 		if (_openedFromNewerFormat)
@@ -586,10 +599,11 @@ public partial class SaveManager : Node
 				"Media paths updated, but silent re-save was skipped because this show uses a newer format. " +
 				"Use Save As if you want a copy this version of Cue2 can own.",
 				(int)LogType.Warning);
-			return;
+			return false;
 		}
 
 		SaveSession(_globalData.SessionPath, skipMediaBackup: true);
+		return true;
 	}
 
 	/// <summary>
@@ -740,6 +754,10 @@ public partial class SaveManager : Node
 		if (clearNewerFormatGuard)
 			_openedFromNewerFormat = false;
 
+		// Mark the written state saved before the media steps below, so a path re-save they start
+		// sees whether edits were made after this snapshot.
+		_globalData.HistoryManager?.MarkSaved(stateAtSnapshot);
+
 		_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
 			skipMediaBackup
 				? $"Session re-saved with relative media paths to {sessionPath}"
@@ -771,7 +789,6 @@ public partial class SaveManager : Node
 		}
 
 		ConfigureAutosave();
-		_globalData.HistoryManager?.MarkSaved(stateAtSnapshot);
 
 		// Update title (in case signal timing)
 		GetNodeOrNull<MainTitleBarUI>("/root/Cue2Base/MainWindowHandles/MainTitleBar")?.CallDeferred("UpdateTitle");
