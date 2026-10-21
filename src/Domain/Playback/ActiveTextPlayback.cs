@@ -256,8 +256,9 @@ public partial class ActiveTextPlayback : Node
             return;
         }
 
-        // Reveal at full opacity only when not mid fade-in (FadeInAsync pre-arms alpha to 0).
-        if (!_isFadingIn)
+        // Reveal at full opacity only when no fade owns the level (FadeInAsync pre-arms alpha to 0;
+        // a Stop during the fade-in's first frame has a fade-out in charge).
+        if (!_isFadingIn && !_isFadingOut)
             _fadeAlpha = 1f;
 
         _isPlaying = true;
@@ -281,9 +282,11 @@ public partial class ActiveTextPlayback : Node
             return;
         }
 
+        // This fade owns its token source; the field is only the handle Stop and Clean cancel.
         CancelFadeToken();
-        _fadeCts = new CancellationTokenSource();
-        var token = _fadeCts.Token;
+        var cts = new CancellationTokenSource();
+        _fadeCts = cts;
+        var token = cts.Token;
 
         // Arm zero opacity before PlayAsync enables process / presents.
         _isFadingIn = true;
@@ -295,7 +298,7 @@ public partial class ActiveTextPlayback : Node
         var timer = Stopwatch.StartNew();
         try
         {
-            while (timer.Elapsed.TotalSeconds < duration && !token.IsCancellationRequested && !IsStopped && !_isExiting)
+            while (timer.Elapsed.TotalSeconds < duration && IsFadeInCurrent(cts) && !IsStopped && !_isExiting)
             {
                 float t = (float)(timer.Elapsed.TotalSeconds / duration);
                 _fadeAlpha = FadeCurve.Evaluate(t, _textComponent?.FadeInCurve ?? FadeCurveType.Linear);
@@ -303,7 +306,7 @@ public partial class ActiveTextPlayback : Node
                 await Task.Delay(FadeUpdateIntervalMs, token);
             }
 
-            if (!token.IsCancellationRequested && !IsStopped && !_isExiting)
+            if (IsFadeInCurrent(cts) && !IsStopped && !_isExiting)
             {
                 _fadeAlpha = 1f;
                 ApplyOpacityModulate();
@@ -319,9 +322,22 @@ public partial class ActiveTextPlayback : Node
         }
         finally
         {
-            _isFadingIn = false;
+            // Clear state only while this fade still owns it; a fade-out may have taken over.
+            if (ReferenceEquals(_fadeCts, cts))
+            {
+                _isFadingIn = false;
+                _fadeCts = null;
+            }
+            cts.Dispose();
         }
     }
+
+    /// <summary>
+    /// True while the fade-in that owns <paramref name="cts"/> is still the active fade
+    /// (not cancelled, not replaced by a fade-out or a newer fade).
+    /// </summary>
+    private bool IsFadeInCurrent(CancellationTokenSource cts) =>
+        _isFadingIn && ReferenceEquals(_fadeCts, cts) && !cts.IsCancellationRequested;
 
     /// <summary>
     /// Pauses the hold timer.
@@ -524,10 +540,14 @@ public partial class ActiveTextPlayback : Node
         if (IsStopped)
             return;
 
+        // End any running fade first (a fade-in still ramping when the hold ends), as Stop does,
+        // then own a fresh token source; the field is only the handle Stop and Clean cancel.
+        CancelFadeToken();
+        var cts = new CancellationTokenSource();
+        _fadeCts = cts;
+        var token = cts.Token;
         _isFadingIn = false;
         _isFadingOut = true;
-        _fadeCts = new CancellationTokenSource();
-        var token = _fadeCts.Token;
         var shape = curve ?? _textComponent?.FadeOutCurve ?? FadeCurveType.Linear;
 
         // Ensure process keeps applying opacity if wall clock was paused.
@@ -575,8 +595,13 @@ public partial class ActiveTextPlayback : Node
         }
         finally
         {
-            _isFadingOut = false;
-            CancelFadeToken();
+            // Clear state only while this fade still owns it.
+            if (ReferenceEquals(_fadeCts, cts))
+            {
+                _isFadingOut = false;
+                _fadeCts = null;
+            }
+            cts.Dispose();
         }
     }
 
