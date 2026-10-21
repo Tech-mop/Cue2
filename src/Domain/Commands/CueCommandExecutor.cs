@@ -722,6 +722,10 @@ public partial class CueCommandExecutor : Node
 
         if (duration <= 1e-9)
         {
+            // Instant translate still wins over an older running one.
+            var instant = new RuntimeFadeClaim();
+            instant.Claim(layer.LayerId, "layer-translate");
+            instant.Release();
             displays.ApplyLayerGeometryLive(
                 layer.LayerId,
                 control.TranslatePositionEnabled ? endPos : null,
@@ -729,28 +733,42 @@ public partial class CueCommandExecutor : Node
             return;
         }
 
-        var timer = Stopwatch.StartNew();
-        while (timer.Elapsed.TotalSeconds < duration)
+        // Last-started translate owns the layer; an older one stops writing.
+        var claim = new RuntimeFadeClaim();
+        claim.Claim(layer.LayerId, "layer-translate");
+        try
         {
-            float t = (float)Math.Clamp(timer.Elapsed.TotalSeconds / duration, 0.0, 1.0);
-            Vector2I pos = new Vector2I(
-                Mathf.RoundToInt(Mathf.Lerp(startPos.X, endPos.X, t)),
-                Mathf.RoundToInt(Mathf.Lerp(startPos.Y, endPos.Y, t)));
-            Vector2I size = new Vector2I(
-                Math.Max(1, Mathf.RoundToInt(Mathf.Lerp(startSize.X, endSize.X, t))),
-                Math.Max(1, Mathf.RoundToInt(Mathf.Lerp(startSize.Y, endSize.Y, t))));
+            var timer = Stopwatch.StartNew();
+            while (timer.Elapsed.TotalSeconds < duration)
+            {
+                if (!claim.Owns(layer.LayerId, "layer-translate"))
+                    return;
+                float t = (float)Math.Clamp(timer.Elapsed.TotalSeconds / duration, 0.0, 1.0);
+                Vector2I pos = new Vector2I(
+                    Mathf.RoundToInt(Mathf.Lerp(startPos.X, endPos.X, t)),
+                    Mathf.RoundToInt(Mathf.Lerp(startPos.Y, endPos.Y, t)));
+                Vector2I size = new Vector2I(
+                    Math.Max(1, Mathf.RoundToInt(Mathf.Lerp(startSize.X, endSize.X, t))),
+                    Math.Max(1, Mathf.RoundToInt(Mathf.Lerp(startSize.Y, endSize.Y, t))));
 
+                displays.ApplyLayerGeometryLive(
+                    layer.LayerId,
+                    control.TranslatePositionEnabled ? pos : null,
+                    control.TranslateSizeEnabled ? size : null);
+                await Task.Delay(16);
+            }
+
+            if (!claim.Owns(layer.LayerId, "layer-translate"))
+                return;
             displays.ApplyLayerGeometryLive(
                 layer.LayerId,
-                control.TranslatePositionEnabled ? pos : null,
-                control.TranslateSizeEnabled ? size : null);
-            await Task.Delay(16);
+                control.TranslatePositionEnabled ? endPos : null,
+                control.TranslateSizeEnabled ? endSize : null);
         }
-
-        displays.ApplyLayerGeometryLive(
-            layer.LayerId,
-            control.TranslatePositionEnabled ? endPos : null,
-            control.TranslateSizeEnabled ? endSize : null);
+        finally
+        {
+            claim.Release();
+        }
     }
 
     /// <summary>
@@ -857,11 +875,14 @@ public partial class CueCommandExecutor : Node
         double duration)
     {
         // Capture per-playback start → end so each instance fades from its own current level.
+        // Last-started fade owns each (playback, property); earlier ramps stop writing.
+        var claim = new RuntimeFadeClaim();
         var audioTargets = new List<(ActiveAudioPlayback pb, float start, float end)>();
         foreach (var pb in audioPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
             float start = pb.EffectiveLevelLinear;
+            claim.Claim(pb, "volume");
             audioTargets.Add((pb, start, ResolveFadeAudioLinear(start, control)));
         }
 
@@ -872,6 +893,7 @@ public partial class CueCommandExecutor : Node
             // Only video playings that actually mix embedded audio.
             if (pb.SourceChannels <= 0) continue;
             float start = pb.EffectiveLevelLinear;
+            claim.Claim(pb, "volume");
             videoTargets.Add((pb, start, ResolveFadeAudioLinear(start, control)));
         }
 
@@ -881,16 +903,16 @@ public partial class CueCommandExecutor : Node
             return;
         }
 
-        await RunMultiTargetFadeAsync(duration, t =>
+        await RunMultiTargetFadeAsync(duration, claim, t =>
         {
             foreach (var (pb, start, end) in audioTargets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "volume"))
                     pb.SetRuntimeLevelLinear(Mathf.Lerp(start, end, t));
             }
             foreach (var (pb, start, end) in videoTargets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "volume"))
                     pb.SetRuntimeLevelLinear(Mathf.Lerp(start, end, t));
             }
         });
@@ -901,6 +923,8 @@ public partial class CueCommandExecutor : Node
         List<ActiveVideoPlayback> videoPlaybacks,
         double duration)
     {
+        // Last-started fade owns each (playback, property); earlier ramps stop writing.
+        var claim = new RuntimeFadeClaim();
         var targets = new List<(ActiveVideoPlayback pb, float start, float end)>();
         foreach (var pb in videoPlaybacks)
         {
@@ -911,6 +935,7 @@ public partial class CueCommandExecutor : Node
                 ? control.FadeOpacityPercent
                 : startPct + control.FadeOpacityPercent;
             endPct = Mathf.Clamp(endPct, 0f, 100f);
+            claim.Claim(pb, "opacity");
             targets.Add((pb, start, endPct / 100f));
         }
 
@@ -920,11 +945,11 @@ public partial class CueCommandExecutor : Node
             return;
         }
 
-        await RunMultiTargetFadeAsync(duration, t =>
+        await RunMultiTargetFadeAsync(duration, claim, t =>
         {
             foreach (var (pb, start, end) in targets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "opacity"))
                     pb.SetRuntimeOpacity(Mathf.Lerp(start, end, t));
             }
         });
@@ -936,6 +961,8 @@ public partial class CueCommandExecutor : Node
         List<ActiveVideoPlayback> videoPlaybacks,
         double duration)
     {
+        // Last-started fade owns each (playback, property); earlier ramps stop writing.
+        var claim = new RuntimeFadeClaim();
         var audioTargets = new List<(ActiveAudioPlayback pb, float start, float end)>();
         foreach (var pb in audioPlaybacks)
         {
@@ -945,6 +972,7 @@ public partial class CueCommandExecutor : Node
             float end = control.FadeMode == ControlFadeMode.Absolute
                 ? control.FadePan
                 : start + control.FadePan;
+            claim.Claim(pb, "pan");
             audioTargets.Add((pb, start, Mathf.Clamp(end, -1f, 1f)));
         }
 
@@ -957,6 +985,7 @@ public partial class CueCommandExecutor : Node
             float end = control.FadeMode == ControlFadeMode.Absolute
                 ? control.FadePan
                 : start + control.FadePan;
+            claim.Claim(pb, "pan");
             videoTargets.Add((pb, start, Mathf.Clamp(end, -1f, 1f)));
         }
 
@@ -966,16 +995,16 @@ public partial class CueCommandExecutor : Node
             return;
         }
 
-        await RunMultiTargetFadeAsync(duration, t =>
+        await RunMultiTargetFadeAsync(duration, claim, t =>
         {
             foreach (var (pb, start, end) in audioTargets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "pan"))
                     pb.SetRuntimePan(Mathf.Lerp(start, end, t));
             }
             foreach (var (pb, start, end) in videoTargets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "pan"))
                     pb.SetRuntimePan(Mathf.Lerp(start, end, t));
             }
         });
@@ -986,6 +1015,8 @@ public partial class CueCommandExecutor : Node
         List<ActiveAudioPlayback> audioPlaybacks,
         double duration)
     {
+        // Last-started fade owns each (playback, property); earlier ramps stop writing.
+        var claim = new RuntimeFadeClaim();
         var targets = new List<(ActiveAudioPlayback pb, float start, float end)>();
         foreach (var pb in audioPlaybacks)
         {
@@ -995,6 +1026,7 @@ public partial class CueCommandExecutor : Node
                 ? control.FadePlayRate
                 : start + control.FadePlayRate;
             end = (float)AudioComponent.ClampPlayRate(end);
+            claim.Claim(pb, "playrate");
             targets.Add((pb, start, end));
         }
 
@@ -1004,11 +1036,11 @@ public partial class CueCommandExecutor : Node
             return;
         }
 
-        await RunMultiTargetFadeAsync(duration, t =>
+        await RunMultiTargetFadeAsync(duration, claim, t =>
         {
             foreach (var (pb, start, end) in targets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "playrate"))
                     pb.SetRuntimePlayRate(Mathf.Lerp(start, end, t));
             }
         });
@@ -1019,6 +1051,8 @@ public partial class CueCommandExecutor : Node
         List<ActiveAudioPlayback> audioPlaybacks,
         double duration)
     {
+        // Last-started fade owns each (playback, property); earlier ramps stop writing.
+        var claim = new RuntimeFadeClaim();
         var targets = new List<(ActiveAudioPlayback pb, float start, float end)>();
         foreach (var pb in audioPlaybacks)
         {
@@ -1028,6 +1062,7 @@ public partial class CueCommandExecutor : Node
                 ? control.FadePitchCents
                 : start + control.FadePitchCents;
             end = AudioComponent.ClampPitchCents(end);
+            claim.Claim(pb, "pitch");
             targets.Add((pb, start, end));
         }
 
@@ -1037,11 +1072,11 @@ public partial class CueCommandExecutor : Node
             return;
         }
 
-        await RunMultiTargetFadeAsync(duration, t =>
+        await RunMultiTargetFadeAsync(duration, claim, t =>
         {
             foreach (var (pb, start, end) in targets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, "pitch"))
                     pb.SetRuntimePitchCents(Mathf.Lerp(start, end, t));
             }
         });
@@ -1078,6 +1113,8 @@ public partial class CueCommandExecutor : Node
         }
 
         // (playback, in, out, start, end) for audio and video separately.
+        // Last-started fade owns each (playback, property); earlier ramps stop writing.
+        var claim = new RuntimeFadeClaim();
         var audioTargets = new List<(ActiveAudioPlayback pb, int inIdx, int outIdx, float start, float end)>();
         var videoTargets = new List<(ActiveVideoPlayback pb, int inIdx, int outIdx, float start, float end)>();
 
@@ -1090,6 +1127,7 @@ public partial class CueCommandExecutor : Node
             {
                 if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
                 if (!pb.TryGetMatrixCell(inIdx, outIdx, out float start)) continue;
+                claim.Claim(pb, $"matrix:{inIdx}:{outIdx}");
                 audioTargets.Add((pb, inIdx, outIdx, start, ResolveFadeAudioLinear(start, targetDb, control.FadeMode)));
             }
 
@@ -1097,6 +1135,7 @@ public partial class CueCommandExecutor : Node
             {
                 if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
                 if (!pb.TryGetMatrixCell(inIdx, outIdx, out float start)) continue;
+                claim.Claim(pb, $"matrix:{inIdx}:{outIdx}");
                 videoTargets.Add((pb, inIdx, outIdx, start, ResolveFadeAudioLinear(start, targetDb, control.FadeMode)));
             }
         }
@@ -1113,16 +1152,16 @@ public partial class CueCommandExecutor : Node
             $"CueCommandExecutor:FadeRuntimeMatrixAsync - Fading {cellTargets.Count} cell(s) " +
             $"across {audioTargets.Count} audio + {videoTargets.Count} video cell-instances");
 
-        await RunMultiTargetFadeAsync(duration, t =>
+        await RunMultiTargetFadeAsync(duration, claim, t =>
         {
             foreach (var (pb, inIdx, outIdx, start, end) in audioTargets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, $"matrix:{inIdx}:{outIdx}"))
                     pb.SetRuntimeMatrixCell(inIdx, outIdx, Mathf.Lerp(start, end, t));
             }
             foreach (var (pb, inIdx, outIdx, start, end) in videoTargets)
             {
-                if (pb != null && GodotObject.IsInstanceValid(pb))
+                if (claim.Owns(pb, $"matrix:{inIdx}:{outIdx}"))
                     pb.SetRuntimeMatrixCell(inIdx, outIdx, Mathf.Lerp(start, end, t));
             }
         });
@@ -1131,23 +1170,90 @@ public partial class CueCommandExecutor : Node
     /// <summary>
     /// Runs a multi-target fade: <paramref name="apply"/> receives t in 0…1 each tick.
     /// </summary>
-    private static async Task RunMultiTargetFadeAsync(double duration, Action<float> apply)
+    /// <remarks>
+    /// <paramref name="apply"/> must check <see cref="RuntimeFadeClaim.Owns(GodotObject, string)"/> per
+    /// target. The ramp ends early once a newer fade owns all of its targets, and always releases
+    /// its claims at the end.
+    /// </remarks>
+    private static async Task RunMultiTargetFadeAsync(double duration, RuntimeFadeClaim claim, Action<float> apply)
     {
-        if (duration <= 1e-9)
+        try
         {
+            if (duration <= 1e-9)
+            {
+                apply(1f);
+                return;
+            }
+
+            var timer = Stopwatch.StartNew();
+            while (timer.Elapsed.TotalSeconds < duration)
+            {
+                if (!claim.OwnsAny)
+                    return;
+                float t = (float)Math.Clamp(timer.Elapsed.TotalSeconds / duration, 0.0, 1.0);
+                apply(t);
+                await Task.Delay(16);
+            }
+
             apply(1f);
-            return;
         }
-
-        var timer = Stopwatch.StartNew();
-        while (timer.Elapsed.TotalSeconds < duration)
+        finally
         {
-            float t = (float)Math.Clamp(timer.Elapsed.TotalSeconds / duration, 0.0, 1.0);
-            apply(t);
-            await Task.Delay(16);
+            claim.Release();
+        }
+    }
+
+    /// <summary>
+    /// Ownership of runtime Control fades per (target, channel). The most recently
+    /// started fade owns a key; older ramps skip it. Main thread only (fade continuations run on
+    /// the Godot synchronization context), so no lock.
+    /// </summary>
+    private sealed class RuntimeFadeClaim
+    {
+        private static readonly Dictionary<(long target, string channel), RuntimeFadeClaim> Owners = new();
+        private readonly List<(long target, string channel)> _keys = new();
+
+        public void Claim(long target, string channel)
+        {
+            var key = (target, channel);
+            Owners[key] = this;
+            _keys.Add(key);
         }
 
-        apply(1f);
+        public void Claim(GodotObject target, string channel) =>
+            Claim(unchecked((long)target.GetInstanceId()), channel);
+
+        public bool Owns(long target, string channel) =>
+            Owners.TryGetValue((target, channel), out var owner) && ReferenceEquals(owner, this);
+
+        /// <summary>True when the target is still alive and this fade is its newest owner.</summary>
+        public bool Owns(GodotObject target, string channel) =>
+            target != null && GodotObject.IsInstanceValid(target)
+            && Owns(unchecked((long)target.GetInstanceId()), channel);
+
+        public bool OwnsAny
+        {
+            get
+            {
+                foreach (var key in _keys)
+                {
+                    if (Owners.TryGetValue(key, out var owner) && ReferenceEquals(owner, this))
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>Removes every key this fade still owns (normal end, early end or failure).</summary>
+        public void Release()
+        {
+            foreach (var key in _keys)
+            {
+                if (Owners.TryGetValue(key, out var owner) && ReferenceEquals(owner, this))
+                    Owners.Remove(key);
+            }
+            _keys.Clear();
+        }
     }
 
     /// <summary>
