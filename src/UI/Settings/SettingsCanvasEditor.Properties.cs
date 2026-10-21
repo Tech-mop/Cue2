@@ -135,10 +135,12 @@ public partial class SettingsCanvasEditor
             _outputTransparentCheckBox.ButtonPressed = screen.OutputTransparent;
             _outputTestPatternCheckBox.ButtonPressed = screen.TestPatternStatus();
 
-            PopulateOutputOption(screen.TargetMonitor);
+            PopulateOutputOption(screen.TargetMonitor,
+                screen.TargetMonitorMissing ? screen.DescribeSavedMonitor() : null);
             UpdateScreenResetButtons(screen);
             UpdateDisplayOffsetLabel(screen);
 
+            _outputResolutionLabel.RemoveThemeColorOverride("font_color");
             if (screen.IsVirtual)
             {
                 _outputResolutionLabel.Text = UiLocalizer.T("Virtual Output — not shown on a physical display");
@@ -172,6 +174,15 @@ public partial class SettingsCanvasEditor
                 if (screen.TargetMonitor >= DisplayServer.GetScreenCount())
                     res = $"Monitor {screen.TargetMonitor} (not connected)";
 
+                // Saved display not found on open: the output is closed until a
+                // display is chosen here.
+                if (screen.TargetMonitorMissing)
+                {
+                    res = UiLocalizer.Tf("Display not found: {0}. Output is closed; choose a display above.",
+                        screen.DescribeSavedMonitor());
+                    _outputResolutionLabel.AddThemeColorOverride("font_color", GlobalStyles.Danger);
+                }
+
                 _outputResolutionLabel.Text = res;
             }
 
@@ -183,7 +194,10 @@ public partial class SettingsCanvasEditor
         }
     }
 
-    private void PopulateOutputOption(int selectedMonitor)
+    /// <param name="selectedMonitor">Current destination index.</param>
+    /// <param name="missingDisplay">When set, the saved display was not found: a
+    /// "not found" entry is selected instead of whichever display has that index now.</param>
+    private void PopulateOutputOption(int selectedMonitor, string missingDisplay = null)
     {
         _screenOutputOption.Clear();
         _outputOptionMonitorMap.Clear();
@@ -211,7 +225,13 @@ public partial class SettingsCanvasEditor
                 selectIndex = physicalStartIndex + i;
         }
 
-        if (selectedMonitor >= 0 && selectIndex == 0)
+        if (selectedMonitor >= 0 && missingDisplay != null)
+        {
+            _screenOutputOption.AddItem(UiLocalizer.Tf("{0} (not found)", missingDisplay));
+            _outputOptionMonitorMap.Add(selectedMonitor);
+            selectIndex = _outputOptionMonitorMap.Count - 1;
+        }
+        else if (selectedMonitor >= 0 && selectIndex == 0)
         {
             _screenOutputOption.AddItem($"Monitor {selectedMonitor} (missing)");
             _outputOptionMonitorMap.Add(selectedMonitor);

@@ -1202,6 +1202,81 @@ public partial class DisplaysManager : Node
     }
 
     /// <summary>
+    /// SDL name of the display at Godot screen <paramref name="index"/>, or null when it has no
+    /// real name (the "Display N" fallback) or the index is not connected.
+    /// </summary>
+    public string GetDisplayName(int index)
+    {
+        foreach (var d in GetAvailableDisplays())
+        {
+            if (d.Index != index)
+                continue;
+            return string.IsNullOrEmpty(d.Name) || d.Name == $"Display {index}" ? null : d.Name;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Matches a loaded physical output to a connected display by its saved fingerprint.
+    /// Best effort, in this order:
+    /// 1. The display at the saved index still matches (size, and name when saved), and no other
+    ///    matching display sits at the saved position: keep it.
+    /// 2. Otherwise, among displays with the saved size (and name when saved), prefer the one at
+    ///    the saved position, then the lowest index: remap to it and log.
+    /// 3. No candidate: mark the output missing (it stays hidden, never opens on another
+    ///    display), log a warning, and let the footer and canvas editor show it.
+    /// Outputs without a saved fingerprint (older files) keep their index as before.
+    /// </summary>
+    private void ResolveSavedMonitor(VideoOutputDevice output)
+    {
+        if (output == null || !output.IsPhysical || !output.HasSavedMonitorFingerprint)
+            return;
+
+        var displays = GetAvailableDisplays();
+        string savedName = output.SavedMonitorName;
+        bool useName = !string.IsNullOrEmpty(savedName);
+
+        // A display SDL could not name ("Display N") matches on size alone.
+        bool Matches(DisplayInfo d) =>
+            d.Size == output.SavedMonitorSize
+            && (!useName || d.Name == $"Display {d.Index}"
+                || string.Equals(d.Name, savedName, StringComparison.Ordinal));
+
+        int savedIndex = output.TargetMonitor;
+        var candidates = displays.Where(Matches).ToList();
+        var atSavedPosition = candidates.Where(d => d.Position == output.SavedMonitorPosition).ToList();
+        // Keep the saved index when it still matches, unless another matching display sits
+        // exactly where the saved one was (two identical displays swapped in OS order).
+        if (candidates.Any(d => d.Index == savedIndex)
+            && (atSavedPosition.Count == 0 || atSavedPosition.Any(d => d.Index == savedIndex)))
+            return;
+
+        if (candidates.Count == 0)
+        {
+            output.MarkTargetMonitorMissing();
+            string message =
+                $"Video output '{output.OutputName}': its display {output.DescribeSavedMonitor()} was not found. " +
+                "The output stays closed until the display is connected and the show reopened, " +
+                "or another display is chosen in the Canvas Editor.";
+            GD.PrintErr($"DisplaysManager:ResolveSavedMonitor - {message}");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), message, 1);
+            return;
+        }
+
+        var pick = atSavedPosition.Count > 0
+            ? atSavedPosition.OrderBy(d => d.Index).First()
+            : candidates.OrderBy(d => d.Index).First();
+        string ambiguity = candidates.Count > 1 && atSavedPosition.Count != 1 ? $" ({candidates.Count} displays matched; picked the closest)" : string.Empty;
+
+        output.TargetMonitor = pick.Index;
+        string remap =
+            $"Video output '{output.OutputName}': display order changed, moved from display {savedIndex} " +
+            $"to display {pick.Index} ({pick.Name}, {pick.Size.X}x{pick.Size.Y}){ambiguity}.";
+        GD.Print($"DisplaysManager:ResolveSavedMonitor - {remap}");
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), remap, 1);
+    }
+
+    /// <summary>
     /// Returns the configured video outputs mapped to whether their destination is currently available.
     /// Physical: target monitor index is valid. Virtual / Window: always available.
     /// Used by the footer to display combined device status.
@@ -1231,9 +1306,13 @@ public partial class DisplaysManager : Node
             }
             else
             {
-                // Connected if the target monitor index is currently valid.
-                isConnected = output.TargetMonitor >= 0 && output.TargetMonitor < screenCount;
-                key = $"{output.OutputName} (Monitor {output.TargetMonitor})";
+                // Connected if the target monitor index is currently valid and, when the show saved
+                // a display fingerprint, that display was found.
+                isConnected = output.TargetMonitor >= 0 && output.TargetMonitor < screenCount
+                              && !output.TargetMonitorMissing;
+                key = output.TargetMonitorMissing
+                    ? $"{output.OutputName} ({output.DescribeSavedMonitor()}, display not found)"
+                    : $"{output.OutputName} (Monitor {output.TargetMonitor})";
             }
 
             result[key] = isConnected;
@@ -1353,6 +1432,7 @@ public partial class DisplaysManager : Node
                 output.LoadFromData(outputData);
                 AddChild(output);
                 Outputs.Add(output);
+                ResolveSavedMonitor(output);
                 // Virtual / missing monitors stay hidden; Window and available physical monitors show.
                 // Respect master disable so undo/load does not force house screens open while disabled.
                 if (!OutputDisabled)
@@ -1362,7 +1442,7 @@ public partial class DisplaysManager : Node
                         output.ClearWindowDismissed();
                         output.Show();
                     }
-                    else if (output.IsPhysical && output.TargetMonitor < DisplayServer.GetScreenCount())
+                    else if (output.IsTargetMonitorAvailable)
                     {
                         output.Show();
                     }

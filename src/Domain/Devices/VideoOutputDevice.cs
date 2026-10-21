@@ -60,7 +60,61 @@ public partial class VideoOutputDevice : Window, IDisposable
     /// <see cref="WindowMonitorIndex"/> for a portable Window,
     /// or a physical monitor index (≥ 0).
     /// </summary>
-    public int TargetMonitor { get; set; } = VirtualMonitorIndex;
+    /// <remarks>Assigning a destination clears <see cref="TargetMonitorMissing"/>.</remarks>
+    public int TargetMonitor
+    {
+        get => _targetMonitor;
+        set
+        {
+            _targetMonitor = value;
+            TargetMonitorMissing = false;
+        }
+    }
+
+    private int _targetMonitor = VirtualMonitorIndex;
+
+    /// <summary>
+    /// True when the show saved this physical output with a display fingerprint and no connected
+    /// display matches it. The output then stays hidden instead of opening on whatever
+    /// display now has <see cref="TargetMonitor"/>; the canvas editor, footer and log show it as
+    /// missing. Cleared when a destination is assigned.
+    /// </summary>
+    public bool TargetMonitorMissing { get; private set; }
+
+    /// <summary>Saved display name from the showfile (may be empty for older files).</summary>
+    public string SavedMonitorName { get; private set; } = string.Empty;
+
+    /// <summary>Saved display size from the showfile (zero when none was saved).</summary>
+    public Vector2I SavedMonitorSize { get; private set; }
+
+    /// <summary>Saved display position from the showfile.</summary>
+    public Vector2I SavedMonitorPosition { get; private set; }
+
+    /// <summary>True when the showfile carried a display fingerprint for this output.</summary>
+    public bool HasSavedMonitorFingerprint { get; private set; }
+
+    /// <summary>
+    /// Physical output whose display is connected and matched: safe to place a window on it.
+    /// </summary>
+    public bool IsTargetMonitorAvailable =>
+        IsPhysical && !TargetMonitorMissing && TargetMonitor < DisplayServer.GetScreenCount();
+
+    /// <summary>
+    /// Marks the saved display as not found (see <see cref="TargetMonitorMissing"/>). Keeps the
+    /// saved index and fingerprint so the next save writes them unchanged.
+    /// </summary>
+    public void MarkTargetMonitorMissing()
+    {
+        TargetMonitorMissing = true;
+        HideScreenWindow();
+    }
+
+    /// <summary>Short text for the saved display, for logs and UI ("Name 1920x1080").</summary>
+    public string DescribeSavedMonitor()
+    {
+        string size = SavedMonitorSize.X > 0 ? $"{SavedMonitorSize.X}x{SavedMonitorSize.Y}" : "unknown size";
+        return string.IsNullOrEmpty(SavedMonitorName) ? $"display {TargetMonitor} ({size})" : $"{SavedMonitorName} ({size})";
+    }
 
     /// <summary>
     /// Whether this screen is assigned to Virtual Output (no visible window).
@@ -978,6 +1032,13 @@ public partial class VideoOutputDevice : Window, IDisposable
             return;
         }
 
+        // Saved display not found: never open on whichever display has this index.
+        if (TargetMonitorMissing)
+        {
+            HideScreenWindow();
+            return;
+        }
+
         // Physical outputs are 1:1 pixels — do not use content scale / stretch.
         DisableContentScale();
 
@@ -1451,31 +1512,25 @@ public partial class VideoOutputDevice : Window, IDisposable
     }
 
     /// <summary>
-    /// Logs when the display now at <see cref="TargetMonitor"/> differs in size or position from
-    /// the one saved with the show. Detection only; no remap. Files without a
-    /// fingerprint are skipped.
+    /// Reads the display fingerprint saved with this output. Matching against the
+    /// connected displays is done by <see cref="Cue2.Services.DisplaysManager"/> after load.
     /// </summary>
-    private void WarnIfTargetMonitorChanged(Godot.Collections.Dictionary data)
+    private void ReadSavedMonitorFingerprint(Godot.Collections.Dictionary data)
     {
-        if (TargetMonitor < 0
-            || !data.ContainsKey("TargetMonitorSizeX") || !data.ContainsKey("TargetMonitorSizeY")
-            || !data.ContainsKey("TargetMonitorPositionX") || !data.ContainsKey("TargetMonitorPositionY"))
+        HasSavedMonitorFingerprint = TargetMonitor >= 0
+            && data.ContainsKey("TargetMonitorSizeX") && data.ContainsKey("TargetMonitorSizeY")
+            && data.ContainsKey("TargetMonitorPositionX") && data.ContainsKey("TargetMonitorPositionY");
+        if (!HasSavedMonitorFingerprint)
+        {
+            SavedMonitorName = string.Empty;
+            SavedMonitorSize = Vector2I.Zero;
+            SavedMonitorPosition = Vector2I.Zero;
             return;
+        }
 
-        var savedSize = new Vector2I((int)data["TargetMonitorSizeX"], (int)data["TargetMonitorSizeY"]);
-        var savedPos = new Vector2I((int)data["TargetMonitorPositionX"], (int)data["TargetMonitorPositionY"]);
-        if (TargetMonitor >= DisplayServer.GetScreenCount())
-            return; // Out-of-range indices are already reported where the window is placed.
-
-        var nowSize = DisplayServer.ScreenGetSize(TargetMonitor);
-        var nowPos = DisplayServer.ScreenGetPosition(TargetMonitor);
-        if (nowSize == savedSize && nowPos == savedPos)
-            return;
-
-        GD.PrintErr(
-            $"VideoOutputDevice:LoadFromData - Output '{OutputName}': display {TargetMonitor} was " +
-            $"{savedSize.X}x{savedSize.Y} at {savedPos}, now {nowSize.X}x{nowSize.Y} at {nowPos}. " +
-            "The display order may have changed; check the output assignment.");
+        SavedMonitorSize = new Vector2I((int)data["TargetMonitorSizeX"], (int)data["TargetMonitorSizeY"]);
+        SavedMonitorPosition = new Vector2I((int)data["TargetMonitorPositionX"], (int)data["TargetMonitorPositionY"]);
+        SavedMonitorName = data.ContainsKey("TargetMonitorName") ? data["TargetMonitorName"].AsString() : string.Empty;
     }
 
     /// <summary>
@@ -1492,9 +1547,18 @@ public partial class VideoOutputDevice : Window, IDisposable
         data.Add("OutputSizeX", OutputSize.X);
         data.Add("OutputSizeY", OutputSize.Y);
         data.Add("TargetMonitor", TargetMonitor);
-        // Fingerprint of the physical display at save time (step 1). Informational:
-        // load compares it and logs a mismatch; outputs are still bound by index.
-        if (TargetMonitor >= 0 && TargetMonitor < DisplayServer.GetScreenCount())
+        // Fingerprint of the physical display. Load uses it to find the same display
+        // if the OS order changed. A missing display keeps the fingerprint it was loaded with.
+        if (TargetMonitorMissing && HasSavedMonitorFingerprint)
+        {
+            data.Add("TargetMonitorSizeX", SavedMonitorSize.X);
+            data.Add("TargetMonitorSizeY", SavedMonitorSize.Y);
+            data.Add("TargetMonitorPositionX", SavedMonitorPosition.X);
+            data.Add("TargetMonitorPositionY", SavedMonitorPosition.Y);
+            if (!string.IsNullOrEmpty(SavedMonitorName))
+                data.Add("TargetMonitorName", SavedMonitorName);
+        }
+        else if (TargetMonitor >= 0 && TargetMonitor < DisplayServer.GetScreenCount())
         {
             var monSize = DisplayServer.ScreenGetSize(TargetMonitor);
             var monPos = DisplayServer.ScreenGetPosition(TargetMonitor);
@@ -1502,6 +1566,9 @@ public partial class VideoOutputDevice : Window, IDisposable
             data.Add("TargetMonitorSizeY", monSize.Y);
             data.Add("TargetMonitorPositionX", monPos.X);
             data.Add("TargetMonitorPositionY", monPos.Y);
+            string monName = (GetParent() as DisplaysManager)?.GetDisplayName(TargetMonitor);
+            if (!string.IsNullOrEmpty(monName))
+                data.Add("TargetMonitorName", monName);
         }
         data.Add("Transparent", OutputTransparent);
         data.Add("DisplayOffsetX", DisplayOffset.X);
@@ -1525,7 +1592,7 @@ public partial class VideoOutputDevice : Window, IDisposable
         OutputId = (int)data["OutputId"];
         OutputName = (string)data["OutputName"];
         TargetMonitor = (int)data["TargetMonitor"];
-        WarnIfTargetMonitorChanged(data);
+        ReadSavedMonitorFingerprint(data);
 
         var canvPosX = data.ContainsKey("CanvasPositionX") ? (int)data["CanvasPositionX"] : 0;
         var canvPosY = data.ContainsKey("CanvasPositionY") ? (int)data["CanvasPositionY"] : 0;

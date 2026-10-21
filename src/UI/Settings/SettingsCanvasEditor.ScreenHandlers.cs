@@ -81,7 +81,8 @@ public partial class SettingsCanvasEditor
             return;
 
         int monitor = _outputOptionMonitorMap[i];
-        if (screen.TargetMonitor == monitor)
+        // A missing saved display can be confirmed onto the display at the same index.
+        if (screen.TargetMonitor == monitor && !screen.TargetMonitorMissing)
             return;
 
         RecordDisplaysHistory("Change screen output");

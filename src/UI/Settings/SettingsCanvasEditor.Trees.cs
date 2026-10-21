@@ -282,6 +282,8 @@ public partial class SettingsCanvasEditor
             return "Virtual";
         if (screen.IsWindow)
             return "Window";
+        if (screen.TargetMonitorMissing)
+            return $"display not found: {screen.DescribeSavedMonitor()}";
         return GetMonitorLabel(screen.TargetMonitor);
     }
 
@@ -293,6 +295,8 @@ public partial class SettingsCanvasEditor
             return new Color(0.75f, 0.55f, 0.45f);
         if (screen.IsWindow)
             return new Color(0.55f, 0.8f, 0.55f);
+        if (screen.TargetMonitorMissing)
+            return GlobalStyles.Danger; // saved display not found
         return new Color(1f, 0.55f, 0.45f);
     }
 
