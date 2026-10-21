@@ -21,7 +21,7 @@ namespace Cue2.Services;
 /// Search paths and the reflected entry point are documented in CueNet <c>docs/plugin-loading.md</c>.
 /// </summary>
 /// <remarks>
-/// Loading is skipped when <see cref="FeatureFlags.CueNetEnabled"/> is false (public Cue2 releases).
+/// Loading is skipped when <see cref="FeatureFlags.CueNetEnabled"/> is false (release exports).
 /// </remarks>
 public partial class HardwarePluginLoader : Node
 {
@@ -513,14 +513,15 @@ public partial class HardwarePluginLoader : Node
         if (_plugin is not null)
             return;
 
-        string? hostPath = FindHostAssembly();
-        if (hostPath is null)
+        var host = FindHostAssembly();
+        if (host is null)
         {
             Log("HardwarePluginLoader:_Ready - CueNet.Host.dll not found (Cue2 runs without hardware).", 0);
             return;
         }
 
-        HostPath = Path.GetFullPath(hostPath);
+        HostPath = Path.GetFullPath(host.Value.Path);
+        Log($"HardwarePluginLoader:_Ready - Loading CueNet host {host.Value.Version} from {HostPath}", 0);
         string dir = Path.GetDirectoryName(HostPath)!;
         _loadContext = new PluginLoadContext(dir);
         Assembly assembly = _loadContext.LoadFromAssemblyPath(HostPath);
@@ -550,6 +551,7 @@ public partial class HardwarePluginLoader : Node
         _commandType = FindContractsType(_loadContext, "CueNet.Contracts.CueNetCommand");
         PluginVersion = pluginType.GetProperty("Version")?.GetValue(_plugin) as string ?? "";
         PluginDisplayName = pluginType.GetProperty("DisplayName")?.GetValue(_plugin) as string ?? pluginType.Name;
+        Log($"HardwarePluginLoader:_Ready - Loaded {PluginDisplayName} {PluginVersion} (file {host.Value.Version}) from {HostPath}", 0);
 
         BindDeviceEvents(_plugin, pluginType);
         BindEvent(_plugin, pluginType, "ConnectionChanged", nameof(OnPluginConnectionChanged));
@@ -845,63 +847,79 @@ public partial class HardwarePluginLoader : Node
         return assembly.GetType("CueNet.Host.CueNetPlugin");
     }
 
-    private static string? FindHostAssembly()
+    /// <summary>
+    /// Picks the host DLL. Only called when CueNet is enabled (editor and debug builds).
+    /// Order: the newest sibling CueNet dev build (Debug or Release), then the exe's
+    /// <c>plugins/cuenet</c>, then the project's <c>plugins/cuenet</c>. The user data folder is
+    /// never searched, because anything can write there.
+    /// </summary>
+    /// <returns>Full path and file version of the chosen DLL, or null when none exists.</returns>
+    private static (string Path, System.Version Version)? FindHostAssembly()
     {
-        var found = EnumerateSearchPaths()
+        if (!FeatureFlags.CueNetEnabled)
+            return null;
+
+        var devBuild = EnumerateDevBuildPaths()
             .Where(File.Exists)
             .Select(Path.GetFullPath)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(path =>
-            {
-                System.Version version = new(0, 0, 0, 0);
-                try
-                {
-                    string? raw = FileVersionInfo.GetVersionInfo(path).FileVersion;
-                    if (!string.IsNullOrWhiteSpace(raw) && System.Version.TryParse(raw, out System.Version? parsed) && parsed is not null)
-                        version = parsed;
-                }
-                catch (Exception)
-                {
-                    // Keep 0.0.0.0 and fall through to LastWriteTime.
-                }
-
-                return (
-                    Path: path,
-                    Version: version,
-                    Written: File.GetLastWriteTimeUtc(path));
-            })
+            .Select(path => (Path: path, Version: ReadFileVersion(path), Written: File.GetLastWriteTimeUtc(path)))
             .OrderByDescending(x => x.Version)
             .ThenByDescending(x => x.Written)
-            .ToList();
+            .FirstOrDefault();
+        if (devBuild.Path is not null)
+            return (devBuild.Path, devBuild.Version);
 
-        return found.Count == 0 ? null : found[0].Path;
+        foreach (string path in EnumeratePluginFolderPaths())
+        {
+            if (File.Exists(path))
+            {
+                string full = Path.GetFullPath(path);
+                return (full, ReadFileVersion(full));
+            }
+        }
+
+        return null;
     }
 
-    private static IEnumerable<string> EnumerateSearchPaths()
+    private static System.Version ReadFileVersion(string path)
     {
-        string exeDir = AppContext.BaseDirectory;
-        yield return Path.Combine(exeDir, "plugins", "cuenet", "CueNet.Host.dll");
+        try
+        {
+            string? raw = FileVersionInfo.GetVersionInfo(path).FileVersion;
+            if (!string.IsNullOrWhiteSpace(raw) && System.Version.TryParse(raw, out System.Version? parsed) && parsed is not null)
+                return parsed;
+        }
+        catch (Exception)
+        {
+            // Unreadable version: treat as 0.0.0.0 (write time then decides between dev builds).
+        }
 
-        string? userDir = TryGlobalize("user://");
-        if (userDir is not null)
-            yield return Path.Combine(userDir, "plugins", "cuenet", "CueNet.Host.dll");
+        return new System.Version(0, 0, 0, 0);
+    }
+
+    /// <summary>Sibling CueNet tree (Cue2_Home/CueNet) build outputs, up to 8 folders above the exe.</summary>
+    private static IEnumerable<string> EnumerateDevBuildPaths()
+    {
+        string? walk = AppContext.BaseDirectory;
+        for (int i = 0; i < 8 && walk is not null; i++)
+        {
+            yield return Path.Combine(walk, "CueNet", "src", "CueNet.Host", "bin", "Debug", "net8.0", "CueNet.Host.dll");
+            yield return Path.Combine(walk, "CueNet", "src", "CueNet.Host", "bin", "Release", "net8.0", "CueNet.Host.dll");
+            DirectoryInfo? parent = Directory.GetParent(walk);
+            walk = parent?.FullName;
+        }
+    }
+
+    /// <summary>Bundled plugin folders: next to the exe, then the Godot project folder.</summary>
+    private static IEnumerable<string> EnumeratePluginFolderPaths()
+    {
+        yield return Path.Combine(AppContext.BaseDirectory, "plugins", "cuenet", "CueNet.Host.dll");
 
         // Godot editor: Cue2/ project folder (not the hidden .godot build dir).
         string? projectRes = TryGlobalize("res://");
         if (projectRes is not null)
             yield return Path.Combine(projectRes, "plugins", "cuenet", "CueNet.Host.dll");
-
-        // Sibling CueNet tree (Cue2_Home/CueNet).
-        string? walk = exeDir;
-        for (int i = 0; i < 8 && walk is not null; i++)
-        {
-            string sibling = Path.Combine(walk, "CueNet", "src", "CueNet.Host", "bin", "Debug", "net8.0", "CueNet.Host.dll");
-            yield return sibling;
-            string siblingRelease = Path.Combine(walk, "CueNet", "src", "CueNet.Host", "bin", "Release", "net8.0", "CueNet.Host.dll");
-            yield return siblingRelease;
-            DirectoryInfo? parent = Directory.GetParent(walk);
-            walk = parent?.FullName;
-        }
     }
 
     private static string? TryGlobalize(string godotPath)
@@ -932,12 +950,15 @@ public partial class HardwarePluginLoader : Node
         _globalSignals.EmitSignal(nameof(GlobalSignals.Log), message, level);
     }
 
-    private async void OnTreeExiting()
+    /// <summary>Longest the app waits for the host to stop when it closes.</summary>
+    private const int QuitStopTimeoutMs = 1000;
+
+    private void OnTreeExiting()
     {
         TreeExiting -= OnTreeExiting;
         try
         {
-            await StopHostAsync();
+            StopHostForQuit();
         }
         catch (Exception ex)
         {
@@ -951,6 +972,34 @@ public partial class HardwarePluginLoader : Node
             _cts?.Dispose();
             _cts = null;
         }
+    }
+
+    /// <summary>
+    /// Stops the host at quit and waits at most <see cref="QuitStopTimeoutMs"/>, so closing
+    /// Cue2 cannot hang on the plugin. The stop runs on a worker thread: its awaits then never
+    /// need the main thread, which is blocked here.
+    /// </summary>
+    private void StopHostForQuit()
+    {
+        if (!_hostStarted)
+            return;
+        _hostStarted = false;
+        _cts?.Cancel();
+
+        object? plugin = _plugin;
+        MethodInfo? stopAsync = _stopAsync;
+        if (plugin is null || stopAsync is null)
+            return;
+
+        Task stopTask = Task.Run(async () =>
+        {
+            if (stopAsync.Invoke(plugin, Array.Empty<object>()) is Task task)
+                await task.ConfigureAwait(false);
+        });
+        // A stop that faults after the wait gives up is observed here, not left unobserved.
+        _ = stopTask.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        if (!stopTask.Wait(QuitStopTimeoutMs))
+            GD.PrintErr($"HardwarePluginLoader:OnTreeExiting - host did not stop within {QuitStopTimeoutMs} ms; unloading anyway");
     }
 
     /// <summary>

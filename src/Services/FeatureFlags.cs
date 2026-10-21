@@ -7,8 +7,8 @@ namespace Cue2.Services;
 /// Source switches for features that ship later than the rest of Cue2.
 /// </summary>
 /// <remarks>
-/// Flip these before a public release. <see cref="CueNetEnabled"/> is true while CueNet is
-/// in development so Settings and the host plugin stay available in the editor.
+/// <see cref="CueNetEnabled"/> follows the build: on in the editor and debug exports,
+/// off in release exports, so a public release never loads CueNet.
 /// </remarks>
 public static class FeatureFlags
 {
@@ -16,10 +16,15 @@ public static class FeatureFlags
     /// CueNet host plugin, network discovery, and Settings → CueNet.
     /// </summary>
     /// <remarks>
-    /// Keep true while developing CueNet. Set false before a public Cue2 release until CueNet
-    /// is ready to ship. When false, <see cref="HardwarePluginLoader"/> does not load
-    /// <c>CueNet.Host.dll</c>, and the Settings tree omits CueNet.
+    /// True in the editor (Debug, which also defines TOOLS) and in debug exports (ExportDebug);
+    /// false in release exports (ExportRelease, no DEBUG). When false,
+    /// <see cref="HardwarePluginLoader"/> does not load <c>CueNet.Host.dll</c>, and the
+    /// Settings tree omits CueNet. Change this line when CueNet is ready to ship.
     /// </remarks>
     /// <value><see langword="true"/> when CueNet UI and plugin loading are active.</value>
+#if DEBUG
     public static readonly bool CueNetEnabled = true;
+#else
+    public static readonly bool CueNetEnabled = false;
+#endif
 }
