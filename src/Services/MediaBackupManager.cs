@@ -90,6 +90,19 @@ public partial class MediaBackupManager : Node
     private readonly Dictionary<string, string> _reservedBySource =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Save As relocations not yet landed in the new show folder (destination key to the file in the
+    /// previous show folder). While an entry exists, playback resolves that destination to the
+    /// previous folder's file (see <see cref="ResolveRelocatedMediaPath"/>). Removed when the copy is
+    /// applied; kept, marked failed, when it fails. Guarded by <see cref="_queueLock"/>; written on
+    /// main only, cleared by <see cref="ClearPendingJobs"/>.
+    /// </summary>
+    private readonly Dictionary<string, RelocationEntry> _pendingRelocations =
+        new Dictionary<string, RelocationEntry>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Entry count of <see cref="_pendingRelocations"/>, readable without the lock.</summary>
+    private int _pendingRelocationCount;
+
     private int _totalJobs;
     private int _completedJobs;
     private string _currentOriginPath = string.Empty;
@@ -132,6 +145,8 @@ public partial class MediaBackupManager : Node
             _queuedSourceKeys.Clear();
             _reservedDestinations.Clear();
             _reservedBySource.Clear();
+            _pendingRelocations.Clear();
+            Volatile.Write(ref _pendingRelocationCount, 0);
             _totalJobs = 0;
             _completedJobs = 0;
             _currentOriginPath = string.Empty;
@@ -172,11 +187,14 @@ public partial class MediaBackupManager : Node
         _globalData = GetNode<GlobalData>("/root/GlobalData");
         _globalSignals = GetNode<GlobalSignals>("/root/GlobalSignals");
         _saveManager = GetNodeOrNull<SaveManager>("/root/SaveManager");
+        _globalData.MediaPathRedirect = ResolveRelocatedMediaPath;
         GD.Print("MediaBackupManager:_Ready - Initialized.");
     }
 
     public override void _ExitTree()
     {
+        if (_globalData != null)
+            _globalData.MediaPathRedirect = null;
         try
         {
             _cts?.Cancel();
@@ -197,6 +215,8 @@ public partial class MediaBackupManager : Node
     /// </param>
     public void EnqueueShowMediaBackup(bool force = false)
     {
+        RequeueFailedRelocations();
+
         if (!force && (_globalData?.Settings == null || !_globalData.Settings.MediaBackupEnabled))
         {
             GD.Print("MediaBackupManager:EnqueueShowMediaBackup - Skipped (media backup disabled).");
@@ -425,6 +445,7 @@ public partial class MediaBackupManager : Node
                 continue;
 
             string destPath = Path.Combine(destFull, relInsideFolder);
+            TrackRelocation(file, destPath, kind);
             if (EnqueueCopyJob(file, destPath, kind))
                 count++;
         }
@@ -483,8 +504,103 @@ public partial class MediaBackupManager : Node
         if (string.Equals(MediaPaths.NormalizeKey(src), MediaPaths.NormalizeKey(dest), StringComparison.OrdinalIgnoreCase))
             return;
 
+        TrackRelocation(src, dest, kind);
         if (EnqueueCopyJob(src, dest, kind))
             count++;
+    }
+
+    /// <summary>
+    /// Records that <paramref name="destPath"/> in the new show folder is being filled from
+    /// <paramref name="sourcePath"/> in the previous one, so cues keep playing the previous file
+    /// until the copy has landed. Main thread.
+    /// </summary>
+    private void TrackRelocation(string sourcePath, string destPath, MediaBackupKind kind)
+    {
+        lock (_queueLock)
+        {
+            // Reserve the name too, so a backup copy of another file cannot be given it meanwhile.
+            string destKey = MediaPaths.NormalizeKey(destPath);
+            _reservedDestinations[destKey] = MediaPaths.NormalizeKey(sourcePath);
+            _pendingRelocations[destKey] = new RelocationEntry
+            {
+                SourcePath = sourcePath,
+                DestPath = destPath,
+                Kind = kind
+            };
+            Volatile.Write(ref _pendingRelocationCount, _pendingRelocations.Count);
+        }
+    }
+
+    /// <summary>Drops relocations filled from <paramref name="sourceKey"/> once its copy has been applied.</summary>
+    private void ForgetRelocations(string sourceKey)
+    {
+        if (string.IsNullOrEmpty(sourceKey) || Volatile.Read(ref _pendingRelocationCount) == 0)
+            return;
+        lock (_queueLock)
+        {
+            var keys = _pendingRelocations
+                .Where(kv => string.Equals(MediaPaths.NormalizeKey(kv.Value.SourcePath), sourceKey, StringComparison.OrdinalIgnoreCase))
+                .Select(kv => kv.Key)
+                .ToList();
+            foreach (var key in keys)
+                _pendingRelocations.Remove(key);
+            Volatile.Write(ref _pendingRelocationCount, _pendingRelocations.Count);
+        }
+    }
+
+    /// <summary>
+    /// Playback-side redirect used by <see cref="GlobalData.ResolveMediaPath"/>: a show-folder path
+    /// whose Save As copy is pending or failed resolves to the previous show folder's file while
+    /// that file exists. Any thread; one dictionary lookup when relocations are pending.
+    /// </summary>
+    /// <param name="resolvedPath">Absolute path already resolved against the current show folder.</param>
+    /// <returns>The previous folder's file, or <paramref name="resolvedPath"/> unchanged.</returns>
+    public string ResolveRelocatedMediaPath(string resolvedPath)
+    {
+        if (Volatile.Read(ref _pendingRelocationCount) == 0 || string.IsNullOrEmpty(resolvedPath))
+            return resolvedPath;
+
+        string source;
+        lock (_queueLock)
+        {
+            if (!_pendingRelocations.TryGetValue(MediaPaths.NormalizeKey(resolvedPath), out var entry))
+                return resolvedPath;
+            source = entry.SourcePath;
+        }
+
+        return File.Exists(source) ? source : resolvedPath;
+    }
+
+    /// <summary>
+    /// Queues failed Save As relocations again (next save), when the previous file still exists.
+    /// Main thread.
+    /// </summary>
+    private void RequeueFailedRelocations()
+    {
+        if (Volatile.Read(ref _pendingRelocationCount) == 0)
+            return;
+
+        List<RelocationEntry> failed;
+        lock (_queueLock)
+            failed = _pendingRelocations.Values.Where(e => e.Failed).ToList();
+
+        int requeued = 0;
+        foreach (var entry in failed)
+        {
+            if (!File.Exists(entry.SourcePath))
+                continue;
+            if (EnqueueCopyJob(entry.SourcePath, entry.DestPath, entry.Kind))
+            {
+                entry.Failed = false;
+                requeued++;
+            }
+        }
+
+        if (requeued > 0)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"Save As: retrying {requeued} show-local media file(s) that were not copied into this show folder.", 0);
+        }
     }
 
     /// <summary>
@@ -968,6 +1084,23 @@ public partial class MediaBackupManager : Node
                 };
             }
 
+            // The destination already holds this exact file (for example a Save As into a folder
+            // that already has the show's media): nothing to copy, cues keep this name.
+            if (File.Exists(destPath)
+                && new FileInfo(destPath).Length == new FileInfo(job.SourcePath).Length
+                && FilesHaveSameContent(job.SourcePath, destPath))
+            {
+                return new MediaBackupResult
+                {
+                    SourcePath = job.SourcePath,
+                    DestinationPath = destPath,
+                    RelativePath = relative,
+                    ProvisionalRelativePath = provisional,
+                    Copied = false,
+                    Success = true
+                };
+            }
+
             // Same content already in the show folder under this name or a numbered variant:
             // reuse it instead of copying again. Sizes are compared first; content only when equal.
             string identical = FindIdenticalShowFile(job.SourcePath, destDir, Path.GetFileName(job.SourcePath), destPath);
@@ -1121,6 +1254,7 @@ public partial class MediaBackupManager : Node
         // Release only after the apply, so the provisional name cannot be handed to another
         // source while cues still point at it.
         ReleaseReservations(sourceKey);
+        ForgetRelocations(sourceKey);
 
         if (!string.IsNullOrEmpty(provisionalRelative)
             && !string.Equals(provisionalRelative, relativePath, StringComparison.OrdinalIgnoreCase))
@@ -1146,6 +1280,7 @@ public partial class MediaBackupManager : Node
         if (!IsWorkerEpochCurrent(epoch))
             return;
         ReleaseReservations(sourceKey);
+        WarnFailedRelocation(sourceKey);
 
         if (string.IsNullOrEmpty(sourcePath) || CueList.CueIndex == null)
             return;
@@ -1167,6 +1302,60 @@ public partial class MediaBackupManager : Node
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
                 $"Media backup: cue(s) {string.Join(", ", cueIds)} still use the original file {sourcePath}; it was not copied into the show folder.", 1);
         }
+    }
+
+    /// <summary>
+    /// Marks the Save As relocations filled from <paramref name="sourceKey"/> as failed (they keep
+    /// resolving to the previous folder and are retried on the next save) and names the cues that
+    /// use them. Main thread.
+    /// </summary>
+    private void WarnFailedRelocation(string sourceKey)
+    {
+        if (Volatile.Read(ref _pendingRelocationCount) == 0 || string.IsNullOrEmpty(_globalData?.SessionDir))
+            return;
+
+        var destKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string source = null;
+        lock (_queueLock)
+        {
+            foreach (var kv in _pendingRelocations)
+            {
+                if (!string.Equals(MediaPaths.NormalizeKey(kv.Value.SourcePath), sourceKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                kv.Value.Failed = true;
+                // Keep the name reserved while cues still resolve it to the previous folder.
+                _reservedDestinations[kv.Key] = sourceKey;
+                destKeys.Add(kv.Key);
+                source = kv.Value.SourcePath;
+            }
+        }
+
+        if (destKeys.Count == 0)
+            return;
+
+        var cueIds = new List<int>();
+        foreach (var cue in CueList.CueIndex?.Values ?? Enumerable.Empty<Cue>())
+        {
+            if (cue == null) continue;
+            var audio = cue.GetAudioComponent();
+            var video = cue.GetVideoComponent();
+            if (UsesDestination(audio?.AudioFile, destKeys) || UsesDestination(video?.VideoFile, destKeys))
+                cueIds.Add(cue.Id);
+        }
+
+        string who = cueIds.Count > 0
+            ? $"Cue(s) {string.Join(", ", cueIds)} keep playing"
+            : "Cues using it keep playing";
+        _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+            $"Save As: {Path.GetFileName(source)} was not copied into this show folder. {who} {source} from the previous show folder for now; free space or fix access, then save again.", 1);
+    }
+
+    private bool UsesDestination(string storedPath, HashSet<string> destKeys)
+    {
+        if (string.IsNullOrEmpty(storedPath))
+            return false;
+        string resolved = MediaPaths.Resolve(storedPath, _globalData.SessionDir);
+        return !string.IsNullOrEmpty(resolved) && destKeys.Contains(MediaPaths.NormalizeKey(resolved));
     }
 
     /// <summary>
@@ -1361,6 +1550,15 @@ public partial class MediaBackupManager : Node
     private void DeferredLog(string message, int type)
     {
         _globalSignals.EmitSignal(nameof(GlobalSignals.Log), message, type);
+    }
+
+    /// <summary>A Save As copy from the previous show folder that has not landed yet.</summary>
+    private sealed class RelocationEntry
+    {
+        public string SourcePath { get; init; } = string.Empty;
+        public string DestPath { get; init; } = string.Empty;
+        public MediaBackupKind Kind { get; init; }
+        public bool Failed { get; set; }
     }
 
     private sealed class BackupJob

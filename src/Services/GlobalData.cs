@@ -253,7 +253,22 @@ public partial class GlobalData : Node
 	/// </summary>
 	/// <param name="storedPath">Path as stored on a cue component.</param>
 	/// <returns>Absolute filesystem path for I/O, or the input if it cannot be resolved.</returns>
-	public string ResolveMediaPath(string storedPath) => MediaPaths.Resolve(storedPath, SessionDir);
+	/// <remarks>
+	/// While a Save As copy into the show folder is pending or failed, <see cref="MediaPathRedirect"/>
+	/// points the path at the file in the previous show folder so the cue still plays.
+	/// </remarks>
+	public string ResolveMediaPath(string storedPath)
+	{
+		string resolved = MediaPaths.Resolve(storedPath, SessionDir);
+		var redirect = MediaPathRedirect;
+		return redirect == null ? resolved : redirect(resolved) ?? resolved;
+	}
+
+	/// <summary>
+	/// Optional playback redirect for a resolved media path, set by <see cref="MediaBackupManager"/>.
+	/// Returns the path to open instead, or the input unchanged. May be called from any thread.
+	/// </summary>
+	public System.Func<string, string> MediaPathRedirect { get; set; }
 
 	/// <summary>
 	/// The absolute filesystem path that Godot resolves "user://" to.
