@@ -652,11 +652,22 @@ public partial class ActiveCue
                 }
             };
             ulong videoPanelId = componentPanel.GetInstanceId();
+            // Capture id only, the panel may be freed before deferred UI runs. One cached Callable,
+            // queued at most once per frame with the latest time (no per-frame allocation).
+            double latestVideoTime = 0;
+            bool videoUiQueued = false;
+            var videoUiUpdate = Callable.From(() =>
+            {
+                videoUiQueued = false;
+                UpdateVideoUiByPanelId(latestVideoTime, videoPanelId);
+            });
             registeredPlayback.TimeUpdated += time =>
             {
-                // Capture id only — panel may be freed before deferred UI runs.
-                double t = time;
-                Callable.From(() => UpdateVideoUiByPanelId(t, videoPanelId)).CallDeferred();
+                latestVideoTime = time;
+                if (videoUiQueued)
+                    return;
+                videoUiQueued = true;
+                videoUiUpdate.CallDeferred();
             };
             
             _activeComponentCount++;
@@ -804,10 +815,21 @@ public partial class ActiveCue
             stopButton.Pressed += async () => await StopTextComponent(componentPanel);
 
             ulong textPanelId = componentPanel.GetInstanceId();
+            // Cached Callable, queued at most once per frame with the latest time.
+            double latestTextTime = 0;
+            bool textUiQueued = false;
+            var textUiUpdate = Callable.From(() =>
+            {
+                textUiQueued = false;
+                UpdateTextUiByPanelId(latestTextTime, textPanelId);
+            });
             registeredPlayback.TimeUpdated += time =>
             {
-                double t = time;
-                Callable.From(() => UpdateTextUiByPanelId(t, textPanelId)).CallDeferred();
+                latestTextTime = time;
+                if (textUiQueued)
+                    return;
+                textUiQueued = true;
+                textUiUpdate.CallDeferred();
             };
 
             _activeComponentCount++;

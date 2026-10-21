@@ -980,6 +980,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         int presented = 0;
         int maxPresentPerTick = _presentTuning.MaxPresentPerTick;
         // Cap late drops per tick so a large catch-up never monopolises the main thread.
+        // Drops are counted on their own and do not use up the present budget.
         int maxLateDrops = Math.Max(maxPresentPerTick, 8);
         int lateDrops = 0;
         while (presented < maxPresentPerTick)
@@ -1013,7 +1014,6 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             {
                 _videoDecoder.ReleaseFrameBuffer(frame.Rgba);
                 lateDrops++;
-                presented++;
                 continue;
             }
 
