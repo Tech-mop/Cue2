@@ -240,6 +240,8 @@ public partial class VideoInspector : Control
 		
 		// Connect Ui input methods.
 		_selectFileButton.Pressed += OpenFileDialog;
+		if (_fileUrl != null)
+			_fileUrl.TextSubmitted += OnFileUrlSubmitted;
 
 		// Accordion connections
 		_previewCollapseButton.Pressed += () => ToggleAccordian(_previewContainer, _previewCollapseButton);

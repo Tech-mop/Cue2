@@ -348,6 +348,8 @@ public partial class AudioInspector : Control
         _routingCollapseButton.Pressed += () => ToggleAccordian(_routingAccordian, _routingCollapseButton);
         _timelineCollapseButton.Pressed += () => ToggleAccordian(_timelineAccordian, _timelineCollapseButton);
         _buttonSelectFile.Pressed += OpenFileDialog;
+        if (_fileUrl != null)
+            _fileUrl.TextSubmitted += OnFileUrlSubmitted;
         
     
         UiLocalizer.LocalizeTree(this);

@@ -438,6 +438,114 @@ public partial class AudioInspector
     
 
     /// <summary>
+    /// Applies a path typed into the file URL field (Enter). Logs whether the file exists,
+    /// then uses the same assignment as the file dialog when it does.
+    /// </summary>
+    /// <param name="text">Submitted LineEdit text.</param>
+    private void OnFileUrlSubmitted(string text)
+    {
+        if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true)
+            return;
+
+        if (_focusedCue?.GetAudioInputComponent() != null)
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                "This cue has an audio input. Remove it before adding an audio file.", (int)LogType.Warning);
+            RestoreSubmittedFileUrl();
+            return;
+        }
+
+        if (_focusedCue == null && !InspectorMultiEditSupport.ShouldUseMultiEdit(_globalData))
+        {
+            GD.Print("AudioInspector:OnFileUrlSubmitted - No cue selected");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "No cue selected", (int)LogType.Error);
+            return;
+        }
+
+        string path = InspectorMediaUrlStyle.NormalizeTypedPath(text);
+        string sessionDir = _globalData?.SessionDir;
+        string resolved = string.IsNullOrWhiteSpace(path)
+            ? string.Empty
+            : (_globalData?.ResolveMediaPath(path) ?? path);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(resolved))
+        {
+            GD.Print($"AudioInspector:OnFileUrlSubmitted - File not found: {path}");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                string.IsNullOrWhiteSpace(path) ? "File not found." : $"File not found: {path}",
+                (int)LogType.Error);
+            RestoreSubmittedFileUrl();
+            return;
+        }
+
+        GD.Print($"AudioInspector:OnFileUrlSubmitted - File found: {path}");
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), $"File found: {path}", (int)LogType.Info);
+
+        if (SubmittedAudioPathAlreadyAssigned(path, sessionDir))
+        {
+            RestoreSubmittedFileUrl();
+            return;
+        }
+
+        // Same as the file dialog: fresh media assignment resets in/out points.
+        SetAudioFile(path, resetInOutPoints: true);
+    }
+
+    /// <summary>
+    /// True when every cue this submit would edit already uses <paramref name="path"/>.
+    /// </summary>
+    private bool SubmittedAudioPathAlreadyAssigned(string path, string sessionDir)
+    {
+        if (InspectorMultiEditSupport.ShouldUseMultiEdit(_globalData))
+        {
+            var cues = InspectorMultiEditSupport.GetSelectedCues();
+            if (cues == null || cues.Count == 0)
+                return false;
+            foreach (var cue in cues)
+            {
+                var comp = cue.GetAudioComponent();
+                if (comp == null || !InspectorMediaUrlStyle.SameResolvedFile(comp.AudioFile, path, sessionDir))
+                    return false;
+            }
+            return true;
+        }
+
+        return _focusedAudioComponent != null
+            && InspectorMediaUrlStyle.SameResolvedFile(_focusedAudioComponent.AudioFile, path, sessionDir);
+    }
+
+    /// <summary>
+    /// Puts the URL field back to the path stored on the cue after a rejected submit.
+    /// </summary>
+    private void RestoreSubmittedFileUrl()
+    {
+        if (_fileUrl == null)
+            return;
+
+        var targets = GetAudioTargets();
+        if (targets.Count == 0)
+        {
+            _fileUrl.Text = string.Empty;
+            RestoreFileUrlPlaceholder();
+            ApplyFileUrlMissingStyle(false, null);
+            return;
+        }
+
+        if (InspectorMultiEditSupport.TryGetUniformString(
+                targets.Select(t => t.Component.AudioFile ?? string.Empty), out string stored))
+        {
+            _fileUrl.Text = stored;
+            RestoreFileUrlPlaceholder();
+        }
+        else
+        {
+            _fileUrl.Text = string.Empty;
+            _fileUrl.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
+        }
+
+        ApplyFileUrlMissingStyleFromHealth();
+    }
+
+    /// <summary>
     /// Handles file selection from dialog. Adds/replaces AudioComponent and loads metadata + waveform.
     /// </summary>
     /// <param name="path">The selected file path.</param>

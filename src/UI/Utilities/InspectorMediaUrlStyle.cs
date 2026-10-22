@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025-2026 Samuel Moxham
 // SPDX-License-Identifier: MIT
 
+using System;
 using Godot;
 using Cue2.Services;
 
@@ -60,5 +61,49 @@ public static class InspectorMediaUrlStyle
             edit.RemoveThemeColorOverride("font_uneditable_color");
             edit.TooltipText = string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Trims a typed media URL. Surrounding quotes are removed, and a <c>file://</c> URI
+    /// becomes a local filesystem path.
+    /// </summary>
+    /// <param name="text">Raw LineEdit text.</param>
+    /// <returns>Path suitable for <see cref="GlobalData.ResolveMediaPath"/>, or empty.</returns>
+    public static string NormalizeTypedPath(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+
+        string path = text.Trim();
+        if (path.Length >= 2
+            && ((path[0] == '"' && path[^1] == '"') || (path[0] == '\'' && path[^1] == '\'')))
+        {
+            path = path.Substring(1, path.Length - 2).Trim();
+        }
+
+        if (path.StartsWith("file:", StringComparison.OrdinalIgnoreCase)
+            && Uri.TryCreate(path, UriKind.Absolute, out Uri uri)
+            && uri.IsFile)
+        {
+            path = uri.LocalPath;
+        }
+
+        return path;
+    }
+
+    /// <summary>
+    /// True when a stored cue path and a typed path resolve to the same file.
+    /// </summary>
+    /// <param name="storedPath">Path currently on the component.</param>
+    /// <param name="typedPath">Path from the URL field, already normalized.</param>
+    /// <param name="sessionDir">Show session directory, or null.</param>
+    public static bool SameResolvedFile(string storedPath, string typedPath, string sessionDir)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath) || string.IsNullOrWhiteSpace(typedPath))
+            return false;
+
+        string stored = MediaPaths.Resolve(storedPath, sessionDir);
+        string typed = MediaPaths.Resolve(typedPath, sessionDir);
+        return string.Equals(stored, typed, StringComparison.OrdinalIgnoreCase);
     }
 }
