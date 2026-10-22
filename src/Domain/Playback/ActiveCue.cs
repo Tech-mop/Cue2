@@ -42,6 +42,23 @@ public partial class ActiveCue : GodotObject
     
     private readonly object _lock = new object(); // For thread safety
 
+    /// <summary>
+    /// Debug builds only (compiled out of release exports): reports, without throwing, when a
+    /// transport entry point runs off the main thread. ActiveCue state is meant to be touched
+    /// on the main thread only; a debug show run with no such error confirms <c>_lock</c> is
+    /// not needed.
+    /// </summary>
+    /// <param name="caller">Filled in by the compiler.</param>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private void AssertMainThread([System.Runtime.CompilerServices.CallerMemberName] string caller = "")
+    {
+        if (OS.GetThreadCallerId() == OS.GetMainThreadId())
+            return;
+        GD.PushError(
+            $"ActiveCue:{caller} - called off the main thread (cue '{_cue?.Name}'). " +
+            $"ActiveCue state is main-thread only.\n{System.Environment.StackTrace}");
+    }
+
     private MonotonicTimer _preWaitTimer;
     private MonotonicTimer _incomingWaitTimer;
     private bool _preWaitUpdateHooked;

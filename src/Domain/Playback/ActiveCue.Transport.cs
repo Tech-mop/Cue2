@@ -34,6 +34,7 @@ public partial class ActiveCue
 
     private void ResumeAll(bool propagateToChildren = true)
     {
+        AssertMainThread();
         lock (_lock)
         {
             // _isPlaying may be false during edge cases; still allow resume when paused.
@@ -76,6 +77,7 @@ public partial class ActiveCue
 
     private void PauseAll(bool propagateToChildren = true)
     {
+        AssertMainThread();
         _isPaused = true;
         PauseTimelineClock();
         if (_inPreWait)
@@ -164,6 +166,7 @@ public partial class ActiveCue
     /// </summary>
     public async Task StopAllAsync(bool propagateToChildren = true, double? fadeDurationOverride = null)
     {
+        AssertMainThread();
         try
         {
             bool hardStop;
@@ -551,6 +554,7 @@ public partial class ActiveCue
     /// </param>
     public void Cleanup(bool freeImmediately = false)
     {
+        AssertMainThread();
         lock (_lock) // Add lock for thread safety
         {
             if (_isCleaned)
