@@ -87,6 +87,13 @@ public partial class DisplaysManager : Node
             EnsureDefaultScreen();
 
         _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "DisplaysManager initialized.", 0);
+
+        // Display hot-plug: the OS gives no signal, so check the screen layout once a second.
+        _screenLayoutHash = ComputeScreenLayoutHash();
+        _screenWatchTimer = new Timer { WaitTime = ScreenWatchIntervalSeconds, OneShot = false };
+        AddChild(_screenWatchTimer);
+        _screenWatchTimer.Timeout += OnScreenWatchTick;
+        _screenWatchTimer.Start();
     }
 
     /// <summary>
@@ -1079,6 +1086,16 @@ public partial class DisplaysManager : Node
     private ulong _cachedDisplaysMs;
     private const ulong DisplayCacheTtlMs = 2000;
 
+    private const double ScreenWatchIntervalSeconds = 1.0;
+    private Timer _screenWatchTimer;
+    private int _screenLayoutHash;
+
+    /// <summary>
+    /// Displays as they were at the last layout check (names included), used to fingerprint
+    /// live outputs when a display is unplugged. Null until first needed.
+    /// </summary>
+    private List<DisplayInfo> _watchedDisplays;
+
     /// <summary>
     /// Invalidates the display list cache (e.g. after a monitor change).
     /// </summary>
@@ -1226,8 +1243,11 @@ public partial class DisplaysManager : Node
     /// 3. No candidate: mark the output missing (it stays hidden, never opens on another
     ///    display), log a warning, and let the footer and canvas editor show it.
     /// Outputs without a saved fingerprint (older files) keep their index as before.
+    /// An output already marked missing is reconnected when its display matches again.
     /// </summary>
-    private void ResolveSavedMonitor(VideoOutputDevice output)
+    /// <param name="output">Physical output to match.</param>
+    /// <param name="layoutChanged">True when called for a display hot-plug (log wording only).</param>
+    private void ResolveSavedMonitor(VideoOutputDevice output, bool layoutChanged = false)
     {
         if (output == null || !output.IsPhysical || !output.HasSavedMonitorFingerprint)
             return;
@@ -1247,17 +1267,32 @@ public partial class DisplaysManager : Node
         var atSavedPosition = candidates.Where(d => d.Position == output.SavedMonitorPosition).ToList();
         // Keep the saved index when it still matches, unless another matching display sits
         // exactly where the saved one was (two identical displays swapped in OS order).
+        bool wasMissing = output.TargetMonitorMissing;
         if (candidates.Any(d => d.Index == savedIndex)
             && (atSavedPosition.Count == 0 || atSavedPosition.Any(d => d.Index == savedIndex)))
+        {
+            if (wasMissing)
+            {
+                output.TargetMonitor = savedIndex; // clears the missing flag
+                string back = $"Video output '{output.OutputName}': display {output.DescribeSavedMonitor()} reconnected; output reopened.";
+                GD.Print($"DisplaysManager:ResolveSavedMonitor - {back}");
+                _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), back, 0);
+            }
             return;
+        }
 
         if (candidates.Count == 0)
         {
+            if (wasMissing)
+                return; // still missing; already reported
             output.MarkTargetMonitorMissing();
-            string message =
-                $"Video output '{output.OutputName}': its display {output.DescribeSavedMonitor()} was not found. " +
-                "The output stays closed until the display is connected and the show reopened, " +
-                "or another display is chosen in the Canvas Editor.";
+            string message = layoutChanged
+                ? $"Video output '{output.OutputName}': its display {output.DescribeSavedMonitor()} was disconnected. " +
+                  "The output stays closed until the display is connected again, " +
+                  "or another display is chosen in the Canvas Editor."
+                : $"Video output '{output.OutputName}': its display {output.DescribeSavedMonitor()} was not found. " +
+                  "The output stays closed until the display is connected, " +
+                  "or another display is chosen in the Canvas Editor.";
             GD.PrintErr($"DisplaysManager:ResolveSavedMonitor - {message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), message, 1);
             return;
@@ -1269,11 +1304,89 @@ public partial class DisplaysManager : Node
         string ambiguity = candidates.Count > 1 && atSavedPosition.Count != 1 ? $" ({candidates.Count} displays matched; picked the closest)" : string.Empty;
 
         output.TargetMonitor = pick.Index;
-        string remap =
-            $"Video output '{output.OutputName}': display order changed, moved from display {savedIndex} " +
+        string remap = (wasMissing
+                ? $"Video output '{output.OutputName}': display reconnected, moved from display {savedIndex} "
+                : $"Video output '{output.OutputName}': display order changed, moved from display {savedIndex} ") +
             $"to display {pick.Index} ({pick.Name}, {pick.Size.X}x{pick.Size.Y}){ambiguity}.";
         GD.Print($"DisplaysManager:ResolveSavedMonitor - {remap}");
         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), remap, 1);
+    }
+
+    /// <summary>
+    /// Hash of the screen count and each screen's position and size (Godot queries only, cheap).
+    /// </summary>
+    private static int ComputeScreenLayoutHash()
+    {
+        var hash = new HashCode();
+        int count = DisplayServer.GetScreenCount();
+        hash.Add(count);
+        for (int i = 0; i < count; i++)
+        {
+            hash.Add(DisplayServer.ScreenGetPosition(i));
+            hash.Add(DisplayServer.ScreenGetSize(i));
+        }
+        return hash.ToHashCode();
+    }
+
+    /// <summary>
+    /// Once a second: when the screen layout changed (display plugged in, unplugged, moved or
+    /// resized), re-checks physical outputs against the connected displays. Main thread.
+    /// </summary>
+    private void OnScreenWatchTick()
+    {
+        int layoutHash = ComputeScreenLayoutHash();
+        if (layoutHash == _screenLayoutHash)
+        {
+            // Remember the displays (with names) while nothing is changing.
+            _watchedDisplays ??= GetAvailableDisplays();
+            return;
+        }
+        _screenLayoutHash = layoutHash;
+        OnScreenLayoutChanged();
+    }
+
+    /// <summary>
+    /// Best effort to keep physical outputs on their own display after a layout change.
+    /// When the number of displays changed, live outputs are fingerprinted with the display they
+    /// were on and matched again (an unplugged display hides its output and reports it missing;
+    /// one that moved to another index is followed). Missing outputs are matched again on every
+    /// change, so a re-plugged display reopens its output. Never falls back to a window or
+    /// to another display.
+    /// </summary>
+    private void OnScreenLayoutChanged()
+    {
+        var previous = _watchedDisplays;
+        InvalidateDisplayCache();
+        var current = GetAvailableDisplays();
+        _watchedDisplays = current;
+        bool countChanged = previous == null || previous.Count != current.Count;
+
+        foreach (var output in Outputs.ToList())
+        {
+            if (output == null || !GodotObject.IsInstanceValid(output) || !output.IsPhysical)
+                continue;
+
+            if (!output.TargetMonitorMissing)
+            {
+                if (!countChanged)
+                {
+                    // Same displays, new arrangement or resolution: keep the index, re-place.
+                    output.ForceRefreshOutput();
+                    continue;
+                }
+                var was = previous?.FirstOrDefault(d => d.Index == output.TargetMonitor);
+                if (was is { Size.X: > 0 } before)
+                {
+                    string name = before.Name == $"Display {before.Index}" ? string.Empty : before.Name;
+                    output.RememberMonitorFingerprint(name, before.Size, before.Position);
+                }
+            }
+
+            ResolveSavedMonitor(output, layoutChanged: true);
+            output.ForceRefreshOutput();
+        }
+
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.DisplaysChanged));
     }
 
     /// <summary>
@@ -1433,6 +1546,7 @@ public partial class DisplaysManager : Node
                 AddChild(output);
                 Outputs.Add(output);
                 ResolveSavedMonitor(output);
+                _watchedDisplays = GetAvailableDisplays();
                 // Virtual / missing monitors stay hidden; Window and available physical monitors show.
                 // Respect master disable so undo/load does not force house screens open while disabled.
                 if (!OutputDisabled)

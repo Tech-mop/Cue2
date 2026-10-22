@@ -60,6 +60,7 @@
 - If you open another show or start a new one while a save is still being written, the save now just finishes writing its own file. It no longer changes, re-saves, backs up or copies media into the show you opened.
 - A text or caption cue whose display time ends while it is still fading in now fades out smoothly from where it got to, instead of flickering or jumping to full before it disappears.
 - Video playback uses less CPU and memory bandwidth per frame.
+- Video outputs close when their display is unplugged and reopen when it comes back, instead of jumping to another screen.
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.

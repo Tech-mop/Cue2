@@ -109,6 +109,21 @@ public partial class VideoOutputDevice : Window, IDisposable
         HideScreenWindow();
     }
 
+    /// <summary>
+    /// Records the display this output is on as its fingerprint, so it can be found again after
+    /// a hot-plug change (see <see cref="Cue2.Services.DisplaysManager"/>).
+    /// </summary>
+    /// <param name="name">Display name, or empty when it has no real name.</param>
+    /// <param name="size">Display size in pixels.</param>
+    /// <param name="position">Display position on the desktop.</param>
+    public void RememberMonitorFingerprint(string name, Vector2I size, Vector2I position)
+    {
+        SavedMonitorName = name ?? string.Empty;
+        SavedMonitorSize = size;
+        SavedMonitorPosition = position;
+        HasSavedMonitorFingerprint = true;
+    }
+
     /// <summary>Short text for the saved display, for logs and UI ("Name 1920x1080").</summary>
     public string DescribeSavedMonitor()
     {
