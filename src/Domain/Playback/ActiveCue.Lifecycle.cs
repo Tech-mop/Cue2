@@ -111,7 +111,11 @@ public partial class ActiveCue
     /// </summary>
     /// <param name="mode">Continue or Follow (for UI).</param>
     /// <param name="postWait">Previous cue's post-wait duration.</param>
-    public void ArmIncoming(FollowType mode, double postWait)
+    /// <param name="triggerTicks">
+    /// Stopwatch ticks the post-wait counts from (the predecessor's planned content start for
+    /// Continue), or 0 for now.
+    /// </param>
+    public void ArmIncoming(FollowType mode, double postWait, long triggerTicks = 0)
     {
         if (_isCleaned || _suppressContentCompleted || _incomingArmed || _contentStarted)
             return;
@@ -123,15 +127,19 @@ public partial class ActiveCue
         GD.Print(
             $"ActiveCue:ArmIncoming - {_cue.Name} mode={mode} postWait={_incomingWaitDuration:F3} skipPre={_skipPreWait} componentsSetup={_componentsSetup}");
 
+        if (triggerTicks == 0)
+            triggerTicks = Stopwatch.GetTimestamp();
+
         // Zero post-wait: go straight into this cue's pre-wait / content.
         if (_incomingWaitDuration <= 1e-9)
         {
             HideSequencePanel();
+            SetStartAnchor(triggerTicks);
             _ = StartPlaybackCoreAsync(includePreWait: true);
             return;
         }
 
-        BeginIncomingPostWait();
+        BeginIncomingPostWait(triggerTicks);
     }
 
     /// <summary>
@@ -281,6 +289,9 @@ public partial class ActiveCue
     {
         if (_isCleaned || _suppressContentCompleted) return;
 
+        // Planned start when a countdown ended this wait, else now.
+        ContentStartTicks = _plannedContentStartTicks != 0 ? _plannedContentStartTicks : Stopwatch.GetTimestamp();
+        _plannedContentStartTicks = 0;
         RaiseContentPhaseStarted();
         EnsureTimelineStarted();
         PlaybackActivity.Touch();
@@ -372,7 +383,7 @@ public partial class ActiveCue
 
         // One start moment for every child, so their pre-waits stay relative to this content
         // start however long each child's media takes to open.
-        long childAnchorTicks = Stopwatch.GetTimestamp();
+        long childAnchorTicks = ContentStartTicks != 0 ? ContentStartTicks : Stopwatch.GetTimestamp();
 
         // Parent content-local time for play-from-playhead (child body t == parent content t).
         double? contentTimeAtStart = null;
@@ -957,7 +968,7 @@ public partial class ActiveCue
         // Ensure timer exists (chain path may have skipped SetupTimers pre-wait if duration was 0 at setup).
         if (_preWaitTimer == null || !IsInstanceValid(_preWaitTimer))
         {
-            _preWaitTimer = new Timer { WaitTime = _cue.PreWait, OneShot = true, IgnoreTimeScale = true };
+            _preWaitTimer = new MonotonicTimer { WaitTime = _cue.PreWait };
             _activeCueBar.AddChild(_preWaitTimer);
         }
         else
@@ -1037,13 +1048,16 @@ public partial class ActiveCue
 
     private void OnPreWaitTimerTimeout()
     {
-        _ = FinishPreWaitAndStartContent();
+        // Content is due at the deadline, even if this frame came a little after it.
+        long dueTicks = _preWaitTimer != null && IsInstanceValid(_preWaitTimer) ? _preWaitTimer.DeadlineTicks : 0;
+        _ = FinishPreWaitAndStartContent(dueTicks);
     }
 
     /// <summary>
     /// Ends pre-wait (timer or skip) and starts content once. Safe against double-call / missing timer hooks.
     /// </summary>
-    private async Task FinishPreWaitAndStartContent()
+    /// <param name="dueTicks">Pre-wait deadline when the countdown ended it; 0 for skip (now).</param>
+    private async Task FinishPreWaitAndStartContent(long dueTicks = 0)
     {
         if (_preWaitFinished || _isCleaned || _suppressContentCompleted) return;
         if (!_inPreWait && _contentStarted) return;
@@ -1070,6 +1084,7 @@ public partial class ActiveCue
         if (GetCueTimelineSeconds() < _preWaitSecondsHonored - 1e-3)
             SetTimelineSeconds(_preWaitSecondsHonored);
 
+        _plannedContentStartTicks = dueTicks;
         await BeginContentPhaseAsync();
     }
 
@@ -1262,7 +1277,8 @@ public partial class ActiveCue
     /// <summary>
     /// Starts the post-wait after arm (continue label countdown or follow progress bar).
     /// </summary>
-    private void BeginIncomingPostWait()
+    /// <param name="triggerTicks">Stopwatch ticks the post-wait counts from.</param>
+    private void BeginIncomingPostWait(long triggerTicks)
     {
         if (_isCleaned || _suppressContentCompleted) return;
 
@@ -1291,17 +1307,11 @@ public partial class ActiveCue
             _sequencePanel.Visible = true;
         }
 
-        _incomingWaitTimer = new Timer
-        {
-            WaitTime = _incomingWaitDuration,
-            OneShot = true,
-            IgnoreTimeScale = true,
-            Autostart = false
-        };
+        _incomingWaitTimer = new MonotonicTimer { WaitTime = _incomingWaitDuration };
         _activeCueBar.AddChild(_incomingWaitTimer);
         _incomingWaitTimer.Timeout += OnIncomingPostWaitComplete;
         _incomingWaitTimeoutHooked = true;
-        _incomingWaitTimer.Start();
+        _incomingWaitTimer.StartAt(triggerTicks);
         HookIncomingWaitUpdate(true);
     }
 
@@ -1326,6 +1336,10 @@ public partial class ActiveCue
     private void OnIncomingPostWaitComplete()
     {
         if (!_inIncomingWait) return;
+        // This cue is due at the post-wait deadline; its pre-wait counts from there.
+        long dueTicks = _incomingWaitTimer != null && IsInstanceValid(_incomingWaitTimer)
+            ? _incomingWaitTimer.DeadlineTicks
+            : Stopwatch.GetTimestamp();
         HookIncomingWaitUpdate(false);
         FreeIncomingWaitTimer();
         _inIncomingWait = false;
@@ -1333,6 +1347,7 @@ public partial class ActiveCue
 
         if (_isCleaned || _suppressContentCompleted) return;
         // Proceed to this cue's pre-wait (unless pre-wait was already skipped).
+        SetStartAnchor(dueTicks);
         _ = StartPlaybackCoreAsync(includePreWait: true);
     }
 

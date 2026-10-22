@@ -452,7 +452,8 @@ public partial class CueCommandExecutor : Node
                 current.ContentPhaseStarted += () =>
                 {
                     if (!GodotObject.IsInstanceValid(next)) return;
-                    next.ArmIncoming(FollowType.Continue, postWait);
+                    // Count from when this cue's content was due, not the frame that noticed it.
+                    next.ArmIncoming(FollowType.Continue, postWait, current.ContentStartTicks);
                 };
             }
             else if (memberCue.Follow == FollowType.Follow)

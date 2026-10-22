@@ -42,8 +42,8 @@ public partial class ActiveCue : GodotObject
     
     private readonly object _lock = new object(); // For thread safety
 
-    private Timer _preWaitTimer;
-    private Timer _incomingWaitTimer;
+    private MonotonicTimer _preWaitTimer;
+    private MonotonicTimer _incomingWaitTimer;
     private bool _preWaitUpdateHooked;
     private bool _incomingWaitUpdateHooked;
     private bool _incomingWaitTimeoutHooked;
@@ -611,6 +611,19 @@ public partial class ActiveCue : GodotObject
     }
 
     /// <summary>
+    /// When the pre-wait countdown ran out, its deadline (Stopwatch ticks): the moment content
+    /// should start. Consumed by the next content start; 0 otherwise.
+    /// </summary>
+    private long _plannedContentStartTicks;
+
+    /// <summary>
+    /// Stopwatch ticks of the latest content start: the planned moment when a countdown ended
+    /// it, otherwise the actual start. Continue members and group children count from this,
+    /// so a late frame here does not delay them as well. 0 before content starts.
+    /// </summary>
+    public long ContentStartTicks { get; private set; }
+
+    /// <summary>
     /// True when this instance was created/prepared by OSC Load (or equivalent) and has not
     /// entered content yet. GO reuses standby instances so preload work is not discarded.
     /// </summary>
@@ -1000,7 +1013,7 @@ public partial class ActiveCue : GodotObject
         
         if (_cue.PreWait > 0)
         {
-            _preWaitTimer = new Timer { WaitTime = _cue.PreWait, OneShot = true, IgnoreTimeScale = true};
+            _preWaitTimer = new MonotonicTimer { WaitTime = _cue.PreWait };
             _activeCueBar.AddChild(_preWaitTimer);
         }
     }
