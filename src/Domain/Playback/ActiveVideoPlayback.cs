@@ -55,7 +55,15 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private string _lastSubtitleText = string.Empty;
     private ImageTexture _godotTexture;
     private Image _godotImage;
+    /// <summary>Fallback upload buffer, only used if a decoder buffer is not exactly one frame.</summary>
     private byte[] _displayRgba;
+
+    // Settings last turned into tuning by RefreshTuningIfSettingsChanged.
+    private GlobalData _tuningGlobalData;
+    private Settings _tuningSettings;
+    private VideoQualityMode _tuningVideoMode;
+    private AudioLatencyMode _tuningAudioMode;
+    private int _tuningDeclickMs;
 
     public AudioOutputPatch Patch { get; set; }
     public CuePatch Routing { get; set; }
@@ -320,7 +328,6 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             int h = _videoDecoder.Info.Height;
             _godotImage = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
             _godotTexture = ImageTexture.CreateFromImage(_godotImage);
-            _displayRgba = new byte[_videoDecoder.Info.FrameByteSize];
 
             foreach (var display in DisplaysManager.Outputs)
             {
@@ -402,10 +409,18 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         // ImageTexture from Init — Update() would otherwise flash a full-opacity frame.
         ApplyOpacityModulate();
 
+        // Upload the decoder's buffer directly (SetData copies it into Godot's image, and the
+        // caller releases it after this returns). Pool buffers are exactly one frame; the copy
+        // below is only a guard in case one is ever larger.
         int needed = frame.Width * frame.Height * 4;
-        if (_displayRgba == null || _displayRgba.Length < needed)
-            _displayRgba = new byte[needed];
-        Buffer.BlockCopy(frame.Rgba, 0, _displayRgba, 0, needed);
+        byte[] pixels = frame.Rgba;
+        if (pixels.Length != needed)
+        {
+            if (_displayRgba == null || _displayRgba.Length != needed)
+                _displayRgba = new byte[needed];
+            Buffer.BlockCopy(frame.Rgba, 0, _displayRgba, 0, needed);
+            pixels = _displayRgba;
+        }
 
         if (_godotImage.GetWidth() != frame.Width || _godotImage.GetHeight() != frame.Height)
         {
@@ -413,7 +428,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _godotTexture = ImageTexture.CreateFromImage(_godotImage);
         }
 
-        _godotImage.SetData(frame.Width, frame.Height, false, Image.Format.Rgba8, _displayRgba);
+        _godotImage.SetData(frame.Width, frame.Height, false, Image.Format.Rgba8, pixels);
         _godotTexture.Update(_godotImage);
 
         foreach (var layer in _targetLayers)
@@ -986,10 +1001,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             return;
         }
 
-        // Re-read show prefs on the main thread so mid-show changes apply without restart.
+        // Pick up show pref changes on the main thread so they apply without restart.
         // Audio fill threads consume the last _audioTuning snapshot only (no GetNode off-thread).
-        RefreshPresentTuning();
-        RefreshAudioTuning();
+        RefreshTuningIfSettingsChanged();
 
         int presented = 0;
         int maxPresentPerTick = _presentTuning.MaxPresentPerTick;
@@ -1035,6 +1049,34 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _videoDecoder.ReleaseFrameBuffer(frame.Rgba);
             presented++;
         }
+    }
+
+    /// <summary>
+    /// Per-frame check: re-resolves present and audio tuning only when the show settings
+    /// object or one of its quality/latency/de-click values changed since the last call,
+    /// instead of looking up GlobalData and rebuilding the tuning every frame. Main thread only.
+    /// </summary>
+    private void RefreshTuningIfSettingsChanged()
+    {
+        if (_tuningGlobalData == null || !IsInstanceValid(_tuningGlobalData))
+            _tuningGlobalData = GetNodeOrNull<GlobalData>("/root/GlobalData");
+        var settings = _tuningGlobalData?.Settings;
+        if (settings != null
+            && ReferenceEquals(settings, _tuningSettings)
+            && settings.VideoQualityMode == _tuningVideoMode
+            && settings.AudioLatencyMode == _tuningAudioMode
+            && settings.AudioDeclickMs == _tuningDeclickMs)
+            return;
+
+        _tuningSettings = settings;
+        if (settings != null)
+        {
+            _tuningVideoMode = settings.VideoQualityMode;
+            _tuningAudioMode = settings.AudioLatencyMode;
+            _tuningDeclickMs = settings.AudioDeclickMs;
+        }
+        RefreshPresentTuning();
+        RefreshAudioTuning();
     }
 
     /// <summary>

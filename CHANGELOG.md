@@ -59,7 +59,7 @@
 - With media backup on, a newly added or saved cue keeps playing its original file until the copy into the show folder has fully finished, and a failed copy no longer leaves the cue pointing at a missing or half-copied file.
 - If you open another show or start a new one while a save is still being written, the save now just finishes writing its own file. It no longer changes, re-saves, backs up or copies media into the show you opened.
 - A text or caption cue whose display time ends while it is still fading in now fades out smoothly from where it got to, instead of flickering or jumping to full before it disappears.
-- 
+- Video playback uses less CPU and memory bandwidth per frame.
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.
