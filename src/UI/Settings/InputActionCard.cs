@@ -182,7 +182,7 @@ public partial class InputActionCard : PanelContainer
     {
         if (string.IsNullOrEmpty(Action) || !InputMap.HasAction(Action)) return;
 
-        // Keyboard Input Map is app preference only (user://) — not document undo (P2-14).
+        // Keyboard Input Map is app preference only (user://) — not document undo.
         InputMap.ActionEraseEvents(Action);
         _globalData?.UserDataManager?.PersistLiveInputMap();
         GD.Print($"InputActionCard:OnClearButtonPressed - Cleared events for action '{Action}'");
@@ -208,7 +208,7 @@ public partial class InputActionCard : PanelContainer
             }
         }
 
-        // Keyboard Input Map is app preference only (user://) — not document undo (P2-14).
+        // Keyboard Input Map is app preference only (user://) — not document undo.
         _globalData.ResetInputActionToDefault(Action);
         _globalData.UserDataManager?.PersistLiveInputMap();
         GD.Print($"InputActionCard:OnResetButtonPressed - Reset '{Action}' to default via refresh button.");
@@ -292,7 +292,7 @@ public partial class InputActionCard : PanelContainer
 
         // For v1: replace all existing bindings with this single key event.
         // Keyboard shortcuts are Cue2 Preferences (user://user_data.json), not showfile
-        // and not document undo — persist immediately (P2-14).
+        // and not document undo — persist immediately.
         InputMap.ActionEraseEvents(Action);
 
         var newEvent = new InputEventKey

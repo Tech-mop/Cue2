@@ -10,7 +10,7 @@ namespace Cue2.Services;
 
 public partial class TimecodeManager
 {
-    // Written on the RtMidi callback thread(s); concurrent so two sources cannot corrupt it (R1-P2-10).
+    // Written on the RtMidi callback thread(s); concurrent so two sources cannot corrupt it.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, MtcAssembler> _mtcAssemblers =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -110,7 +110,7 @@ public partial class TimecodeManager
 
     private void ApplyMtcToMatchingInputs(string deviceName, TimecodeValue value)
     {
-        // RtMidi thread: iterate the published copy, never the main-owned list (R1-P2-10).
+        // RtMidi thread: iterate the published copy, never the main-owned list.
         foreach (var endpoint in _inputsForMidiThread)
         {
             if (endpoint.Kind != TimecodeKind.MidiTimecode)

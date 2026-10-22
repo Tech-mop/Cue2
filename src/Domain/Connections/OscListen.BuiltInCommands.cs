@@ -401,7 +401,7 @@ public partial class OscListen
         bool startedAny = false;
         foreach (var cue in cues)
             startedAny |= TryActivateCue(cue, $"Go{LookupLabel(lookup)}");
-        // Cooldown only when the message started something (R1-P2-08).
+        // Cooldown only when the message started something.
         if (startedAny)
             executor?.StartOperatorGoCooldown();
         return true;

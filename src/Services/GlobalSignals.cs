@@ -25,7 +25,7 @@ public partial class GlobalSignals : Node
 	[Signal] public delegate void LogAlertEventHandler();
 	[Signal]  public delegate void FileSelectedEventHandler(string path);
 	[Signal]  public delegate void FileDroppedEventHandler(string[] files, string targetControlName);
-	// CueGo removed (P2-05): live active cues are owned by CueCommandExecutor, not a parallel CueGo path.
+	// CueGo removed: live active cues are owned by CueCommandExecutor, not a parallel CueGo path.
 	[Signal]  public delegate void UpdateShellBarEventHandler(int cue);
 	[Signal]  public delegate void OpenSelectedSessionEventHandler(string path);
 	[Signal]  public delegate void SaveFileEventHandler(string url, string showName);

@@ -79,7 +79,7 @@ public partial class AudioInspector
         string structureKey =
             $"{ActiveOutputKey}|{inputChannels}x{outputChannels}|{string.Join(',', inputLabels)}|{string.Join(',', outputLabels)}";
 
-        // Same dimensions / labels / output: refresh cell values only (P2-08).
+        // Same dimensions / labels / output: refresh cell values only.
         if (structureKey == _routingMatrixStructureKey
             && _routingVolumeEdits.Count == inputChannels * outputChannels
             && _routingMatrixGrid.GetChildCount() > 0)

@@ -609,7 +609,7 @@ public partial class SaveManager : Node
 	/// <summary>
 	/// Saves the current session data to the specified path and name.
 	/// Builds the save dictionary on the main thread, then JSON-stringifies
-	/// and encrypt-writes on a worker so large shows do not freeze the UI (P1-15).
+	/// and encrypt-writes on a worker so large shows do not freeze the UI.
 	/// </summary>
 	/// <param name="selectedPath">The full path where the session file will be saved.</param>
 	/// <param name="skipMediaBackup">When true, does not enqueue media copies (used after path rewrite re-save).</param>
@@ -660,13 +660,13 @@ public partial class SaveManager : Node
 		}
 
 		// Session paths must be known before serializing so relative media URLs resolve correctly.
-		// Keep the current identity so a failed Save As can put it back (R1-P1-07).
+		// Keep the current identity so a failed Save As can put it back.
 		var previousIdentity = CaptureSessionIdentity();
 		ApplySessionPaths(sessionPath, folderPaths);
 
 		// Snapshot on main thread (touches Cuelist / Settings / Godot nodes).
 		// Remember which document state the snapshot holds: edits made while the write runs
-		// must still read as unsaved afterwards (R1-P1-11).
+		// must still read as unsaved afterwards.
 		long stateAtSnapshot = _globalData.HistoryManager?.CurrentStateId ?? 0;
 		Dictionary saveData;
 		try
@@ -912,7 +912,7 @@ public partial class SaveManager : Node
 		_globalData.SessionWaveformsPath);
 
 	/// <summary>
-	/// Puts the session identity back after a failed save (R1-P1-07). A plain Save to the same
+	/// Puts the session identity back after a failed save. A plain Save to the same
 	/// path is a no-op; after a failed Save As, title, Ctrl+S and autosave target the old file again.
 	/// </summary>
 	private void RestoreSessionIdentityAfterFailedSave(SessionIdentity previous)
@@ -2269,7 +2269,7 @@ public partial class SaveManager : Node
 				return;
 			}
 
-			// Busy / clean gates (R1-P1-08): never race another write, never rewrite an unchanged show.
+			// Busy / clean gates: never race another write, never rewrite an unchanged show.
 			if (_savesInFlight > 0)
 			{
 				GD.Print("SaveManager:PerformAutosave - Autosave skipped (save in progress).");
@@ -2375,7 +2375,7 @@ public partial class SaveManager : Node
 	/// <remarks>
 	/// Copies the main showfile that the autosave just wrote (off main, behind the write gate)
 	/// instead of building a second snapshot, so the backup always matches the main file. The copy
-	/// goes to a temp name and is then renamed, and pruning runs only after it succeeded (R1-P1-08).
+	/// goes to a temp name and is then renamed, and pruning runs only after it succeeded.
 	/// </remarks>
 	private async Task CreateAutosaveBackupAsync()
 	{

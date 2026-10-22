@@ -77,7 +77,7 @@ public partial class SettingsCanvasEditor
 
     private void RebuildScreensTree()
     {
-        // Diff-update by OutputId so selection/scroll survive rename and geometry-only changes (P2-08).
+        // Diff-update by OutputId so selection/scroll survive rename and geometry-only changes.
         if (_screensTree == null)
             return;
 
@@ -138,7 +138,7 @@ public partial class SettingsCanvasEditor
 
     private void RebuildLayersTree()
     {
-        // Diff-update by LayerId (P2-08).
+        // Diff-update by LayerId.
         if (_layersTree == null)
             return;
 

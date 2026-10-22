@@ -381,7 +381,7 @@ public partial class TimelineInspector
     /// <param name="bar">The visual bar representation.</param>
     /// <remarks>
     /// History is recorded on the first real pre-wait change during a drag, not on mouse-down,
-    /// so a click without drag does not push an empty undo step (P1-20).
+    /// so a click without drag does not push an empty undo step.
     /// </remarks>
     private void HandleBarInput(InputEvent @event, Cue cue, ColorRect bar)
     {

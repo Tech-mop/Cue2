@@ -32,7 +32,7 @@ public partial class TimecodeManager : Node
     private readonly List<TimecodeEndpoint> _inputs = new();
 
     /// <summary>
-    /// Read-only copy of <see cref="_inputs"/> for the MIDI callback thread (R1-P2-10). Main
+    /// Read-only copy of <see cref="_inputs"/> for the MIDI callback thread. Main
     /// replaces it after every change to <see cref="_inputs"/>; MTC handling iterates the copy,
     /// so a concurrent Add / Remove / Clear on main can no longer break the enumeration.
     /// </summary>

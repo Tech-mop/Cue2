@@ -116,7 +116,7 @@ public partial class VideoInspector : Control
 	private VBoxContainer _routingContainer;
 	/// <summary>Left-column input labels in the routing matrix (updated when pan changes).</summary>
 	private readonly List<Label> _routingInputLabels = new List<Label>();
-	/// <summary>Volume LineEdits in row-major order for in-place refresh (P2-08).</summary>
+	/// <summary>Volume LineEdits in row-major order for in-place refresh.</summary>
 	private readonly List<LineEdit> _routingVolumeEdits = new List<LineEdit>();
 	/// <summary>Last built matrix structure (inputs/outputs/labels); skip full rebuild when equal.</summary>
 	private string _routingMatrixStructureKey;

@@ -42,7 +42,7 @@ public sealed class AudioStreamBinding
 }
 
 /// <summary>
-/// Thread-safe view of a playback's SDL output streams for its fill worker (R1-P0-01).
+/// Thread-safe view of a playback's SDL output streams for its fill worker.
 /// </summary>
 /// <remarks>
 /// Threading handshake:

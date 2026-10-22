@@ -179,7 +179,7 @@ public partial class ActiveCue
 
         SetTimelineSeconds(absoluteTimelineSeconds);
 
-        // Scrub to content start: allow finished children to re-fire (P1-18).
+        // Scrub to content start: allow finished children to re-fire.
         // Mid-timeline scrub-back still skips _finishedChildCueIds.
         bool atContentStart = contentTimeSeconds <= 1e-3;
         if (atContentStart && _finishedChildCueIds.Count > 0)
@@ -230,7 +230,7 @@ public partial class ActiveCue
 
     /// <summary>
     /// Stops nested children and parks own media so pre-wait can be re-entered without freeing this cue.
-    /// Clears <see cref="_finishedChildCueIds"/> so re-entering content re-fires nested children (P1-18).
+    /// Clears <see cref="_finishedChildCueIds"/> so re-entering content re-fires nested children.
     /// </summary>
     private void TearDownContentPlaybackForRewind()
     {

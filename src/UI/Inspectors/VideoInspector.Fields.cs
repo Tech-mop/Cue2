@@ -267,7 +267,7 @@ public partial class VideoInspector
 			return;
 
 		// Enabling CC may also auto-add a Text component — record once so one Undo
-		// reverts the flag and the added text together (P1-08).
+		// reverts the flag and the added text together.
 		bool willAddText = pressed && _focusedCue.GetTextComponent() == null;
 		string historyDesc = willAddText
 			? "Enable closed captions (add text)"

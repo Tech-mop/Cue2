@@ -15,7 +15,7 @@ namespace Cue2.UI.Settings;
 /// (Cue2 Preferences — stored in <c>user://user_data.json</c>).
 /// </summary>
 /// <remarks>
-/// Keyboard shortcuts are app preferences, not showfile data and not document undo (P2-14).
+/// Keyboard shortcuts are app preferences, not showfile data and not document undo.
 /// OSC/MIDI Input Map panels remain show-scoped with history. Groups actions into collapsible
 /// category sections; supports rebinding with duplicate-key rejection and conflict highlighting.
 /// </remarks>

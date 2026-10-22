@@ -281,7 +281,7 @@ public partial class Settings
             return new Dictionary();
         }
 
-        // Explicit full snapshot only — never implicit via missing args (P2-10).
+        // Explicit full snapshot only — never implicit via missing args.
         bool wantFull = false;
         var filtered = new System.Collections.Generic.List<string>(keys.Length);
         foreach (var key in keys)

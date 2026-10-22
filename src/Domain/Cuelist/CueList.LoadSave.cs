@@ -141,7 +141,7 @@ public partial class CueList
 		}
 
 		// Repair a malformed ChildCues graph (cycles, shared or missing children) before
-		// anything binds or walks it (R1-P1-03).
+		// anything binds or walks it.
 		SanitizeChildGraph(visited);
 
 		SessionLoadTimer.Current?.Begin("cues.relink");

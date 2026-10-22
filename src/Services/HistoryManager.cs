@@ -782,7 +782,7 @@ public partial class HistoryManager : Node
 
 	private HistoryEntry CaptureCuelistEntry(string description)
 	{
-		// Build live snapshot, strip waveforms on each cue, then structural-clone (P2-09).
+		// Build live snapshot, strip waveforms on each cue, then structural-clone.
 		var live = _globalData.CuelistWorkspace != null
 			? _globalData.CuelistWorkspace.GetDocumentData()
 			: _globalData.Cuelist.GetData();

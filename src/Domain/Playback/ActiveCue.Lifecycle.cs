@@ -391,7 +391,7 @@ public partial class ActiveCue
             if (_childActiveCues.Any(c => c != null && IsInstanceValid(c) && c.Cue?.Id == childId))
                 continue;
 
-            // Never spawn this cue or one of its ancestors as its own child (R1-P1-03).
+            // Never spawn this cue or one of its ancestors as its own child.
             if (IsSelfOrModelAncestor(childId))
             {
                 GD.PrintErr($"ActiveCue:StartChildCues - Child {childId} of {_cue.Name} is the cue or an ancestor; skipped.");

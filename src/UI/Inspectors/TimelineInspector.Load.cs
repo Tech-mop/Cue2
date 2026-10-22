@@ -50,7 +50,7 @@ public partial class TimelineInspector
     }
 
     /// <summary>
-    /// Rebuilds timeline visuals, or only refreshes geometry when the cue tree structure is unchanged (P2-08).
+    /// Rebuilds timeline visuals, or only refreshes geometry when the cue tree structure is unchanged.
     /// </summary>
     private void LoadTimelineNow()
     {
@@ -73,7 +73,7 @@ public partial class TimelineInspector
         bool showWaveforms = _globalData?.Settings?.ShowTimelineWaveforms ?? true;
         string structureKey = BuildTimelineStructureKey(nextItems, showWaveforms);
 
-        // Same hierarchy / collapse / waveform mode — avoid QueueFree + recreate (P2-08).
+        // Same hierarchy / collapse / waveform mode — avoid QueueFree + recreate.
         if (structureKey == _timelineStructureKey
             && _cueToBar.Count > 0
             && _visibleItems.Count == nextItems.Count)

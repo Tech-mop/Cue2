@@ -698,7 +698,7 @@ public class Cue : ICue
                     continue;
                 }
                 string type = (string)compHash["Type"];
-                // "Network" stub removed (P2-05) — treat as unknown if present in old data.
+                // "Network" stub removed — treat as unknown if present in old data.
                 ICueComponent comp = type switch
                 {
                     "Audio" => new AudioComponent(),
@@ -1074,7 +1074,7 @@ public class Cue : ICue
     /// <returns>Max nested span in seconds, or -1 if any child has infinite content.</returns>
     private double DurationOfChildren()
     {
-        // Defence in depth against a ChildCues loop (R1-P1-03): bound the nested recursion.
+        // Defence in depth against a ChildCues loop: bound the nested recursion.
         if (_durationDepth >= CueList.MaxChildDepth)
         {
             GD.PrintErr($"Cue:DurationOfChildren - Group nesting over {CueList.MaxChildDepth} at cue {Id}; ignoring deeper children.");
@@ -2000,7 +2000,7 @@ public class Cue : ICue
                     continue;
                 }
                 string type = (string)compHash["Type"];
-                // "Network" stub removed (P2-05) — skip unknown types quietly after log.
+                // "Network" stub removed — skip unknown types quietly after log.
                 ICueComponent comp = type switch
                 {
                     "Audio" => new AudioComponent(),

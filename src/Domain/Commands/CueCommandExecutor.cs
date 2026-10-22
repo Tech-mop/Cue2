@@ -137,7 +137,7 @@ public partial class CueCommandExecutor : Node
 
     /// <summary>
     /// Starts the Double Go Protection cooldown after an operator GO that started at least one cue.
-    /// A GO that activates nothing must not call this (R1-P2-08).
+    /// A GO that activates nothing must not call this.
     /// </summary>
     public void StartOperatorGoCooldown() => ApplyDoubleGoProtection();
 
@@ -839,64 +839,76 @@ public partial class CueCommandExecutor : Node
         }
     }
 
-    private static async Task FadeRuntimeVolumeAsync(
+    /// <summary>
+    /// One value ramp on one playback: <see cref="Set"/> receives the value lerped from
+    /// <see cref="Start"/> to <see cref="End"/>. <see cref="Channel"/> is the ownership key
+    /// (for example <c>volume</c> or <c>matrix:0:1</c>).
+    /// </summary>
+    private readonly record struct RuntimeFadeTarget(
+        GodotObject Playback, string Channel, float Start, float End, Action<float> Set);
+
+    /// <summary>
+    /// Claims every target for a new fade (the last-started fade owns each playback and
+    /// channel; older ramps stop writing), then ramps them together. Logs
+    /// <paramref name="emptyMessage"/> when there is nothing to fade.
+    /// </summary>
+    private static async Task FadeRuntimeTargetsAsync(
+        List<RuntimeFadeTarget> targets, double duration, string emptyMessage)
+    {
+        if (targets.Count == 0)
+        {
+            GD.Print(emptyMessage);
+            return;
+        }
+
+        var claim = new RuntimeFadeClaim();
+        foreach (var target in targets)
+            claim.Claim(target.Playback, target.Channel);
+
+        await RunMultiTargetFadeAsync(duration, claim, t =>
+        {
+            foreach (var target in targets)
+            {
+                if (claim.Owns(target.Playback, target.Channel))
+                    target.Set(Mathf.Lerp(target.Start, target.End, t));
+            }
+        });
+    }
+
+    private static Task FadeRuntimeVolumeAsync(
         ControlComponent control,
         List<ActiveAudioPlayback> audioPlaybacks,
         List<ActiveVideoPlayback> videoPlaybacks,
         double duration)
     {
-        // Capture per-playback start → end so each instance fades from its own current level.
-        // Last-started fade owns each (playback, property); earlier ramps stop writing.
-        var claim = new RuntimeFadeClaim();
-        var audioTargets = new List<(ActiveAudioPlayback pb, float start, float end)>();
+        // Each instance fades from its own current level.
+        var targets = new List<RuntimeFadeTarget>();
         foreach (var pb in audioPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
             float start = pb.EffectiveLevelLinear;
-            claim.Claim(pb, "volume");
-            audioTargets.Add((pb, start, ResolveFadeAudioLinear(start, control)));
+            targets.Add(new(pb, "volume", start, ResolveFadeAudioLinear(start, control), pb.SetRuntimeLevelLinear));
         }
 
-        var videoTargets = new List<(ActiveVideoPlayback pb, float start, float end)>();
         foreach (var pb in videoPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
             // Only video playings that actually mix embedded audio.
             if (pb.SourceChannels <= 0) continue;
             float start = pb.EffectiveLevelLinear;
-            claim.Claim(pb, "volume");
-            videoTargets.Add((pb, start, ResolveFadeAudioLinear(start, control)));
+            targets.Add(new(pb, "volume", start, ResolveFadeAudioLinear(start, control), pb.SetRuntimeLevelLinear));
         }
 
-        if (audioTargets.Count == 0 && videoTargets.Count == 0)
-        {
-            GD.Print("CueCommandExecutor:FadeRuntimeVolumeAsync - No audio streams on active playback");
-            return;
-        }
-
-        await RunMultiTargetFadeAsync(duration, claim, t =>
-        {
-            foreach (var (pb, start, end) in audioTargets)
-            {
-                if (claim.Owns(pb, "volume"))
-                    pb.SetRuntimeLevelLinear(Mathf.Lerp(start, end, t));
-            }
-            foreach (var (pb, start, end) in videoTargets)
-            {
-                if (claim.Owns(pb, "volume"))
-                    pb.SetRuntimeLevelLinear(Mathf.Lerp(start, end, t));
-            }
-        });
+        return FadeRuntimeTargetsAsync(targets, duration,
+            "CueCommandExecutor:FadeRuntimeVolumeAsync - No audio streams on active playback");
     }
 
-    private static async Task FadeRuntimeOpacityAsync(
+    private static Task FadeRuntimeOpacityAsync(
         ControlComponent control,
         List<ActiveVideoPlayback> videoPlaybacks,
         double duration)
     {
-        // Last-started fade owns each (playback, property); earlier ramps stop writing.
-        var claim = new RuntimeFadeClaim();
-        var targets = new List<(ActiveVideoPlayback pb, float start, float end)>();
+        var targets = new List<RuntimeFadeTarget>();
         foreach (var pb in videoPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
@@ -906,89 +918,50 @@ public partial class CueCommandExecutor : Node
                 ? control.FadeOpacityPercent
                 : startPct + control.FadeOpacityPercent;
             endPct = Mathf.Clamp(endPct, 0f, 100f);
-            claim.Claim(pb, "opacity");
-            targets.Add((pb, start, endPct / 100f));
+            targets.Add(new(pb, "opacity", start, endPct / 100f, pb.SetRuntimeOpacity));
         }
 
-        if (targets.Count == 0)
-        {
-            GD.Print("CueCommandExecutor:FadeRuntimeOpacityAsync - No video playback to fade");
-            return;
-        }
-
-        await RunMultiTargetFadeAsync(duration, claim, t =>
-        {
-            foreach (var (pb, start, end) in targets)
-            {
-                if (claim.Owns(pb, "opacity"))
-                    pb.SetRuntimeOpacity(Mathf.Lerp(start, end, t));
-            }
-        });
+        return FadeRuntimeTargetsAsync(targets, duration,
+            "CueCommandExecutor:FadeRuntimeOpacityAsync - No video playback to fade");
     }
 
-    private static async Task FadeRuntimePanAsync(
+    private static Task FadeRuntimePanAsync(
         ControlComponent control,
         List<ActiveAudioPlayback> audioPlaybacks,
         List<ActiveVideoPlayback> videoPlaybacks,
         double duration)
     {
-        // Last-started fade owns each (playback, property); earlier ramps stop writing.
-        var claim = new RuntimeFadeClaim();
-        var audioTargets = new List<(ActiveAudioPlayback pb, float start, float end)>();
+        float ResolveEnd(float start) => Mathf.Clamp(
+            control.FadeMode == ControlFadeMode.Absolute ? control.FadePan : start + control.FadePan,
+            -1f, 1f);
+
+        var targets = new List<RuntimeFadeTarget>();
         foreach (var pb in audioPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
             if (pb.SourceChannels != 2) continue;
             float start = pb.EffectivePan;
-            float end = control.FadeMode == ControlFadeMode.Absolute
-                ? control.FadePan
-                : start + control.FadePan;
-            claim.Claim(pb, "pan");
-            audioTargets.Add((pb, start, Mathf.Clamp(end, -1f, 1f)));
+            targets.Add(new(pb, "pan", start, ResolveEnd(start), pb.SetRuntimePan));
         }
 
-        var videoTargets = new List<(ActiveVideoPlayback pb, float start, float end)>();
         foreach (var pb in videoPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
             if (pb.SourceChannels != 2) continue;
             float start = pb.EffectivePan;
-            float end = control.FadeMode == ControlFadeMode.Absolute
-                ? control.FadePan
-                : start + control.FadePan;
-            claim.Claim(pb, "pan");
-            videoTargets.Add((pb, start, Mathf.Clamp(end, -1f, 1f)));
+            targets.Add(new(pb, "pan", start, ResolveEnd(start), pb.SetRuntimePan));
         }
 
-        if (audioTargets.Count == 0 && videoTargets.Count == 0)
-        {
-            GD.Print("CueCommandExecutor:FadeRuntimePanAsync - No stereo streams on active playback");
-            return;
-        }
-
-        await RunMultiTargetFadeAsync(duration, claim, t =>
-        {
-            foreach (var (pb, start, end) in audioTargets)
-            {
-                if (claim.Owns(pb, "pan"))
-                    pb.SetRuntimePan(Mathf.Lerp(start, end, t));
-            }
-            foreach (var (pb, start, end) in videoTargets)
-            {
-                if (claim.Owns(pb, "pan"))
-                    pb.SetRuntimePan(Mathf.Lerp(start, end, t));
-            }
-        });
+        return FadeRuntimeTargetsAsync(targets, duration,
+            "CueCommandExecutor:FadeRuntimePanAsync - No stereo streams on active playback");
     }
 
-    private static async Task FadeRuntimePlayRateAsync(
+    private static Task FadeRuntimePlayRateAsync(
         ControlComponent control,
         List<ActiveAudioPlayback> audioPlaybacks,
         double duration)
     {
-        // Last-started fade owns each (playback, property); earlier ramps stop writing.
-        var claim = new RuntimeFadeClaim();
-        var targets = new List<(ActiveAudioPlayback pb, float start, float end)>();
+        var targets = new List<RuntimeFadeTarget>();
         foreach (var pb in audioPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
@@ -997,34 +970,20 @@ public partial class CueCommandExecutor : Node
                 ? control.FadePlayRate
                 : start + control.FadePlayRate;
             end = (float)AudioComponent.ClampPlayRate(end);
-            claim.Claim(pb, "playrate");
-            targets.Add((pb, start, end));
+            var playback = pb;
+            targets.Add(new(pb, "playrate", start, end, v => playback.SetRuntimePlayRate(v)));
         }
 
-        if (targets.Count == 0)
-        {
-            GD.Print("CueCommandExecutor:FadeRuntimePlayRateAsync - No file-audio playback to fade");
-            return;
-        }
-
-        await RunMultiTargetFadeAsync(duration, claim, t =>
-        {
-            foreach (var (pb, start, end) in targets)
-            {
-                if (claim.Owns(pb, "playrate"))
-                    pb.SetRuntimePlayRate(Mathf.Lerp(start, end, t));
-            }
-        });
+        return FadeRuntimeTargetsAsync(targets, duration,
+            "CueCommandExecutor:FadeRuntimePlayRateAsync - No file-audio playback to fade");
     }
 
-    private static async Task FadeRuntimePitchAsync(
+    private static Task FadeRuntimePitchAsync(
         ControlComponent control,
         List<ActiveAudioPlayback> audioPlaybacks,
         double duration)
     {
-        // Last-started fade owns each (playback, property); earlier ramps stop writing.
-        var claim = new RuntimeFadeClaim();
-        var targets = new List<(ActiveAudioPlayback pb, float start, float end)>();
+        var targets = new List<RuntimeFadeTarget>();
         foreach (var pb in audioPlaybacks)
         {
             if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
@@ -1033,27 +992,15 @@ public partial class CueCommandExecutor : Node
                 ? control.FadePitchCents
                 : start + control.FadePitchCents;
             end = AudioComponent.ClampPitchCents(end);
-            claim.Claim(pb, "pitch");
-            targets.Add((pb, start, end));
+            var playback = pb;
+            targets.Add(new(pb, "pitch", start, end, v => playback.SetRuntimePitchCents(v)));
         }
 
-        if (targets.Count == 0)
-        {
-            GD.Print("CueCommandExecutor:FadeRuntimePitchAsync - No file-audio playback to fade");
-            return;
-        }
-
-        await RunMultiTargetFadeAsync(duration, claim, t =>
-        {
-            foreach (var (pb, start, end) in targets)
-            {
-                if (claim.Owns(pb, "pitch"))
-                    pb.SetRuntimePitchCents(Mathf.Lerp(start, end, t));
-            }
-        });
+        return FadeRuntimeTargetsAsync(targets, duration,
+            "CueCommandExecutor:FadeRuntimePitchAsync - No file-audio playback to fade");
     }
 
-    private static async Task FadeRuntimeMatrixAsync(
+    private static Task FadeRuntimeMatrixAsync(
         ControlComponent control,
         List<ActiveAudioPlayback> audioPlaybacks,
         List<ActiveVideoPlayback> videoPlaybacks,
@@ -1079,63 +1026,50 @@ public partial class CueCommandExecutor : Node
             else
             {
                 GD.Print("CueCommandExecutor:FadeRuntimeMatrixAsync - No matrix cells targeted");
-                return;
+                return Task.CompletedTask;
             }
         }
 
-        // (playback, in, out, start, end) for audio and video separately.
-        // Last-started fade owns each (playback, property); earlier ramps stop writing.
-        var claim = new RuntimeFadeClaim();
-        var audioTargets = new List<(ActiveAudioPlayback pb, int inIdx, int outIdx, float start, float end)>();
-        var videoTargets = new List<(ActiveVideoPlayback pb, int inIdx, int outIdx, float start, float end)>();
-
+        var targets = new List<RuntimeFadeTarget>();
+        int audioCells = 0;
+        int videoCells = 0;
         foreach (var kvp in cellTargets)
         {
             ControlComponent.UnpackMatrixCellKey(kvp.Key, out int inIdx, out int outIdx);
             float targetDb = kvp.Value;
+            string channel = $"matrix:{inIdx}:{outIdx}";
 
             foreach (var pb in audioPlaybacks)
             {
                 if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
                 if (!pb.TryGetMatrixCell(inIdx, outIdx, out float start)) continue;
-                claim.Claim(pb, $"matrix:{inIdx}:{outIdx}");
-                audioTargets.Add((pb, inIdx, outIdx, start, ResolveFadeAudioLinear(start, targetDb, control.FadeMode)));
+                var playback = pb;
+                targets.Add(new(pb, channel, start, ResolveFadeAudioLinear(start, targetDb, control.FadeMode),
+                    v => playback.SetRuntimeMatrixCell(inIdx, outIdx, v)));
+                audioCells++;
             }
 
             foreach (var pb in videoPlaybacks)
             {
                 if (pb == null || !GodotObject.IsInstanceValid(pb)) continue;
                 if (!pb.TryGetMatrixCell(inIdx, outIdx, out float start)) continue;
-                claim.Claim(pb, $"matrix:{inIdx}:{outIdx}");
-                videoTargets.Add((pb, inIdx, outIdx, start, ResolveFadeAudioLinear(start, targetDb, control.FadeMode)));
+                var playback = pb;
+                targets.Add(new(pb, channel, start, ResolveFadeAudioLinear(start, targetDb, control.FadeMode),
+                    v => playback.SetRuntimeMatrixCell(inIdx, outIdx, v)));
+                videoCells++;
             }
         }
 
-        if (audioTargets.Count == 0 && videoTargets.Count == 0)
+        if (targets.Count > 0)
         {
             GD.Print(
-                $"CueCommandExecutor:FadeRuntimeMatrixAsync - No valid matrix cells " +
-                $"(targets={cellTargets.Count})");
-            return;
+                $"CueCommandExecutor:FadeRuntimeMatrixAsync - Fading {cellTargets.Count} cell(s) " +
+                $"across {audioCells} audio + {videoCells} video cell-instances");
         }
 
-        GD.Print(
-            $"CueCommandExecutor:FadeRuntimeMatrixAsync - Fading {cellTargets.Count} cell(s) " +
-            $"across {audioTargets.Count} audio + {videoTargets.Count} video cell-instances");
-
-        await RunMultiTargetFadeAsync(duration, claim, t =>
-        {
-            foreach (var (pb, inIdx, outIdx, start, end) in audioTargets)
-            {
-                if (claim.Owns(pb, $"matrix:{inIdx}:{outIdx}"))
-                    pb.SetRuntimeMatrixCell(inIdx, outIdx, Mathf.Lerp(start, end, t));
-            }
-            foreach (var (pb, inIdx, outIdx, start, end) in videoTargets)
-            {
-                if (claim.Owns(pb, $"matrix:{inIdx}:{outIdx}"))
-                    pb.SetRuntimeMatrixCell(inIdx, outIdx, Mathf.Lerp(start, end, t));
-            }
-        });
+        return FadeRuntimeTargetsAsync(targets, duration,
+            $"CueCommandExecutor:FadeRuntimeMatrixAsync - No valid matrix cells " +
+            $"(targets={cellTargets.Count})");
     }
 
     /// <summary>

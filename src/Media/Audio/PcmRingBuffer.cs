@@ -12,7 +12,7 @@ namespace Cue2.Media.Audio;
 /// <remarks>
 /// <b>Not thread-safe on its own.</b> All access must be serialized by the owner
 /// (e.g. <see cref="Cue2.Media.Decoders.AudioSourceDecoder"/> holds its decoder lock
-/// around every read/write/clear). A nested lock here was removed (P2-06) because it
+/// around every read/write/clear). A nested lock here was removed because it
 /// only added latency under the outer decoder lock with no extra concurrency benefit.
 /// </remarks>
 public sealed class PcmRingBuffer
