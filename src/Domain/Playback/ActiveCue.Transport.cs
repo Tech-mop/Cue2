@@ -35,13 +35,10 @@ public partial class ActiveCue
     private void ResumeAll(bool propagateToChildren = true)
     {
         AssertMainThread();
-        lock (_lock)
-        {
-            // _isPlaying may be false during edge cases; still allow resume when paused.
-            if (!_isPaused) return;
-            _isPaused = false;
-            _isPlaying = true;
-        }
+        // _isPlaying may be false during edge cases; still allow resume when paused.
+        if (!_isPaused) return;
+        _isPaused = false;
+        _isPlaying = true;
 
         ResumeTimelineClock();
         if (_inPreWait)
@@ -170,32 +167,29 @@ public partial class ActiveCue
         try
         {
             bool hardStop;
-            lock (_lock)
+            if (_isCleaned) return;
+
+            // User/panic stop — do not arm continue/follow; cancel unstarted chain peers.
+            _suppressContentCompleted = true;
+            NextInChain?.CancelPendingFromPredecessor();
+
+            // Waiting / paused / not yet playing content — tear down immediately.
+            // Still stop nested children first so they do not outlive the parent bar.
+            if (!_contentStarted || _inIncomingWait || _inPreWait || _isPaused)
             {
-                if (_isCleaned) return;
-
-                // User/panic stop — do not arm continue/follow; cancel unstarted chain peers.
-                _suppressContentCompleted = true;
-                NextInChain?.CancelPendingFromPredecessor();
-
-                // Waiting / paused / not yet playing content — tear down immediately.
-                // Still stop nested children first so they do not outlive the parent bar.
-                if (!_contentStarted || _inIncomingWait || _inPreWait || _isPaused)
-                {
-                    if (propagateToChildren)
-                        StopChildCuesImmediate(fadeDurationOverride ?? 0.0);
-                    Cleanup();
-                    return;
-                }
-
-                // Second Stop while a fade is in progress → hard stop.
-                hardStop = _isStopFading;
-                _isStopFading = true;
-
-                // Setup still running: components that finish later are discarded.
-                if (!_componentsSetup)
-                    _stopRequestedDuringSetup = true;
+                if (propagateToChildren)
+                    StopChildCuesImmediate(fadeDurationOverride ?? 0.0);
+                Cleanup();
+                return;
             }
+
+            // Second Stop while a fade is in progress → hard stop.
+            hardStop = _isStopFading;
+            _isStopFading = true;
+
+            // Setup still running: components that finish later are discarded.
+            if (!_componentsSetup)
+                _stopRequestedDuringSetup = true;
 
             // Stop child cues if propagating (same fade override).
             // Nested bars live under this cue's UI — do not free parent until children finish.
@@ -555,19 +549,16 @@ public partial class ActiveCue
     public void Cleanup(bool freeImmediately = false)
     {
         AssertMainThread();
-        lock (_lock) // Add lock for thread safety
+        if (_isCleaned)
         {
-            if (_isCleaned)
-            {
-                GD.Print("ActiveCue:Cleanup - Already cleaned");
-                if (freeImmediately && IsInstanceValid(this))
-                    Free();
-                return;
-            }
-
-            _isCleaned = true;
-            _isPlaying = false;
+            GD.Print("ActiveCue:Cleanup - Already cleaned");
+            if (freeImmediately && IsInstanceValid(this))
+                Free();
+            return;
         }
+
+        _isCleaned = true;
+        _isPlaying = false;
 
         // Disconnect completion handlers BEFORE Clean/Stop so they cannot touch freed panels.
         DisconnectPlaybackCompletionHandlers();

@@ -40,13 +40,11 @@ public partial class ActiveCue : GodotObject
     private bool _isPlaying;
     private bool _inPreWait = false;
     
-    private readonly object _lock = new object(); // For thread safety
-
     /// <summary>
     /// Debug builds only (compiled out of release exports): reports, without throwing, when a
-    /// transport entry point runs off the main thread. ActiveCue state is meant to be touched
-    /// on the main thread only; a debug show run with no such error confirms <c>_lock</c> is
-    /// not needed.
+    /// transport entry point runs off the main thread. ActiveCue state is main-thread only
+    /// (signals, deferred calls and await continuations on the Godot context), so it takes
+    /// no lock; this check keeps that assumption visible.
     /// </summary>
     /// <param name="caller">Filled in by the compiler.</param>
     [System.Diagnostics.Conditional("DEBUG")]
