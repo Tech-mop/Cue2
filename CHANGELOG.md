@@ -30,6 +30,7 @@
 - MIDI Timecode (MTC) send and receive (quarter-frame and full-frame).
 - Shell inspector Solo option: Off (default), Stop all, or Stop current list.
 - Settings → Cue2 Preferences → Theme. Choose **Cue2 (Default)**, **Dark**, **Light**, or **Neon**, or **Add Theme** for a Godot Theme `.tres`.
+- Preload standby cue (Settings, General, Media): "Edit and show mode", "Show mode only" (default) or "Off". The cue on the playhead has its media opened before GO, hidden and silent, so GO starts it straight away. Groups of more than 16 cues are not preloaded.
 
 ### Fixed
 - Closing Cue2 no longer logs a parent-busy `remove_child` error from the cue-move preview overlay.
@@ -61,6 +62,9 @@
 - A text or caption cue whose display time ends while it is still fading in now fades out smoothly from where it got to, instead of flickering or jumping to full before it disappears.
 - Video playback uses less CPU and memory bandwidth per frame.
 - Video outputs close when their display is unplugged and reopen when it comes back, instead of jumping to another screen.
+- When the graphics card cannot decode a file, Cue2 now switches that file to full multi-core software decoding and carries on from the same picture.
+- Resizing the preview or the window no longer slowly builds up video memory.
+- Video that changes picture format part way through now keeps displaying correctly.
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.
@@ -73,6 +77,21 @@
 - Nested children depth now capped at 256 (previously no limit)
 - Multiple control fades on one target cue no longer fight - newest fade takes priority.
 - Autosaves no longer fire during moment of high-load. If cues are activating auto-save will wait for them to begin running. 
+- Video prefetch sleeps until the frame buffer runs low, or for 20 ms, instead of waking every 4 ms. Playback timing is unchanged.
+- A video that falls behind the clock skips late pictures before it spends time converting them, so the picture can catch the soundtrack.
+- Video can decode on the GPU. Settings, Video/Image, Hardware decode defaults to Auto and is saved with the show. Off stays on the CPU. A file the GPU cannot decode stays on the CPU.
+- The inspector video preview scales the picture while it decodes, and keeps its own playhead. A large file is no longer shrunk on the main thread. The output cue is unchanged.
+- 8-bit 4:2:0 video (the usual H.264 and HEVC files) is uploaded as colour planes and converted on the GPU. 4K playback should hold frame rate better. 10-bit video and still images still upload a full RGBA frame.
+- HD and 4K video follows the file's colour space. Those pictures can look slightly different from earlier versions.
+- After a hitch, a playing video shows the newest frame that is due instead of pushing several frames in the same moment.
+- Playback workers run on their own threads, so many playing cues can no longer slow down the start of the next one.
+- Cues start as soon as two pictures and about 100 ms of sound are ready, instead of filling their whole buffer first.
+- Sound cues that just play through (no loop, in or out point, or repeats) now stream from disk, so they start at once and use far less memory. They switch to the in-memory copy the first time you seek them.
+- The first video cue after launch starts faster: the video decoder on the graphics card and the colour shader are prepared while Cue2 starts.
+- The inspector preview and memory clean-up now wait until a cue has finished starting, so they no longer slow down GO.
+- Several 4K videos at once play much more smoothly: each picture is prepared on its decoding thread, so the interface thread only hands it to the graphics card.
+- Memory clean-up no longer runs while video plays (it waits up to a minute), so it no longer causes a stutter.
+- Video cues that are fully transparent (opacity or fade at 0) no longer send pictures to the graphics card.
 
 ## [0.1.1] - 2026-09-21
 

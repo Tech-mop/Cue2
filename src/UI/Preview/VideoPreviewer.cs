@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Cue2.Domain.Cues;
+using Cue2.Domain.Playback;
+using Cue2.Domain.ShowSettings;
 using Cue2.Services;
 using Cue2.Media.Audio;
 using Cue2.Media.Decoders;
@@ -28,9 +30,7 @@ public partial class VideoPreviewer : Control
     private ImageTexture _godotTexture;
     private Image _godotImage;
     private byte[] _displayRgba;
-    private byte[] _sourceRgba;
-    private int _sourceWidth;
-    private int _sourceHeight;
+    private bool _layoutReady;
 
     private VideoSourceDecoder _decoder;
     private bool _isExiting;
@@ -98,10 +98,56 @@ public partial class VideoPreviewer : Control
         SetProcess(false);
     }
 
+    /// <summary>Bumped by every load and clear; a deferred load runs only if it is still current.</summary>
+    private int _loadGeneration;
+
+    /// <summary>A cue started this recently counts as starting: the preview waits.</summary>
+    private const double PreviewQuietSeconds = 0.4;
+
+    /// <summary>Longest the preview waits for cue starts to finish before it opens anyway.</summary>
+    private const int MaxPreviewDeferMs = 3000;
+
+    private const int PreviewDeferStepMs = 100;
+
+    /// <summary>
+    /// Opens <paramref name="file"/> in the preview. While a cue is starting (for example
+    /// right after GO, when the selection moves to the next cue) the open waits until the
+    /// start is done, so the preview does not read and decode at the same time as the cue.
+    /// </summary>
     public void LoadDecoder(string file)
     {
         ClearDecoder();
+        int generation = _loadGeneration;
+        if (PlaybackActivity.IsBusy(PreviewQuietSeconds) && IsInsideTree())
+        {
+            DeferLoad(file, generation, 0);
+            return;
+        }
+        StartLoad(file);
+    }
+
+    private void DeferLoad(string file, int generation, int waitedMs)
+    {
+        GetTree().CreateTimer(PreviewDeferStepMs / 1000.0).Timeout += () =>
+        {
+            if (!IsInstanceValid(this) || _isExiting || generation != _loadGeneration)
+                return;
+            int waited = waitedMs + PreviewDeferStepMs;
+            if (PlaybackActivity.IsBusy(PreviewQuietSeconds) && waited < MaxPreviewDeferMs && IsInsideTree())
+            {
+                DeferLoad(file, generation, waited);
+                return;
+            }
+            StartLoad(file);
+        };
+    }
+
+    private void StartLoad(string file)
+    {
         _decoder = new VideoSourceDecoder();
+        var showSettings = _globalData?.Settings;
+        _decoder.AllowHardwareDecode = showSettings == null
+            || showSettings.HardwareDecodeMode != HardwareDecodeMode.Off;
         _playPauseButton.Icon = GetThemeIcon("Play", "AtlasIcons");
         _isPlaying = false;
         string resolved = _globalData?.ResolveMediaPath(file) ?? file;
@@ -119,8 +165,8 @@ public partial class VideoPreviewer : Control
         {
             await _decoder.OpenAsync(file);
             if (_isExiting || _decoder == null) return;
-            // Prefetch + first frame off main (decode can be multi-ms).
-            // Image / display buffer are created in UploadFromSource at canvas preview size.
+            // Scale on this decoder only. The house cue keeps its own decoder at full size.
+            ApplyOutputSizeToDecoder(_decoder);
             var decoder = _decoder;
             await Task.Run(() => decoder.Prefetch(4));
             if (_isExiting || _decoder != decoder) return;
@@ -227,6 +273,7 @@ public partial class VideoPreviewer : Control
             scale = 1f;
 
         _previewScale = scale;
+        _layoutReady = true;
         var scaledCanvas = canvasSize * scale;
         _canvasArea.Size = scaledCanvas;
         _canvasArea.Position = Vector2.Zero;
@@ -247,8 +294,8 @@ public partial class VideoPreviewer : Control
         _layerHost.Position = new Vector2(layer.CanvasPosition.X, layer.CanvasPosition.Y) * scale;
         _layerHost.Size = new Vector2(layer.Size.X, layer.Size.Y) * scale;
 
-        // Texture pixels follow preview scale so Keep Size / Fit Width match the drawn canvas.
-        UploadFromSource();
+        // Ask this preview decoder for the next frames at canvas size. Playhead stays here.
+        SyncPreviewOutputSize();
         ApplyStoredTextureLayout();
         UpdateSeekBarWidth(scaledCanvas.X);
         _areasDirty = false;
@@ -431,8 +478,8 @@ public partial class VideoPreviewer : Control
     }
 
     /// <summary>
-    /// Copies the frame into the display texture, then always returns the decoder
-    /// RGBA buffer to the pool (same contract as house <see cref="ActiveVideoPlayback"/>).
+    /// Uploads the preview decoder's frame, then returns its buffer to that decoder's pool.
+    /// The frame is already at canvas preview size. This does not touch the house playback decoder.
     /// </summary>
     /// <param name="frame">Frame taken from the decoder ring (ownership until release).</param>
     /// <param name="decoder">
@@ -454,69 +501,26 @@ public partial class VideoPreviewer : Control
     }
 
     /// <summary>
-    /// Copies frame pixels into the Godot texture. Does not free <see cref="VideoFrame.Rgba"/> —
-    /// callers must use <see cref="PresentAndRelease"/> or <see cref="VideoSourceDecoder.ReleaseFrameBuffer"/>.
+    /// Uploads a frame that the preview decoder already scaled. Does not free
+    /// <see cref="VideoFrame.Rgba"/>. Callers use <see cref="PresentAndRelease"/>.
     /// </summary>
     private void Present(VideoFrame frame)
     {
         if (frame?.Rgba == null || _isExiting) return;
 
-        int srcW = frame.Width;
-        int srcH = frame.Height;
-        if (srcW < 1 || srcH < 1)
+        int dstW = frame.Width;
+        int dstH = frame.Height;
+        if (dstW < 1 || dstH < 1)
             return;
 
-        int needed = srcW * srcH * 4;
-        if (_sourceRgba == null || _sourceRgba.Length < needed)
-            _sourceRgba = new byte[needed];
-        Buffer.BlockCopy(frame.Rgba, 0, _sourceRgba, 0, needed);
-        _sourceWidth = srcW;
-        _sourceHeight = srcH;
-
-        UploadFromSource();
-    }
-
-    /// <summary>
-    /// Uploads the last native frame at canvas preview scale so TextureRect expand/stretch
-    /// min-size (Keep Size, Fit Width, Fit Height) matches the drawn canvas, not native pixels.
-    /// </summary>
-    private void UploadFromSource()
-    {
-        if (_sourceRgba == null || _sourceWidth < 1 || _sourceHeight < 1 || _isExiting)
-            return;
-
-        float scale = _previewScale > 0.0001f ? _previewScale : 1f;
-        int srcW = _sourceWidth;
-        int srcH = _sourceHeight;
-        int dstW = Math.Max(1, (int)Math.Round(srcW * scale));
-        int dstH = Math.Max(1, (int)Math.Round(srcH * scale));
-        int neededDst = dstW * dstH * 4;
-        // Image.SetData uses the array Length, so this buffer must be exactly dstW*dstH*4.
-        EnsureDisplayBuffer(neededDst);
-
-        if (dstW == srcW && dstH == srcH)
+        int needed = dstW * dstH * 4;
+        byte[] pixels = frame.Rgba;
+        if (pixels.Length != needed)
         {
-            Buffer.BlockCopy(_sourceRgba, 0, _displayRgba, 0, neededDst);
-        }
-        else
-        {
-            byte[] src = _sourceRgba;
-            for (int y = 0; y < dstH; y++)
-            {
-                int srcY = Math.Min(srcH - 1, (y * srcH) / dstH);
-                int srcRow = srcY * srcW * 4;
-                int dstRow = y * dstW * 4;
-                for (int x = 0; x < dstW; x++)
-                {
-                    int srcX = Math.Min(srcW - 1, (x * srcW) / dstW);
-                    int si = srcRow + srcX * 4;
-                    int di = dstRow + x * 4;
-                    _displayRgba[di] = src[si];
-                    _displayRgba[di + 1] = src[si + 1];
-                    _displayRgba[di + 2] = src[si + 2];
-                    _displayRgba[di + 3] = src[si + 3];
-                }
-            }
+            EnsureDisplayBuffer(needed);
+            int copy = Math.Min(needed, pixels.Length);
+            Buffer.BlockCopy(pixels, 0, _displayRgba, 0, copy);
+            pixels = _displayRgba;
         }
 
         bool sizeChanged = _godotImage == null || !IsInstanceValid(_godotImage)
@@ -529,11 +533,70 @@ public partial class VideoPreviewer : Control
                 _previewTextRect.Texture = _godotTexture;
         }
 
-        _godotImage.SetData(dstW, dstH, false, Image.Format.Rgba8, _displayRgba);
+        _godotImage.SetData(dstW, dstH, false, Image.Format.Rgba8, pixels);
         _godotTexture.Update(_godotImage);
 
         if (sizeChanged)
             ApplyStoredTextureLayout();
+    }
+
+    /// <summary>
+    /// Points this preview decoder at the current canvas preview size.
+    /// Playing keeps its clock and waits for the next scaled frame. Paused re-decodes
+    /// the current preview position so the still picture matches the new size.
+    /// </summary>
+    private void SyncPreviewOutputSize()
+    {
+        if (_isExiting || _decoder == null || _seekInProgress || !_layoutReady)
+            return;
+        if (!TryGetPreviewPixelSize(_decoder, out int dstW, out int dstH))
+            return;
+        if (OutputSizeMatches(_decoder, dstW, dstH))
+            return;
+
+        _decoder.SetOutputSize(dstW, dstH);
+        if (_isPlaying)
+        {
+            RequestPrefetch(4);
+            return;
+        }
+
+        long us = _mediaOriginUs + _clock.ElapsedMilliseconds * 1000L;
+        QueueSeek(us, presentAfter: true, restartClock: false);
+    }
+
+    /// <summary>
+    /// Applies the laid-out preview size before the first prefetch, when it is already known.
+    /// </summary>
+    private void ApplyOutputSizeToDecoder(VideoSourceDecoder decoder)
+    {
+        if (decoder == null || !_layoutReady)
+            return;
+        if (!TryGetPreviewPixelSize(decoder, out int dstW, out int dstH))
+            return;
+        if (OutputSizeMatches(decoder, dstW, dstH))
+            return;
+        decoder.SetOutputSize(dstW, dstH);
+    }
+
+    private bool TryGetPreviewPixelSize(VideoSourceDecoder decoder, out int dstW, out int dstH)
+    {
+        dstW = 0;
+        dstH = 0;
+        if (decoder == null || decoder.SourceWidth < 1 || decoder.SourceHeight < 1)
+            return false;
+        float scale = _previewScale > 0.0001f ? _previewScale : 1f;
+        dstW = Math.Max(1, (int)Math.Round(decoder.SourceWidth * scale));
+        dstH = Math.Max(1, (int)Math.Round(decoder.SourceHeight * scale));
+        return true;
+    }
+
+    private static bool OutputSizeMatches(VideoSourceDecoder decoder, int dstW, int dstH)
+    {
+        if (decoder.OutputWidth == dstW && decoder.OutputHeight == dstH)
+            return true;
+        return decoder.OutputWidth == 0 && decoder.OutputHeight == 0
+            && dstW == decoder.SourceWidth && dstH == decoder.SourceHeight;
     }
 
     /// <summary>
@@ -620,6 +683,7 @@ public partial class VideoPreviewer : Control
 
     public void ClearDecoder()
     {
+        _loadGeneration++;
         SetProcess(false);
         _isPlaying = false;
         _clock.Reset();
@@ -637,13 +701,6 @@ public partial class VideoPreviewer : Control
             MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_displayRgba));
             _displayRgba = null;
         }
-        if (_sourceRgba != null)
-        {
-            MediaMemory.NoteReleased(MediaMemory.ByteBufferBytes(_sourceRgba));
-            _sourceRgba = null;
-        }
-        _sourceWidth = 0;
-        _sourceHeight = 0;
         if (_previewTextRect != null && IsInstanceValid(_previewTextRect))
             _previewTextRect.Texture = null;
         if (_godotTexture != null && IsInstanceValid(_godotTexture))

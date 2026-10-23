@@ -164,8 +164,11 @@ public partial class AudioInspector
             var refreshedMeta = await _mediaEngine.GetAudioFileMetadataAsync(file);
             if (gen != _shellSelectGeneration) return;
             if (_focusedAudioComponent == null) return;
-            _focusedAudioComponent.Metadata = refreshedMeta;
-            GD.Print("AudioInspector:ShellSelected - Refreshed metadata from file.");
+            if (refreshedMeta != null)
+            {
+                _focusedAudioComponent.Metadata = refreshedMeta;
+                GD.Print("AudioInspector:ShellSelected - Refreshed metadata from file.");
+            }
         }
 
         if (gen != _shellSelectGeneration) return;

@@ -183,7 +183,27 @@ public partial class VideoOutputDevice : Window, IDisposable
     private Dictionary<int, TestPattern> _layerTestPatterns = new();
     
     private PackedScene _displayLayerPackedScene = SceneLoader.LoadPackedScene("uid://dwnssjgckgb8p", out _);
-    private Dictionary<Control, int> _activeLayers = new();
+    /// <summary>
+    /// Live layer hosts on this output and their target layer id. A .NET dictionary (not a Godot
+    /// one): a freed host stays a non-null key here, so it can be found and removed. In a Godot
+    /// dictionary a freed key reads back as null and can never be removed.
+    /// </summary>
+    private readonly System.Collections.Generic.Dictionary<Control, int> _activeLayers = new();
+
+    /// <summary>Stacking position of each layer host among hosts on the same target layer.</summary>
+    private readonly System.Collections.Generic.Dictionary<Control, long> _layerStackOrder = new();
+
+    private static bool _drawOrderErrorLogged;
+
+    private static long _nextLayerStackOrder;
+
+    /// <summary>
+    /// Takes the next stacking position. Among hosts on the same target layer, a later
+    /// position draws on top. A cue takes one when it is created, so a group's children
+    /// draw over the group's own media however fast each file opens.
+    /// </summary>
+    /// <returns>A position later than every one handed out before.</returns>
+    public static long ReserveLayerStackOrder() => System.Threading.Interlocked.Increment(ref _nextLayerStackOrder);
     
 
     /// <summary>
@@ -230,6 +250,9 @@ public partial class VideoOutputDevice : Window, IDisposable
     /// Last requested vsync mode (re-applied after native window placement).
     /// </summary>
     private OutputVSyncMode _pendingVSyncMode = OutputVSyncMode.PreferVSync;
+
+    /// <summary>One log line per process when Low latency is applied as VSync.</summary>
+    private static bool _loggedCompatibilityVSync;
 
     /// <summary>Low-rate poll for portable-window move/resize (avoids per-frame <c>_Process</c>).</summary>
     private Timer _geometryPollTimer;
@@ -394,7 +417,8 @@ public partial class VideoOutputDevice : Window, IDisposable
     /// <param name="mode">Machine preference for output present behaviour.</param>
     /// <remarks>
     /// Godot exposes vsync per native window id (not as a Window node property in 4.6 Mono).
-    /// Effectiveness depends on the rendering backend; mailbox may fall back to enabled.
+    /// On the Compatibility renderer, mailbox is the same as enabled vsync, so
+    /// <see cref="OutputVSyncMode.LowLatency"/> is applied as enabled.
     /// </remarks>
     public void ApplyVSyncMode(OutputVSyncMode mode)
     {
@@ -416,6 +440,19 @@ public partial class VideoOutputDevice : Window, IDisposable
             OutputVSyncMode.LowLatency => DisplayServer.VSyncMode.Mailbox,
             _ => DisplayServer.VSyncMode.Enabled
         };
+
+        // Mailbox behaves as VSync on the Compatibility renderer. Keep the saved enum value.
+        if (_pendingVSyncMode == OutputVSyncMode.LowLatency
+            && IsCompatibilityRenderer())
+        {
+            dsMode = DisplayServer.VSyncMode.Enabled;
+            if (!_loggedCompatibilityVSync)
+            {
+                _loggedCompatibilityVSync = true;
+                GD.Print(
+                    "VideoOutputDevice:ApplyVSyncMode - Low latency present uses VSync on the Compatibility renderer.");
+            }
+        }
         try
         {
             DisplayServer.WindowSetVsyncMode(dsMode, windowId);
@@ -423,6 +460,19 @@ public partial class VideoOutputDevice : Window, IDisposable
         catch (Exception ex)
         {
             GD.Print($"VideoOutputDevice:ApplyVSyncMode - DisplayServer vsync failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>True when the running renderer is Godot Compatibility (OpenGL).</summary>
+    private static bool IsCompatibilityRenderer()
+    {
+        try
+        {
+            return RenderingServer.GetCurrentRenderingMethod() == "gl_compatibility";
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -451,7 +501,12 @@ public partial class VideoOutputDevice : Window, IDisposable
     }
 
 
-    public Control AddLayer(int LayerId)
+    /// <param name="LayerId">Target layer id.</param>
+    /// <param name="stackOrder">
+    /// Position from <see cref="ReserveLayerStackOrder"/>; 0 takes a new one (draws over
+    /// everything already on the layer).
+    /// </param>
+    public Control AddLayer(int LayerId, long stackOrder = 0)
     {
         var layer = DisplaysManager.GetLayerById(LayerId);
         var displayLayer = _displayLayerPackedScene.Instantiate<Control>();
@@ -462,28 +517,82 @@ public partial class VideoOutputDevice : Window, IDisposable
         var outputLayer = displayLayer.GetNode<TextureRect>("%LayerOutput");
         ApplyLayerRectToHost(displayLayer, outputLayer, layer);
         _activeLayers[displayLayer] = LayerId;
+        _layerStackOrder[displayLayer] = stackOrder > 0 ? stackOrder : ReserveLayerStackOrder();
         ApplyLayerDrawOrder();
 
         return displayLayer;
     }
 
     /// <summary>
+    /// Moves a layer host to a new stacking position (from <see cref="ReserveLayerStackOrder"/>)
+    /// and redraws the order. Used when a preloaded cue is started.
+    /// </summary>
+    /// <returns>True when the host is on this output.</returns>
+    public bool SetLayerStackOrder(Control host, long stackOrder)
+    {
+        if (host == null || !IsInstanceValid(host) || !_layerStackOrder.ContainsKey(host))
+            return false;
+        _layerStackOrder[host] = stackOrder;
+        ApplyLayerDrawOrder();
+        return true;
+    }
+
+    /// <summary>
     /// Applies target-layer stack order so first/highest ZIndex draws on top.
     /// </summary>
+    /// <remarks>Never throws: a failure is logged once and must not stop a cue from playing.</remarks>
     public void ApplyLayerDrawOrder()
     {
-        // Assign Control.ZIndex from layer data (higher = on top).
-        foreach (var kvp in _activeLayers.ToList())
+        try
         {
-            var host = kvp.Key;
-            if (host == null || !IsInstanceValid(host))
+            ApplyLayerDrawOrderCore();
+        }
+        catch (Exception ex)
+        {
+            if (!_drawOrderErrorLogged)
             {
-                _activeLayers.Remove(host);
-                continue;
+                _drawOrderErrorLogged = true;
+                GD.PrintErr($"VideoOutputDevice:ApplyLayerDrawOrder - {ex.Message}");
             }
+        }
+    }
 
+    /// <summary>
+    /// Drops hosts that have been freed (their cue stopped or was cleaned up), from both the
+    /// layer map and the stack order, so each entry is removed exactly once.
+    /// </summary>
+    private void PruneFreedLayerHosts()
+    {
+        System.Collections.Generic.List<Control> freed = null;
+        foreach (var host in _activeLayers.Keys)
+        {
+            if (!IsInstanceValid(host))
+                (freed ??= new System.Collections.Generic.List<Control>()).Add(host);
+        }
+        if (freed != null)
+        {
+            foreach (var host in freed)
+                _activeLayers.Remove(host);
+        }
+
+        if (_layerStackOrder.Count == _activeLayers.Count)
+            return;
+        foreach (var host in _layerStackOrder.Keys.ToList())
+        {
+            if (!_activeLayers.ContainsKey(host))
+                _layerStackOrder.Remove(host);
+        }
+    }
+
+    private void ApplyLayerDrawOrderCore()
+    {
+        PruneFreedLayerHosts();
+
+        // Assign Control.ZIndex from layer data (higher = on top).
+        foreach (var kvp in _activeLayers)
+        {
             var layer = DisplaysManager.GetLayerById(kvp.Value);
-            host.ZIndex = layer?.ZIndex ?? 0;
+            kvp.Key.ZIndex = layer?.ZIndex ?? 0;
         }
 
         // Also reorder children so draw order is deterministic even without z-index.
@@ -496,12 +605,12 @@ public partial class VideoOutputDevice : Window, IDisposable
             _sceneRoot.MoveChild(_backgroundRect, 0);
 
         var ordered = _activeLayers
-            .Where(kv => kv.Key != null && IsInstanceValid(kv.Key))
             .OrderBy(kv =>
             {
                 var layer = DisplaysManager.GetLayerById(kv.Value);
                 return layer?.ZIndex ?? 0;
             })
+            .ThenBy(kv => _layerStackOrder.TryGetValue(kv.Key, out var order) ? order : 0)
             .Select(kv => kv.Key)
             .ToList();
 
@@ -520,17 +629,12 @@ public partial class VideoOutputDevice : Window, IDisposable
         if (layer == null)
             return;
 
+        PruneFreedLayerHosts();
         foreach (var kvp in _activeLayers.ToList())
         {
             var host = kvp.Key;
             if (kvp.Value != layerId)
                 continue;
-
-            if (host == null || !IsInstanceValid(host))
-            {
-                _activeLayers.Remove(host);
-                continue;
-            }
 
             var outputLayer = host.GetNodeOrNull<TextureRect>("%LayerOutput");
             if (outputLayer == null)
@@ -1714,6 +1818,7 @@ public partial class VideoOutputDevice : Window, IDisposable
             }
         }
         _activeLayers.Clear();
+        _layerStackOrder.Clear();
     }
 
 }

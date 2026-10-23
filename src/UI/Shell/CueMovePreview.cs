@@ -20,8 +20,10 @@ internal sealed class CueMovePreview
     private readonly Label _locationLabel;
     private readonly VBoxContainer _namesBox;
     private readonly Panel _dropLine;
+    private readonly Panel _dropOutline;
     private readonly StyleBoxFlat _cardStyle;
     private readonly StyleBoxFlat _lineStyle;
+    private readonly StyleBoxFlat _outlineStyle;
     private bool _attached;
 
     /// <summary>True while a move preview is showing.</summary>
@@ -41,6 +43,11 @@ internal sealed class CueMovePreview
         _cardStyle.ContentMarginBottom = 6;
 
         _lineStyle = new StyleBoxFlat();
+        _outlineStyle = new StyleBoxFlat
+        {
+            DrawCenter = false
+        };
+        _outlineStyle.SetBorderWidthAll(2);
         ApplyAccentColors();
 
         _root = new Control
@@ -53,7 +60,9 @@ internal sealed class CueMovePreview
 
         _card = new PanelContainer
         {
-            MouseFilter = Control.MouseFilterEnum.Ignore
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            // Above the insert line / child outline so the location bubble stays readable.
+            ZIndex = 2
         };
         _card.AddThemeStyleboxOverride("panel", _cardStyle);
         _root.AddChild(_card);
@@ -77,10 +86,19 @@ internal sealed class CueMovePreview
         {
             MouseFilter = Control.MouseFilterEnum.Ignore,
             Visible = false,
-            ZIndex = 127
+            ZIndex = 1
         };
         _dropLine.AddThemeStyleboxOverride("panel", _lineStyle);
         _root.AddChild(_dropLine);
+
+        _dropOutline = new Panel
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false,
+            ZIndex = 1
+        };
+        _dropOutline.AddThemeStyleboxOverride("panel", _outlineStyle);
+        _root.AddChild(_dropOutline);
     }
 
     /// <summary>
@@ -92,6 +110,8 @@ internal sealed class CueMovePreview
             _cardStyle.BorderColor = GlobalStyles.HighColor1;
         if (_lineStyle != null)
             _lineStyle.BgColor = GlobalStyles.HighColor2;
+        if (_outlineStyle != null)
+            _outlineStyle.BorderColor = GlobalStyles.HighColor2;
     }
 
     /// <summary>Parents the overlay under <paramref name="host"/> (Cue2Base).</summary>
@@ -131,6 +151,7 @@ internal sealed class CueMovePreview
         _locationLabel.Text = UiLocalizer.T("Move cue");
         _root.Visible = true;
         _dropLine.Visible = false;
+        _dropOutline.Visible = false;
         _root.MoveToFront();
     }
 
@@ -139,6 +160,7 @@ internal sealed class CueMovePreview
     {
         _root.Visible = false;
         _dropLine.Visible = false;
+        _dropOutline.Visible = false;
         ClearNames();
     }
 
@@ -162,11 +184,30 @@ internal sealed class CueMovePreview
     /// <summary>Shows or hides the cuelist insert line at <paramref name="globalPos"/>.</summary>
     public void SetDropLine(bool visible, Vector2 globalPos = default, Vector2 size = default)
     {
+        _dropOutline.Visible = false;
         _dropLine.Visible = visible;
         if (!visible)
             return;
         _dropLine.GlobalPosition = globalPos;
         _dropLine.Size = new Vector2(Mathf.Max(2f, size.X), Mathf.Max(2f, size.Y));
+    }
+
+    /// <summary>
+    /// Outlines a shell bar when the drop will nest the cue as its child.
+    /// Hides the sibling insert line while the outline is showing.
+    /// </summary>
+    /// <param name="visible">True to show the outline around <paramref name="globalPos"/>.</param>
+    /// <param name="globalPos">Top-left of the target shell, in global coordinates.</param>
+    /// <param name="size">Size of the target shell bar.</param>
+    public void SetDropOutline(bool visible, Vector2 globalPos = default, Vector2 size = default)
+    {
+        if (visible)
+            _dropLine.Visible = false;
+        _dropOutline.Visible = visible;
+        if (!visible)
+            return;
+        _dropOutline.GlobalPosition = globalPos;
+        _dropOutline.Size = new Vector2(Mathf.Max(2f, size.X), Mathf.Max(2f, size.Y));
     }
 
     /// <summary>Frees overlay resources. Call from the workspace <c>_ExitTree</c>.</summary>
@@ -182,8 +223,11 @@ internal sealed class CueMovePreview
             _card.RemoveThemeStyleboxOverride("panel");
         if (_dropLine != null && GodotObject.IsInstanceValid(_dropLine))
             _dropLine.RemoveThemeStyleboxOverride("panel");
+        if (_dropOutline != null && GodotObject.IsInstanceValid(_dropOutline))
+            _dropOutline.RemoveThemeStyleboxOverride("panel");
         UiUtilities.DisposeRefCounted(_cardStyle);
         UiUtilities.DisposeRefCounted(_lineStyle);
+        UiUtilities.DisposeRefCounted(_outlineStyle);
         if (_root != null && GodotObject.IsInstanceValid(_root))
             _root.QueueFree();
     }

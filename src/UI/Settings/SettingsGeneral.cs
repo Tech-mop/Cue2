@@ -10,7 +10,7 @@ using AppSettings = Cue2.Domain.ShowSettings.Settings;
 namespace Cue2.UI.Settings;
 
 /// <summary>
-/// General settings panel: Go button scale, cuelist scale, stop fade-out, double-GO protection, media backup,
+/// General settings panel: Go button scale, cuelist scale, stop fade-out, double-GO protection, standby preload, media backup,
 /// multi-edit, select-new-cues, and timeline waveforms.
 /// Each setting shows a refresh button when not at its system default (same pattern as Cue2 Preferences).
 /// Values are stored with the showfile via <see cref="AppSettings"/>.
@@ -46,6 +46,8 @@ public partial class SettingsGeneral : ScrollContainer
 
     private CheckBox _selectNewCuesCheckBox;
     private Button _selectNewCuesResetButton;
+    private OptionButton _preloadStandbyOptionButton;
+    private Button _preloadStandbyResetButton;
 
     private CheckBox _timelineWaveformsCheckBox;
     private Button _timelineWaveformsResetButton;
@@ -156,6 +158,16 @@ public partial class SettingsGeneral : ScrollContainer
             _selectNewCuesResetButton.Pressed += OnSelectNewCuesResetPressed;
         }
 
+        _preloadStandbyOptionButton = GetNodeOrNull<OptionButton>("%PreloadStandbyOptionButton");
+        if (_preloadStandbyOptionButton != null)
+            _preloadStandbyOptionButton.ItemSelected += OnPreloadStandbyItemSelected;
+        _preloadStandbyResetButton = GetNodeOrNull<Button>("%PreloadStandbyResetButton");
+        if (_preloadStandbyResetButton != null)
+        {
+            _preloadStandbyResetButton.Icon = GetThemeIcon("Refresh", "AtlasIcons");
+            _preloadStandbyResetButton.Pressed += OnPreloadStandbyResetPressed;
+        }
+
         _timelineWaveformsCheckBox = GetNodeOrNull<CheckBox>("%TimelineWaveformsCheckBox");
         if (_timelineWaveformsCheckBox != null)
             _timelineWaveformsCheckBox.Toggled += OnTimelineWaveformsToggled;
@@ -255,6 +267,12 @@ public partial class SettingsGeneral : ScrollContainer
             _mediaBackupCheckBox?.SetPressedNoSignal(_globalData.Settings.MediaBackupEnabled);
             _multiEditCheckBox?.SetPressedNoSignal(_globalData.Settings.MultiEditEnabled);
             _selectNewCuesCheckBox?.SetPressedNoSignal(_globalData.Settings.SelectNewCues);
+            if (_preloadStandbyOptionButton != null)
+            {
+                _preloadStandbyOptionButton.SetBlockSignals(true);
+                _preloadStandbyOptionButton.Selected = (int)_globalData.Settings.PreloadStandby;
+                _preloadStandbyOptionButton.SetBlockSignals(false);
+            }
             _timelineWaveformsCheckBox?.SetPressedNoSignal(_globalData.Settings.ShowTimelineWaveforms);
 
             UpdateAllResetButtons();
@@ -274,6 +292,7 @@ public partial class SettingsGeneral : ScrollContainer
         UpdateMediaBackupResetButton();
         UpdateMultiEditResetButton();
         UpdateSelectNewCuesResetButton();
+        UpdatePreloadStandbyResetButton();
         UpdateTimelineWaveformsResetButton();
     }
 
@@ -698,6 +717,54 @@ public partial class SettingsGeneral : ScrollContainer
             string defaultText = AppSettings.DefaultSelectNewCues ? "Enabled" : "Disabled";
             _selectNewCuesResetButton.TooltipText = UiLocalizer.ResetDefaultTip(defaultText);
         }
+    }
+
+    // Preload standby cue (option index = PreloadStandbyMode value)
+
+    private void OnPreloadStandbyItemSelected(long index)
+    {
+        if (_isSyncingUi || _globalData?.Settings == null) return;
+        if (_historyManager?.IsRestoring == true) return;
+
+        var mode = index switch
+        {
+            0 => Cue2.Domain.ShowSettings.PreloadStandbyMode.EditAndShowMode,
+            2 => Cue2.Domain.ShowSettings.PreloadStandbyMode.Off,
+            _ => Cue2.Domain.ShowSettings.PreloadStandbyMode.ShowModeOnly
+        };
+        if (_globalData.Settings.PreloadStandby == mode)
+        {
+            UpdatePreloadStandbyResetButton();
+            return;
+        }
+
+        _historyManager?.RecordSettingsChange("Change preload standby cue setting", null, "PreloadStandbyMode");
+        _globalData.Settings.PreloadStandby = mode;
+        UpdatePreloadStandbyResetButton();
+    }
+
+    private void OnPreloadStandbyResetPressed()
+    {
+        if (_isSyncingUi || _globalData?.Settings == null) return;
+        if (_globalData.Settings.PreloadStandby == AppSettings.DefaultPreloadStandby)
+        {
+            SyncSettings();
+            return;
+        }
+
+        _historyManager?.RecordSettingsChange("Reset preload standby cue setting", null, "PreloadStandbyMode");
+        _globalData.Settings.PreloadStandby = AppSettings.DefaultPreloadStandby;
+        SyncSettings();
+    }
+
+    private void UpdatePreloadStandbyResetButton()
+    {
+        if (_preloadStandbyResetButton == null || _globalData?.Settings == null) return;
+
+        bool atDefault = _globalData.Settings.PreloadStandby == AppSettings.DefaultPreloadStandby;
+        _preloadStandbyResetButton.Visible = !atDefault;
+        if (!atDefault)
+            _preloadStandbyResetButton.TooltipText = UiLocalizer.ResetDefaultTip("Show mode only");
     }
 
     // ── Timeline waveforms ────────────────────────────────────────────────

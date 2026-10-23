@@ -52,6 +52,8 @@ public partial class SettingsVideoOutput : ScrollContainer
     // Show-scoped performance
     private OptionButton _qualityModeOption;
     private Button _qualityModeResetButton;
+    private OptionButton _hardwareDecodeOption;
+    private Button _hardwareDecodeResetButton;
     private OptionButton _previewQualityOption;
     private Button _previewQualityResetButton;
     private OptionButton _vsyncOption;
@@ -73,6 +75,8 @@ public partial class SettingsVideoOutput : ScrollContainer
         _backgroundColorResetButton = GetNode<Button>("%BackgroundColorResetButton");
         _qualityModeOption = GetNode<OptionButton>("%QualityModeOption");
         _qualityModeResetButton = GetNode<Button>("%QualityModeResetButton");
+        _hardwareDecodeOption = GetNode<OptionButton>("%HardwareDecodeOption");
+        _hardwareDecodeResetButton = GetNode<Button>("%HardwareDecodeResetButton");
         _previewQualityOption = GetNode<OptionButton>("%PreviewQualityOption");
         _previewQualityResetButton = GetNode<Button>("%PreviewQualityResetButton");
         _vsyncOption = GetNode<OptionButton>("%VSyncOption");
@@ -80,6 +84,7 @@ public partial class SettingsVideoOutput : ScrollContainer
 
         SetupResetButton(_backgroundColorResetButton, OnBackgroundColorResetPressed);
         SetupResetButton(_qualityModeResetButton, OnQualityModeResetPressed);
+        SetupResetButton(_hardwareDecodeResetButton, OnHardwareDecodeResetPressed);
         SetupResetButton(_previewQualityResetButton, OnPreviewQualityResetPressed);
         SetupResetButton(_vsyncResetButton, OnVSyncResetPressed);
 
@@ -87,6 +92,7 @@ public partial class SettingsVideoOutput : ScrollContainer
         _blackoutCheckBox.Toggled += OnBlackoutToggled;
         _backgroundColorPicker.PopupClosed += OnBackgroundColorPopupClosed;
         _qualityModeOption.ItemSelected += OnQualityModeSelected;
+        _hardwareDecodeOption.ItemSelected += OnHardwareDecodeSelected;
         _previewQualityOption.ItemSelected += OnPreviewQualitySelected;
         _vsyncOption.ItemSelected += OnVSyncSelected;
 
@@ -99,8 +105,9 @@ public partial class SettingsVideoOutput : ScrollContainer
         }
 
         SyncSettings();
-    
+
         UiLocalizer.LocalizeTree(this);
+        ApplyCompatibilityVSyncLabels();
         if (_globalSignals != null)
             _globalSignals.LocaleChanged += OnLocaleChanged;
 }
@@ -205,6 +212,12 @@ public partial class SettingsVideoOutput : ScrollContainer
             _qualityModeOption.Selected = (int)settings.VideoQualityMode;
             if (blockSignals) _qualityModeOption.SetBlockSignals(false);
         }
+        if (_hardwareDecodeOption != null)
+        {
+            if (blockSignals) _hardwareDecodeOption.SetBlockSignals(true);
+            _hardwareDecodeOption.Selected = (int)settings.HardwareDecodeMode;
+            if (blockSignals) _hardwareDecodeOption.SetBlockSignals(false);
+        }
         if (_previewQualityOption != null)
         {
             if (blockSignals) _previewQualityOption.SetBlockSignals(true);
@@ -230,6 +243,7 @@ public partial class SettingsVideoOutput : ScrollContainer
     private void UpdatePerformanceResetButtons()
     {
         UpdateQualityModeResetButton();
+        UpdateHardwareDecodeResetButton();
         UpdatePreviewQualityResetButton();
         UpdateVSyncResetButton();
     }
@@ -319,6 +333,45 @@ public partial class SettingsVideoOutput : ScrollContainer
         _historyManager?.RecordSettingsChange("Change video quality mode", null, "VideoQualityMode");
         _globalData.Settings.VideoQualityMode = next;
         UpdateQualityModeResetButton();
+    }
+
+    private void OnHardwareDecodeSelected(long index)
+    {
+        if (_isSyncingUi || _globalData?.Settings == null || _historyManager?.IsRestoring == true)
+            return;
+
+        var next = (HardwareDecodeMode)(int)index;
+        if (_globalData.Settings.HardwareDecodeMode == next)
+        {
+            UpdateHardwareDecodeResetButton();
+            return;
+        }
+
+        _historyManager?.RecordSettingsChange("Change hardware decode", null, "HardwareDecodeMode");
+        _globalData.Settings.HardwareDecodeMode = next;
+        UpdateHardwareDecodeResetButton();
+    }
+
+    private void OnHardwareDecodeResetPressed()
+    {
+        if (_isSyncingUi || _globalData?.Settings == null || _historyManager?.IsRestoring == true)
+            return;
+        if (_globalData.Settings.HardwareDecodeMode == AppSettings.DefaultHardwareDecodeMode)
+            return;
+
+        _historyManager?.RecordSettingsChange("Reset hardware decode", null, "HardwareDecodeMode");
+        _globalData.Settings.HardwareDecodeMode = AppSettings.DefaultHardwareDecodeMode;
+        SyncShowPerformanceOptions(blockSignals: true);
+    }
+
+    private void UpdateHardwareDecodeResetButton()
+    {
+        if (_hardwareDecodeResetButton == null || _globalData?.Settings == null)
+            return;
+        bool atDefault = _globalData.Settings.HardwareDecodeMode == AppSettings.DefaultHardwareDecodeMode;
+        _hardwareDecodeResetButton.Visible = !atDefault;
+        if (!atDefault)
+            _hardwareDecodeResetButton.TooltipText = UiLocalizer.T("Reset to default: Auto");
     }
 
     private void OnQualityModeResetPressed()
@@ -432,6 +485,43 @@ public partial class SettingsVideoOutput : ScrollContainer
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        ApplyCompatibilityVSyncLabels();
+    }
+
+    /// <summary>
+    /// On the Compatibility renderer, mailbox vsync is the same as enabled vsync.
+    /// Relabel the saved "Low latency present" item so the menu matches that.
+    /// </summary>
+    private void ApplyCompatibilityVSyncLabels()
+    {
+        if (_vsyncOption == null || !GodotObject.IsInstanceValid(_vsyncOption))
+            return;
+        if (RenderingServer.GetCurrentRenderingMethod() != "gl_compatibility")
+            return;
+
+        int selected = _vsyncOption.Selected;
+        _vsyncOption.Clear();
+        UiLocalizer.AddTranslatedItem(_vsyncOption, "Prefer VSync", 0);
+        UiLocalizer.AddTranslatedItem(_vsyncOption, "Off", 1);
+        UiLocalizer.AddTranslatedItem(
+            _vsyncOption,
+            "Low latency (uses VSync)",
+            2,
+            "On this renderer, low latency present is the same as Prefer VSync.");
+        if (selected >= 0 && selected < _vsyncOption.ItemCount)
+            _vsyncOption.Selected = selected;
+
+        const string tip =
+            "Frame pacing on output windows. Prefer VSync reduces tearing. Off can reduce present lag and may tear. Low latency present uses VSync on this renderer. Saved with the showfile.";
+        _vsyncOption.SetMeta(UiLocalizer.MetaTooltip, tip);
+        _vsyncOption.TooltipText = UiLocalizer.T(tip);
+
+        var label = GetNodeOrNull<Label>("VBoxContainer/VSyncRow/VSyncLabel");
+        if (label != null)
+        {
+            label.SetMeta(UiLocalizer.MetaTooltip, tip);
+            label.TooltipText = UiLocalizer.T(tip);
+        }
     }
 
 }

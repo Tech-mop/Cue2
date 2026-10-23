@@ -29,28 +29,39 @@ public partial class ActiveVideoPlayback
         var previous = StopVideoPrefetchLoop();
         _videoPrefetchCts = new CancellationTokenSource();
         var token = _videoPrefetchCts.Token;
-        _videoPrefetchTask = Task.Run(() =>
+        _videoPrefetchTask = PlaybackWorkers.StartLoop(() =>
         {
             PlaybackWorkers.WaitBounded(500, previous);
             try
             {
+                const int wakeTimeoutMs = 20;
                 while (!token.IsCancellationRequested)
                 {
                     bool paused;
                     lock (_lock) paused = IsPaused || IsStopped || _isExiting || !_isPlaying;
+                    VideoSourceDecoder decoder = _videoDecoder;
+                    if (decoder == null)
+                    {
+                        // Nothing to wait on: sleep so the loop does not spin until cancelled.
+                        Thread.Sleep(wakeTimeoutMs);
+                        continue;
+                    }
+                    if (decoder.IsDisposed)
+                        break;
                     if (paused || _seekInProgress)
                     {
-                        Thread.Sleep(10);
+                        decoder.WaitForPrefetchWake(wakeTimeoutMs);
                         continue;
                     }
 
-                    if (_videoDecoder != null &&
-                        _videoDecoder.BufferedFrames < _presentTuning.PrefetchLowWater &&
-                        !_videoDecoder.EndOfStream)
+                    decoder.SetPrefetchLowWater(_presentTuning.PrefetchLowWater);
+                    if (decoder.BufferedFrames < _presentTuning.PrefetchLowWater &&
+                        !decoder.EndOfStream)
                     {
-                        _videoDecoder.Prefetch(_presentTuning.PrefetchTarget);
+                        decoder.Prefetch(_presentTuning.PrefetchTarget);
                     }
-                    Thread.Sleep(4);
+
+                    decoder.WaitForPrefetchWake(wakeTimeoutMs);
                 }
             }
             catch (OperationCanceledException) { }
@@ -71,7 +82,9 @@ public partial class ActiveVideoPlayback
         var cts = _videoPrefetchCts;
         _videoPrefetchTask = null;
         _videoPrefetchCts = null;
-        return RetireWorker(task, cts, ref _retiringPrefetchTask);
+        Task retired = RetireWorker(task, cts, ref _retiringPrefetchTask);
+        try { _videoDecoder?.WakePrefetch(); } catch { /* decoder already gone */ }
+        return retired;
     }
 
     private void StartAudioFillLoop()
@@ -80,7 +93,7 @@ public partial class ActiveVideoPlayback
         var previous = StopAudioFillLoop();
         _audioFillCts = new CancellationTokenSource();
         var token = _audioFillCts.Token;
-        _audioFillTask = Task.Run(() =>
+        _audioFillTask = PlaybackWorkers.StartLoop(() =>
         {
             PlaybackWorkers.WaitBounded(500, previous);
             AudioFillLoop(token);
@@ -149,6 +162,7 @@ public partial class ActiveVideoPlayback
                 {
                     long queued = _streamBindings.GetQueued(b);
                     if (queued < 0) continue;
+                    _startTrace.NoteAudioQueued(queued);
                     int outCh = GetStreamChannels(b);
                     int bpf = outCh * sizeof(float);
                     if (bpf <= 0) continue;
@@ -193,7 +207,7 @@ public partial class ActiveVideoPlayback
                         continue;
                 }
 
-                PushMixedAudioFrames(frames);
+                PushMixedAudioFrames(frames, audioDecoder);
             }
         }
         catch (OperationCanceledException) { }
@@ -243,6 +257,19 @@ public partial class ActiveVideoPlayback
     /// Fills each bound SDL stream up to the configured target buffer before play/after seek.
     /// Prevents the device from consuming an empty queue (primary underrun click source).
     /// </summary>
+    /// <summary>Smallest queue over the bound streams in bytes, or -1 when none can be read.</summary>
+    private long MinQueuedBytes()
+    {
+        long min = -1;
+        foreach (var b in _streamBindings.Snapshot)
+        {
+            long queued = _streamBindings.GetQueued(b);
+            if (queued < 0) continue;
+            if (min < 0 || queued < min) min = queued;
+        }
+        return min;
+    }
+
     private void PrefillAudioStreams()
     {
         if (_audioDecoder == null || !_streamBindings.HasStreams)
@@ -283,14 +310,21 @@ public partial class ActiveVideoPlayback
             if (frames <= 0)
                 break;
 
-            PushMixedAudioFrames(frames);
+            PushMixedAudioFrames(frames, _audioDecoder);
         }
     }
 
-    private void PushMixedAudioFrames(int frames)
+    /// <summary>
+    /// Mixes and queues <paramref name="frames"/> just read from <paramref name="decoder"/>,
+    /// then publishes the decoder position as the end of the queued PCM. The master clock
+    /// reads that value with the SDL queue as one pair, so it never sees the decoder already
+    /// advanced while the PCM is not queued yet (which made it jump ahead by a whole chunk).
+    /// </summary>
+    private void PushMixedAudioFrames(int frames, AudioSourceDecoder decoder)
     {
         var bindings = _streamBindings.Snapshot;
         if (bindings.Length == 0 || _isExiting) return;
+        long queuedEndUs = decoder?.PositionUs ?? 0;
 
         float masterVol;
         float componentVol;
@@ -313,9 +347,18 @@ public partial class ActiveVideoPlayback
         }
         bool isDirect = !string.IsNullOrEmpty(DirectOutput);
 
-        AudioOutputMix.MixAndPut(
-            _streamBindings, bindings, _audioSrcBuffer.AsSpan(0, frames * SourceChannels), frames, SourceChannels,
-            ref _audioMixBuffer, masterVol, componentVol, pan, Routing, Patch, isDirect,
-            ref _declick, _audioDevices, ref _meterPeakBits);
+        Interlocked.Increment(ref _audioClockSeq);
+        try
+        {
+            AudioOutputMix.MixAndPut(
+                _streamBindings, bindings, _audioSrcBuffer.AsSpan(0, frames * SourceChannels), frames, SourceChannels,
+                ref _audioMixBuffer, masterVol, componentVol, pan, Routing, Patch, isDirect,
+                ref _declick, _audioDevices, ref _meterPeakBits);
+        }
+        finally
+        {
+            Volatile.Write(ref _audioQueuedEndUs, queuedEndUs);
+            Interlocked.Increment(ref _audioClockSeq);
+        }
     }
 }

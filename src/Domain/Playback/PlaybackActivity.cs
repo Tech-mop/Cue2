@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics;
+using System.Threading;
 
 namespace Cue2.Domain.Playback;
 
 /// <summary>
 /// Tracks when cues are being started, so background work that costs main-thread time
-/// (autosave snapshots) can wait for a quiet moment. Main thread only.
+/// (autosave snapshots, the inspector preview, memory compaction) can wait for a quiet
+/// moment. Begin, end and touch run on the main thread; <see cref="IsBusy"/> can be read
+/// from any thread.
 /// </summary>
 public static class PlaybackActivity
 {
@@ -17,7 +20,7 @@ public static class PlaybackActivity
     /// <summary>A cue start (media setup through to pre-wait or content) has begun.</summary>
     public static void BeginStart()
     {
-        _startsInProgress++;
+        Volatile.Write(ref _startsInProgress, _startsInProgress + 1);
         Touch();
     }
 
@@ -25,12 +28,12 @@ public static class PlaybackActivity
     public static void EndStart()
     {
         if (_startsInProgress > 0)
-            _startsInProgress--;
+            Volatile.Write(ref _startsInProgress, _startsInProgress - 1);
         Touch();
     }
 
     /// <summary>Records a GO or a content start as recent activity.</summary>
-    public static void Touch() => _lastActivityTicks = Stopwatch.GetTimestamp();
+    public static void Touch() => Volatile.Write(ref _lastActivityTicks, Stopwatch.GetTimestamp());
 
     /// <summary>
     /// True while any cue start is in progress, or when the last GO or content start was less
@@ -38,11 +41,12 @@ public static class PlaybackActivity
     /// </summary>
     public static bool IsBusy(double quietSeconds)
     {
-        if (_startsInProgress > 0)
+        if (Volatile.Read(ref _startsInProgress) > 0)
             return true;
-        if (_lastActivityTicks == 0)
+        long last = Volatile.Read(ref _lastActivityTicks);
+        if (last == 0)
             return false;
-        double since = (Stopwatch.GetTimestamp() - _lastActivityTicks) / (double)Stopwatch.Frequency;
+        double since = (Stopwatch.GetTimestamp() - last) / (double)Stopwatch.Frequency;
         return since < quietSeconds;
     }
 }

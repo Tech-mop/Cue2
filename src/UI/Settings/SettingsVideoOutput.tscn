@@ -171,6 +171,40 @@ focus_mode = 0
 theme_override_constants/icon_max_width = 12
 expand_icon = true
 
+[node name="HardwareRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="HardwareLabel" type="Label" parent="VBoxContainer/HardwareRow"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+tooltip_text = "Use the GPU video decoder when the file and driver allow it. Off stays on the CPU. Saved with the showfile. Applies the next time a video opens."
+text = "Hardware decode"
+vertical_alignment = 1
+
+[node name="HardwareDecodeOption" type="OptionButton" parent="VBoxContainer/HardwareRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Use the GPU video decoder when the file and driver allow it. Off stays on the CPU. Saved with the showfile. Applies the next time a video opens."
+focus_mode = 0
+selected = 0
+item_count = 2
+popup/item_0/text = "Auto"
+popup/item_0/id = 0
+popup/item_1/text = "Off"
+popup/item_1/id = 1
+
+[node name="HardwareDecodeResetButton" type="Button" parent="VBoxContainer/HardwareRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
 [node name="PreviewRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1221838786]
 layout_mode = 2
 

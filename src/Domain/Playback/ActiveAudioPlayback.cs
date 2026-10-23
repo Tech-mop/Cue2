@@ -201,16 +201,53 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     {
         try
         {
+            long initStart = Stopwatch.GetTimestamp();
+            double mainWaitMs = 0;
             RefreshAudioTuning();
 
             // Prefer sample-accurate PCM store for lossy codecs (fixes MP3 loop drift),
             // subject to decoder size/duration caps. Short looping cues stay exact.
             // Streaming path (long/lossy overflow): ring sized for PrefetchMs / TargetBufferMs.
             string mediaPath = ResolveMediaPath(_audioComponent.AudioFile);
-            await Decoder.OpenAsync(
-                mediaPath,
-                preferSampleAccurateStore: true,
-                ringMs: _audioTuning.RecommendedRingMs);
+            int ringMs = _audioTuning.RecommendedRingMs;
+            long startUs = _startTimeUs;
+            // About 100 ms of sound before start; the fill thread decodes the rest as it plays.
+            int prefetchMs = _audioTuning.StartPrefetchMs;
+            var decoder = Decoder;
+            // Open, seek and first fill in one worker trip, so the main thread is waited for
+            // once. Not when the file length is still unknown: the regions are then rebuilt
+            // from the opened file first, which can move the start point.
+            bool primeWithOpen = _useCustomEnd || _endTimeUs != long.MaxValue;
+            // A plain play-through (no loop, one play, no in or out point, one region) streams
+            // from disk and starts sooner. Loops, in/out points and repeats keep the
+            // in-memory copy from the start; a seek builds it then.
+            bool plainPlayThrough;
+            lock (_lock)
+            {
+                plainPlayThrough = !_audioComponent.Loop && EffectivePlayCount == 1 && startUs == 0
+                                   && !_useCustomEnd && (_regions == null || _regions.Count <= 1);
+            }
+            decoder.StreamUntilSeek = plainPlayThrough;
+            double prefetchTotalMs = 0;
+            long workerEnd = 0;
+            int mainHops = 1;
+            await Task.Run(() =>
+            {
+                decoder.Open(mediaPath, preferSampleAccurateStore: true, ringMs: ringMs);
+                if (primeWithOpen)
+                {
+                    long t = Stopwatch.GetTimestamp();
+                    if (startUs > 0)
+                        decoder.Seek(startUs);
+                    decoder.Prefetch(prefetchMs);
+                    prefetchTotalMs = DecoderOpenTimes.Since(t);
+                }
+                workerEnd = Stopwatch.GetTimestamp();
+            });
+            double openMs = (decoder.LastOpenTimes.EndTicks - initStart) * 1000.0 / Stopwatch.Frequency;
+            mainWaitMs += DecoderOpenTimes.Since(workerEnd);
+            if (IsStopped || !ReferenceEquals(Decoder, decoder))
+                throw new InvalidOperationException("Playback was cleaned while the decoder was opening.");
             SourceChannels = Decoder.Info.Channels;
             SourceSampleRate = Decoder.Info.SampleRate;
             SourceFormat = SDL.AudioFormat.AudioF32LE;
@@ -219,19 +256,38 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _ratePitch.Reset();
 
             if (!_useCustomEnd && Decoder.Info.DurationUs > 0)
-                _endTimeUs = Decoder.Info.DurationUs;
-
-            // Seek / prefetch can demux and decode (streaming ring): keep it off main.
-            // Decoder calls stay serialized through the decoder's own lock.
-            long startUs = _startTimeUs;
-            int prefetchMs = _audioTuning.PrefetchMs;
-            var decoder = Decoder;
-            await Task.Run(() =>
             {
-                if (startUs > 0)
-                    decoder.Seek(startUs);
-                decoder.Prefetch(prefetchMs);
-            });
+                bool endWasUnknown = _endTimeUs == long.MaxValue;
+                _endTimeUs = Decoder.Info.DurationUs;
+                // The file length was unknown when the regions were built (no metadata yet):
+                // rebuild them so the cue covers the whole file.
+                if (endWasUnknown)
+                {
+                    lock (_lock)
+                    {
+                        RebuildPlaybackRegions();
+                        ApplyRegionUnlocked(0);
+                    }
+                }
+            }
+
+            if (!primeWithOpen)
+            {
+                // Seek / prefetch can demux and decode (streaming ring): keep it off main.
+                // Decoder calls stay serialized through the decoder's own lock.
+                startUs = _startTimeUs;
+                long prefetchStart = Stopwatch.GetTimestamp();
+                await Task.Run(() =>
+                {
+                    if (startUs > 0)
+                        decoder.Seek(startUs);
+                    decoder.Prefetch(prefetchMs);
+                    workerEnd = Stopwatch.GetTimestamp();
+                });
+                prefetchTotalMs = DecoderOpenTimes.Since(prefetchStart);
+                mainWaitMs += DecoderOpenTimes.Since(workerEnd);
+                mainHops++;
+            }
             if (IsStopped || !ReferenceEquals(Decoder, decoder))
                 throw new InvalidOperationException("Playback was cleaned while the decoder was priming.");
 
@@ -240,6 +296,10 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
             _mixBuffer = new float[maxFrames * 16]; // up to 16 out channels
 
             GD.Print($"ActiveAudioPlayback:InitAsync - rate={SourceSampleRate} ch={SourceChannels} codec={Decoder.Info.CodecName}");
+            GD.Print(
+                $"ActiveAudioPlayback:InitAsync - Start timing {_startTrace.Label}: init {DecoderOpenTimes.Since(initStart):F0} ms = " +
+                $"open {openMs:F0} ({Decoder.LastOpenTimes}), prefetch {prefetchTotalMs:F0}; " +
+                $"waiting for the main thread {mainWaitMs:F0} ({mainHops} hops)");
         }
         catch
         {
@@ -444,6 +504,11 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
     /// Fade-in seconds for this start. When null, uses <see cref="AudioComponent.FadeInDuration"/>.
     /// When 0, starts at full volume (declick ramp only).
     /// </param>
+    private readonly PlaybackStartTrace _startTrace = new PlaybackStartTrace();
+
+    /// <summary>Sets the label and GO time (Stopwatch ticks, 0 = unknown) logged for the next play.</summary>
+    public void PrepareStartTrace(string label, long goTicks) => _startTrace.Prepare(label, goTicks);
+
     public void Play(double? fadeInDuration = null)
     {
         TaskUtil.FireAndForget(PlayAsync(fadeInDuration), "ActiveAudioPlayback.Play");
@@ -465,6 +530,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 if (_hasStarted || IsStopped) return;
                 _hasStarted = true;
             }
+            _startTrace.Arm();
 
             // Main thread: snapshot settings before fill loop / prefill use _audioTuning.
             RefreshAudioTuning();
@@ -510,13 +576,16 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
         _fillCts = new CancellationTokenSource();
         var token = _fillCts.Token;
         var primed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _fillTask = Task.Run(() =>
+        _fillTask = PlaybackWorkers.StartLoop(() =>
         {
             PlaybackWorkers.WaitBounded(500, previous);
             try
             {
                 if (prefillFirst && !token.IsCancellationRequested)
+                {
                     PrefillStreams();
+                    _startTrace.NoteAudioPrimed(MinQueuedBytes());
+                }
             }
             catch (Exception ex)
             {
@@ -553,6 +622,19 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
         try { cts?.Dispose(); } catch { /* ignore */ }
         return PlaybackWorkers.IsRunning(_retiringFillTask) ? _retiringFillTask : null;
+    }
+
+    /// <summary>Smallest queue over the bound streams in bytes, or -1 when none can be read.</summary>
+    private long MinQueuedBytes()
+    {
+        long min = -1;
+        foreach (var b in _streamBindings.Snapshot)
+        {
+            long queued = _streamBindings.GetQueued(b);
+            if (queued < 0) continue;
+            if (min < 0 || queued < min) min = queued;
+        }
+        return min;
     }
 
     /// <summary>
@@ -603,6 +685,7 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
                 {
                     long queued = _streamBindings.GetQueued(b);
                     if (queued < 0) continue;
+                    _startTrace.NoteAudioQueued(queued);
                     int outCh = GetStreamChannels(b);
                     int bytesPerOutFrame = outCh * sizeof(float);
                     if (bytesPerOutFrame <= 0) continue;

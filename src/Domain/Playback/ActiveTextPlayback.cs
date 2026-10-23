@@ -28,6 +28,25 @@ public partial class ActiveTextPlayback : Node
     private const int FadeUpdateIntervalMs = 16;
 
     private readonly TextComponent _textComponent;
+
+    /// <summary>Stacking position on the output layer (see <see cref="Cue2.Domain.Devices.VideoOutputDevice.ReserveLayerStackOrder"/>); 0 = when added.</summary>
+    public long LayerStackOrder { get; set; }
+
+    /// <summary>Moves this playback's output layers to <paramref name="stackOrder"/> on every output.</summary>
+    public void Restack(long stackOrder)
+    {
+        LayerStackOrder = stackOrder;
+        if (DisplaysManager.Outputs == null)
+            return;
+        foreach (var host in _layerHosts.ToList())
+        {
+            foreach (var display in DisplaysManager.Outputs)
+            {
+                if (display != null && IsInstanceValid(display) && display.SetLayerStackOrder(host, stackOrder))
+                    break;
+            }
+        }
+    }
     private readonly List<Control> _layerHosts = new();
     private readonly List<RichTextLabel> _labels = new();
     private readonly List<ColorRect> _backgrounds = new();
@@ -137,7 +156,7 @@ public partial class ActiveTextPlayback : Node
 
             try
             {
-                var host = display.AddLayer(_textComponent.TargetLayerId);
+                var host = display.AddLayer(_textComponent.TargetLayerId, LayerStackOrder);
                 if (host == null || !IsInstanceValid(host))
                     continue;
 

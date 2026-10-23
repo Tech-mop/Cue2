@@ -45,10 +45,12 @@ public partial class Settings
         saveTable.Add("MediaBackupEnabled", MediaBackupEnabled);
         saveTable.Add("MultiEditEnabled", MultiEditEnabled);
         saveTable.Add("SelectNewCues", SelectNewCues);
+        saveTable.Add("PreloadStandbyMode", (int)PreloadStandby);
         saveTable.Add("ShowMode", ShowMode);
         saveTable.Add("ShowTimelineWaveforms", ShowTimelineWaveforms);
         saveTable.Add("OutputBackgroundColor", OutputBackgroundColor.ToHtml(true));
         saveTable.Add("VideoQualityMode", (int)VideoQualityMode);
+        saveTable.Add("HardwareDecodeMode", (int)HardwareDecodeMode);
         saveTable.Add("VideoPreviewQuality", (int)VideoPreviewQuality);
         saveTable.Add("OutputVSyncMode", (int)OutputVSyncMode);
         saveTable.Add("AudioLatencyMode", (int)AudioLatencyMode);
@@ -280,6 +282,13 @@ public partial class Settings
         SelectNewCues = settingsData.TryGetValue("SelectNewCues", out value)
             ? value.AsBool()
             : DefaultSelectNewCues;
+        // Shows saved with the earlier on/off setting: on becomes Show Mode only, off stays off.
+        if (settingsData.TryGetValue("PreloadStandbyMode", out value))
+            PreloadStandby = ClampEnum(value.AsInt32(), PreloadStandbyMode.EditAndShowMode, PreloadStandbyMode.Off, DefaultPreloadStandby);
+        else if (settingsData.TryGetValue("PreloadStandbyCue", out value))
+            PreloadStandby = value.AsBool() ? PreloadStandbyMode.ShowModeOnly : PreloadStandbyMode.Off;
+        else
+            PreloadStandby = DefaultPreloadStandby;
         // Default false (edit mode) for older shows that predate this setting
         ShowMode = settingsData.TryGetValue("ShowMode", out value)
             ? value.AsBool()
@@ -293,6 +302,9 @@ public partial class Settings
         VideoQualityMode = settingsData.TryGetValue("VideoQualityMode", out value)
             ? ClampEnum(value.AsInt32(), VideoQualityMode.PreferQuality, VideoQualityMode.PreferPerformance, DefaultVideoQualityMode)
             : DefaultVideoQualityMode;
+        HardwareDecodeMode = settingsData.TryGetValue("HardwareDecodeMode", out value)
+            ? ClampEnum(value.AsInt32(), HardwareDecodeMode.Auto, HardwareDecodeMode.Off, DefaultHardwareDecodeMode)
+            : DefaultHardwareDecodeMode;
         VideoPreviewQuality = settingsData.TryGetValue("VideoPreviewQuality", out value)
             ? ClampEnum(value.AsInt32(), VideoPreviewQuality.Full, VideoPreviewQuality.Quarter, DefaultVideoPreviewQuality)
             : DefaultVideoPreviewQuality;

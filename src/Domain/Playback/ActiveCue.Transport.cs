@@ -330,6 +330,8 @@ public partial class ActiveCue
     
     private void GlobalPauseAll()
     {
+        if (IsWaitingAutoStandby)
+            return;
         // Every ActiveCue (including nested group children) receives this signal itself —
         // do not rely on parent propagation for globals.
         if (_inIncomingWait && _incomingWaitTimer != null && IsInstanceValid(_incomingWaitTimer))
@@ -348,6 +350,8 @@ public partial class ActiveCue
 
     private void GlobalResumeAll()
     {
+        if (IsWaitingAutoStandby)
+            return;
         if (_inIncomingWait && _incomingWaitTimer != null && IsInstanceValid(_incomingWaitTimer))
         {
             _incomingWaitTimer.SetPaused(false);
@@ -656,6 +660,7 @@ public partial class ActiveCue
             }
         }
         _childActiveCues.Clear();
+        DiscardPreloadedChildCues(freeImmediately);
 
         // Do not manually disconnect child-bar button handlers (PreWaitPause etc.): rebinding
         // for the scheduled path makes -= of the original handler throw "nonexistent connection".

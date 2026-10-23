@@ -56,13 +56,23 @@ internal sealed class CueReorder(
 
     private CueMovePreview Preview => Workspace?.MovePreview;
 
-    private void SetPreview(string location, bool lineVisible = false, Vector2 linePos = default, Vector2 lineSize = default)
+    private void SetPreview(
+        string location,
+        bool lineVisible = false,
+        Vector2 linePos = default,
+        Vector2 lineSize = default,
+        bool outlineVisible = false,
+        Vector2 outlinePos = default,
+        Vector2 outlineSize = default)
     {
         var preview = Preview;
         if (preview != null)
         {
             preview.SetLocation(location);
-            preview.SetDropLine(lineVisible, linePos, lineSize);
+            if (outlineVisible)
+                preview.SetDropOutline(true, outlinePos, outlineSize);
+            else
+                preview.SetDropLine(lineVisible, linePos, lineSize);
             return;
         }
 
@@ -70,9 +80,17 @@ internal sealed class CueReorder(
             reorderLocationLabel.Text = location ?? string.Empty;
         if (reorderIndicatorPanel == null)
             return;
-        reorderIndicatorPanel.Visible = lineVisible;
-        if (!lineVisible)
+        bool showIndicator = outlineVisible || lineVisible;
+        reorderIndicatorPanel.Visible = showIndicator;
+        if (!showIndicator)
             return;
+        if (outlineVisible)
+        {
+            reorderIndicatorPanel.GlobalPosition = outlinePos;
+            reorderIndicatorPanel.Size = new Vector2(Mathf.Max(2f, outlineSize.X), Mathf.Max(2f, outlineSize.Y));
+            return;
+        }
+
         reorderIndicatorPanel.GlobalPosition = linePos;
         reorderIndicatorPanel.Size = new Vector2(Mathf.Max(2f, lineSize.X), Mathf.Max(1f, lineSize.Y));
     }
@@ -402,11 +420,13 @@ internal sealed class CueReorder(
                 }
                 else
                 {
+                    InsertMakeChild = true;
+                    var shellPos = MouseOverShellBar.GetGlobalPosition();
                     SetPreview(
                         UiLocalizer.Tf("Make child of: {0}", targetName),
-                        true,
-                        MouseOverShellBar.GetGlobalPosition(),
-                        new Vector2(MouseOverShellBar.Size.X, 2));
+                        outlineVisible: true,
+                        outlinePos: shellPos,
+                        outlineSize: MouseOverShellBar.Size);
                 }
             }
             else

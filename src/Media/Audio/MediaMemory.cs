@@ -5,6 +5,7 @@ using System;
 using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
+using Cue2.Domain.Playback;
 using Godot;
 
 namespace Cue2.Media.Audio;
@@ -31,6 +32,22 @@ public static class MediaMemory
     /// GO can finish without sharing the STW pause.
     /// </summary>
     private const int DeferMs = 32;
+
+    /// <summary>A cue started this recently counts as starting: the compact waits.</summary>
+    private const double StartQuietSeconds = 0.5;
+
+    /// <summary>Longest a compact waits for cue starts, so memory is still given back.</summary>
+    private const int MaxStartHoldMs = 5000;
+
+    private const int StartHoldStepMs = 50;
+
+    /// <summary>
+    /// Longest a compact waits while video plays. The compact pauses every thread, which
+    /// drops pictures and can starve sound fills, so it waits for the pictures to stop.
+    /// </summary>
+    private const int MaxPlaybackHoldMs = 60_000;
+
+    private const int PlaybackHoldStepMs = 250;
 
     private static long _pendingReclaimBytes;
 
@@ -82,7 +99,21 @@ public static class MediaMemory
             try
             {
                 await Task.Delay(DeferMs).ConfigureAwait(false);
-                CompactPending(threshold);
+                // The compact pauses every thread. Hold it while a cue is starting so the
+                // pause does not land between GO and the first picture.
+                int held = 0;
+                while (held < MaxStartHoldMs && PlaybackActivity.IsBusy(StartQuietSeconds))
+                {
+                    await Task.Delay(StartHoldStepMs).ConfigureAwait(false);
+                    held += StartHoldStepMs;
+                }
+                int playbackHeld = 0;
+                while (playbackHeld < MaxPlaybackHoldMs && Cue2.Media.VideoDiagnostics.VideoPlayedWithin(0.5))
+                {
+                    await Task.Delay(PlaybackHoldStepMs).ConfigureAwait(false);
+                    playbackHeld += PlaybackHoldStepMs;
+                }
+                CompactPending(threshold, playbackHeld);
             }
             catch (Exception ex)
             {
@@ -101,7 +132,7 @@ public static class MediaMemory
     /// <summary>
     /// Runs a single LOH-compacting collection if pending release meets <paramref name="minBytes"/>.
     /// </summary>
-    private static void CompactPending(long minBytes)
+    private static void CompactPending(long minBytes, int playbackHeldMs = 0)
     {
         long pending = Interlocked.Exchange(ref _pendingReclaimBytes, 0);
         if (pending < minBytes)
@@ -113,7 +144,8 @@ public static class MediaMemory
         }
 
         GD.Print(
-            $"MediaMemory:Reclaim - Compacting LOH after releasing ~{pending / (1024.0 * 1024.0):F1} MiB (deferred)");
+            $"MediaMemory:Reclaim - Compacting LOH after releasing ~{pending / (1024.0 * 1024.0):F1} MiB (deferred" +
+            (playbackHeldMs > 0 ? $", waited {playbackHeldMs} ms for video playback" : string.Empty) + ")");
 
         // Forced (not Optimized): Optimized may no-op when the GC thinks gen2 is
         // "not due", which leaves CompactOnce unused and the process working set high

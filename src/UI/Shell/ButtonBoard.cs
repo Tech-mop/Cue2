@@ -1109,16 +1109,26 @@ public partial class ButtonBoard : Control
 
             if (audioComp != null)
             {
-                var meta = await mediaEngine.GetAudioFileMetadataAsync(filePath);
-                audioComp.Metadata = meta;
-                audioComp.RecalculateDuration();
-                try
+                var probe = await mediaEngine.ProbeAudioFileMetadataWithRetryAsync(filePath);
+                if (probe.Metadata != null)
                 {
-                    audioComp.WaveformData = await mediaEngine.GenerateWaveformAsync(filePath);
+                    audioComp.Metadata = probe.Metadata;
+                    audioComp.RecalculateDuration();
+                    try
+                    {
+                        audioComp.WaveformData = await mediaEngine.GenerateWaveformAsync(filePath);
+                    }
+                    catch
+                    {
+                        /* non-fatal */
+                    }
                 }
-                catch
+                else
                 {
-                    /* non-fatal */
+                    // Leave Metadata empty so selecting or playing the cue reads the file again.
+                    _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                        $"Could not read {Path.GetFileName(filePath)} for cue '{cue.Name}': {probe.Error}. The cue will retry when selected or played.",
+                        (int)LogType.Warning);
                 }
             }
             else if (videoComp != null)

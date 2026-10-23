@@ -163,6 +163,7 @@ public partial class ActiveVideoPlayback
         _seekCts = cts;
         _seekTargetUs = timestampUs;
         _seekInProgress = true;
+        ReleaseHiddenFrame();
 
         lock (_lock)
         {
@@ -172,6 +173,7 @@ public partial class ActiveVideoPlayback
         }
 
         _streamBindings.ClearAll();
+        ResetPresentClock();
 
         // Always park the wall clock at the seek target so silent-video masters and UI
         // match immediately (audio master still holds via _seekTargetUs until finish).
@@ -207,6 +209,8 @@ public partial class ActiveVideoPlayback
                     audio.FlushBuffers();
                     audio.Seek(timestampUs);
                     audio.Prefetch(audioPrefetchMs);
+                    // Fill is held and the streams are empty: the clock now starts at the target.
+                    PublishAudioQueuedEnd(audio.PositionUs);
                 }
             }
             catch (OperationCanceledException)
@@ -243,6 +247,7 @@ public partial class ActiveVideoPlayback
         {
             lock (_lock) _audioFillSuspended = false;
             _seekInProgress = false;
+            _videoDecoder?.WakePrefetch();
             return;
         }
 
@@ -265,6 +270,7 @@ public partial class ActiveVideoPlayback
                 _audioFillSuspended = false;
             }
             _seekInProgress = false;
+            _videoDecoder?.WakePrefetch();
         }
     }
 
@@ -286,6 +292,7 @@ public partial class ActiveVideoPlayback
             _seekCts = null;
             _seekTask = null;
             _seekInProgress = false;
+            try { _videoDecoder?.WakePrefetch(); } catch { /* decoder already gone */ }
             if (releaseFillHold)
             {
                 lock (_lock)

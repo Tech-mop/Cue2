@@ -40,6 +40,13 @@ public readonly struct AudioPresentTuning
     public int DeclickRampMs { get; }
 
     /// <summary>
+    /// Sound decoded before a cue starts (milliseconds): the first output fill plus 50 ms,
+    /// never more than <see cref="PrefetchMs"/>. After start the fill thread decodes as it
+    /// goes, the same as it does once a longer prefetch has been used up.
+    /// </summary>
+    public int StartPrefetchMs => Math.Min(PrefetchMs, TargetBufferMs + 50);
+
+    /// <summary>
     /// Creates a tuning set.
     /// </summary>
     public AudioPresentTuning(int targetBufferMs, int lowWaterMs, int prefetchMs, int declickRampMs)

@@ -606,7 +606,7 @@ public partial class MediaHealthService : Node
 		{
 			var available = _audioDevices?.GetAvailableAudioDeviceNames();
 			if (available != null &&
-			    available.Any(n => string.Equals(n, directOutput, StringComparison.OrdinalIgnoreCase)))
+			    available.Any(n => AudioDevices.DeviceNamesMatch(n, directOutput)))
 			{
 				directValid = true;
 			}

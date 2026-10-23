@@ -1,7 +1,6 @@
-[gd_scene load_steps=6 format=3 uid="uid://b1hhiqmg2m3c"]
+[gd_scene load_steps=5 format=3 uid="uid://b1hhiqmg2m3c"]
 
 [ext_resource type="Script" uid="uid://3goayevjdix0" path="res://src/UI/Preview/VideoPreviewer.cs" id="1_dviul"]
-[ext_resource type="Material" uid="uid://c33ls3l1g8yrd" path="res://src/UI/Output/VideoTextureRectMaterial.tres" id="2_avyjy"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4rb8y"]
 bg_color = Color(0.07261301, 0.07261301, 0.07261301, 1)
@@ -59,7 +58,6 @@ mouse_filter = 2
 
 [node name="PreviewTextRect" type="TextureRect" parent="VBoxContainer2/ViewArea/CanvasArea/LayerHost"]
 unique_name_in_owner = true
-material = ExtResource("2_avyjy")
 layout_mode = 0
 offset_right = 40.0
 offset_bottom = 40.0

@@ -26,4 +26,11 @@ public class AudioFileMetadata
 
     /// <summary>Overall file format/container (e.g., "mp3", "wav").</summary>
     public string Format { get; set; } = string.Empty;
+
+    /// <summary>
+    /// False for a null record or an empty one (no duration and no channels), which older
+    /// versions stored when a file could not be read.
+    /// </summary>
+    public static bool IsUsable(AudioFileMetadata metadata) =>
+        metadata != null && (metadata.Duration > 0 || metadata.Channels > 0);
 }

@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 
@@ -54,6 +55,23 @@ public static class PlaybackWorkers
             return;
         try { Task.WaitAll(pending, timeoutMs); }
         catch { /* cancelled or faulted workers are finished */ }
+    }
+
+    /// <summary>
+    /// Starts a playback loop (prefetch or fill) on its own thread. These loops run for the whole
+    /// cue and wait or sleep between passes, so on shared thread-pool threads several playing cues
+    /// could use up the pool and delay the file open of the next GO while the pool grows.
+    /// </summary>
+    /// <param name="body">Loop body; runs until cancelled.</param>
+    /// <param name="token">If cancelled before the thread starts, the body does not run.</param>
+    /// <returns>The task for the loop thread.</returns>
+    public static Task StartLoop(Action body, CancellationToken token = default)
+    {
+        return Task.Factory.StartNew(
+            body,
+            token,
+            TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
     }
 
     /// <summary>True when <paramref name="task"/> is non-null and still running.</summary>

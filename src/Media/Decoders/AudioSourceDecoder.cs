@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -152,26 +153,115 @@ public sealed class AudioSourceDecoder : IDisposable
         if (string.IsNullOrEmpty(path)) throw new ArgumentNullException(nameof(path));
         if (!File.Exists(path)) throw new FileNotFoundException("Audio file not found.", path);
 
-        return Task.Run(() =>
+        return Task.Run(() => Open(path, streamIndex, ringMs, preferSampleAccurateStore));
+    }
+
+    /// <summary>
+    /// When true, a file whose length is read from the file (not guessed from its bit rate)
+    /// streams from disk instead of being decoded into memory at open. The in-memory copy
+    /// is then built on the first seek, so seeks stay sample-accurate. Set before opening.
+    /// </summary>
+    public bool StreamUntilSeek { get; set; }
+
+    // Streaming open that still qualifies for the in-memory copy: built on the first seek.
+    private bool _storeOnFirstSeek;
+
+    /// <summary>
+    /// When true, an MP4 or MOV file is opened without probing its picture and other
+    /// non-sound streams: only the sound is read. Used when the picture is opened by its own
+    /// decoder at the same time. Falls back to a full probe if the quick open fails.
+    /// </summary>
+    public bool SkipVideoProbe { get; set; }
+
+    /// <summary>
+    /// Opens an audio file on the calling thread. Blocks while the file is read and probed
+    /// (and, for a sample-accurate store, fully decoded), so call it from a worker.
+    /// </summary>
+    public void Open(string path, int streamIndex = -1, int ringMs = DefaultRingMs, bool preferSampleAccurateStore = true)
+    {
+        if (string.IsNullOrEmpty(path)) throw new ArgumentNullException(nameof(path));
+        if (!File.Exists(path)) throw new FileNotFoundException("Audio file not found.", path);
+
+        lock (_lock)
         {
-            lock (_lock)
+            if (_isDisposed) throw new ObjectDisposedException(nameof(AudioSourceDecoder));
+            CloseInternal();
+            _preferSampleAccurateStore = preferSampleAccurateStore;
+            bool quickProbe = SkipVideoProbe && streamIndex < 0;
+            try
             {
-                if (_isDisposed) throw new ObjectDisposedException(nameof(AudioSourceDecoder));
-                CloseInternal();
-                _preferSampleAccurateStore = preferSampleAccurateStore;
+                OpenInternal(path, streamIndex, ringMs, quickProbe);
+            }
+            catch (Exception ex) when (quickProbe)
+            {
+                GD.Print($"AudioSourceDecoder:Open - quick sound-only open failed ({ex.Message}), probing the whole file.");
+                try { CloseInternal(); } catch { /* ignore secondary cleanup errors */ }
                 try
                 {
-                    OpenInternal(path, streamIndex, ringMs);
+                    OpenInternal(path, streamIndex, ringMs, false);
                 }
                 catch
                 {
-                    // Partial native allocs (format/codec/swr/packet/frame) must not stick around.
                     try { CloseInternal(); } catch { /* ignore secondary cleanup errors */ }
                     throw;
                 }
             }
-        });
+            catch
+            {
+                // Partial native allocs (format/codec/swr/packet/frame) must not stick around.
+                try { CloseInternal(); } catch { /* ignore secondary cleanup errors */ }
+                throw;
+            }
+        }
     }
+
+    /// <summary>
+    /// For the MP4/MOV family only: stop reading every stream except sound, so the probe
+    /// does not decode the picture a second time. The picture stream gets a placeholder
+    /// pixel format, and the probe is capped at one second of sound.
+    /// </summary>
+    private unsafe bool TrySkipNonSoundStreamsUnlocked()
+    {
+        if (_formatCtx == null || _formatCtx->iformat == null)
+            return false;
+        string formatName = Marshal.PtrToStringAnsi((IntPtr)_formatCtx->iformat->name) ?? string.Empty;
+        if (Array.IndexOf(formatName.Split(','), "mov") < 0)
+            return false;
+
+        bool hasSound = false;
+        bool skipped = false;
+        for (uint i = 0; i < _formatCtx->nb_streams; i++)
+        {
+            AVStream* st = _formatCtx->streams[i];
+            if (st->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
+            {
+                hasSound = true;
+                continue;
+            }
+            st->discard = AVDiscard.AVDISCARD_ALL;
+            // The probe reads no packets of a skipped picture stream, so its pixel format
+            // stays unknown and FFmpeg prints "Could not find codec parameters" for it. This
+            // decoder never uses that stream, so a placeholder format is enough. It also lets
+            // the probe stop once the sound is known.
+            if (st->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO
+                && st->codecpar->width > 0
+                && st->codecpar->format < 0)
+                st->codecpar->format = (int)AVPixelFormat.AV_PIX_FMT_YUV420P;
+            skipped = true;
+        }
+        if (!hasSound)
+        {
+            for (uint i = 0; i < _formatCtx->nb_streams; i++)
+                _formatCtx->streams[i]->discard = AVDiscard.AVDISCARD_DEFAULT;
+            return false;
+        }
+        if (skipped && (_formatCtx->max_analyze_duration <= 0 || _formatCtx->max_analyze_duration > QuickProbeAnalyzeUs))
+            _formatCtx->max_analyze_duration = QuickProbeAnalyzeUs;
+        return skipped;
+    }
+
+    /// <summary>Probe length (microseconds) for a sound-only open of an MP4/MOV file.</summary>
+    private const long QuickProbeAnalyzeUs = 1_000_000;
 
     /// <summary>
     /// Pulls interleaved float32 PCM into <paramref name="destination"/>.
@@ -221,6 +311,9 @@ public sealed class AudioSourceDecoder : IDisposable
             if (timestampUs < 0) timestampUs = 0;
 
             long targetSamples = (long)(timestampUs / 1_000_000.0 * Info.SampleRate);
+
+            if (!_usePcmStore && _storeOnFirstSeek)
+                BuildStoreForSeekUnlocked();
 
             if (_usePcmStore)
             {
@@ -324,10 +417,15 @@ public sealed class AudioSourceDecoder : IDisposable
         return framesWritten;
     }
 
-    private unsafe void OpenInternal(string path, int streamIndex, int ringMs)
+    /// <summary>Stage times of the last open (for the start timing log).</summary>
+    public DecoderOpenTimes LastOpenTimes { get; private set; } = new DecoderOpenTimes();
+
+    private unsafe void OpenInternal(string path, int streamIndex, int ringMs, bool quickProbe)
     {
         _filePath = path;
         int ret;
+        var times = new DecoderOpenTimes();
+        long stageStart = Stopwatch.GetTimestamp();
 
         fixed (AVFormatContext** pCtx = &_formatCtx)
         {
@@ -338,10 +436,17 @@ public sealed class AudioSourceDecoder : IDisposable
 
         // Generate missing PTS where possible (helps some containers)
         _formatCtx->flags |= ffmpeg.AVFMT_FLAG_GENPTS;
+        times.InputMs = DecoderOpenTimes.Since(stageStart);
+        stageStart = Stopwatch.GetTimestamp();
+
+        if (quickProbe)
+            times.QuickProbe = TrySkipNonSoundStreamsUnlocked();
 
         ret = ffmpeg.avformat_find_stream_info(_formatCtx, null);
         if (ret < 0)
             throw new Exception($"AudioSourceDecoder:Open - find_stream_info failed: {MediaEngine.GetFFmpegError(ret)}");
+        times.StreamInfoMs = DecoderOpenTimes.Since(stageStart);
+        stageStart = Stopwatch.GetTimestamp();
 
         _audioStreamIndex = streamIndex;
         if (_audioStreamIndex < 0)
@@ -383,6 +488,8 @@ public sealed class AudioSourceDecoder : IDisposable
             if (ret < 0)
                 throw new Exception($"AudioSourceDecoder:Open - codec open failed: {MediaEngine.GetFFmpegError(ret)}");
         }
+
+        times.CodecMs = DecoderOpenTimes.Since(stageStart);
 
         int channels = _codecCtx->ch_layout.nb_channels;
         if (channels <= 0)
@@ -449,10 +556,23 @@ public sealed class AudioSourceDecoder : IDisposable
         // demuxer seek is unreliable on some PCM/WAV files and causes "seek to UI time,
         // play last second then end". Lossy codecs need the store for loop/seek accuracy too.
         bool preferStore = _preferSampleAccurateStore && CanAffordPcmStore(durationUs, sampleRate, channels);
+        // A plain play-through streams: the copy is only needed once the cue is seeked.
+        // Not when the length is guessed from the bit rate, because the cue end then
+        // comes from the copy.
+        _storeOnFirstSeek = false;
+        if (preferStore && StreamUntilSeek && durationUs > 0 &&
+            _formatCtx->duration_estimation_method != AVDurationEstimationMethod.AVFMT_DURATION_FROM_BITRATE)
+        {
+            preferStore = false;
+            _storeOnFirstSeek = true;
+            times.Streaming = true;
+        }
         bool builtStore = false;
         if (preferStore)
         {
+            stageStart = Stopwatch.GetTimestamp();
             builtStore = TryBuildPcmStoreUnlocked(sampleRate, channels, durationUs);
+            times.StoreMs = DecoderOpenTimes.Since(stageStart);
         }
 
         // Duration from actual PCM if store built
@@ -476,9 +596,41 @@ public sealed class AudioSourceDecoder : IDisposable
         _endOfStream = false;
         _isOpen = true;
         _discardOutputFrames = 0;
+        times.EndTicks = Stopwatch.GetTimestamp();
+        LastOpenTimes = times;
 
         GD.Print($"AudioSourceDecoder:Open - {path} rate={sampleRate} ch={channels} codec={codecName} " +
                  $"durationUs={durationUs} pcmStore={builtStore} frames={_pcmFrameCount}");
+    }
+
+    /// <summary>
+    /// First seek of a cue that streamed from the start: decode the whole file into memory
+    /// (the same copy a looping cue gets at open), then seek in it. Runs on the caller's
+    /// worker thread. If the copy cannot be built the decoder keeps streaming.
+    /// </summary>
+    private unsafe void BuildStoreForSeekUnlocked()
+    {
+        _storeOnFirstSeek = false;
+        if (Info == null || _formatCtx == null || _codecCtx == null)
+            return;
+        long started = Stopwatch.GetTimestamp();
+        if (!TryBuildPcmStoreUnlocked(Info.SampleRate, Info.Channels, Info.DurationUs))
+            return;
+        Info = new AudioSourceInfo
+        {
+            SampleRate = Info.SampleRate,
+            Channels = Info.Channels,
+            DurationUs = _pcmFrameCount > 0
+                ? (long)(_pcmFrameCount * 1_000_000.0 / Info.SampleRate)
+                : Info.DurationUs,
+            CodecName = Info.CodecName,
+            BitDepth = Info.BitDepth,
+            FilePath = Info.FilePath,
+            IsSampleAccurateStore = true
+        };
+        _endOfStream = false;
+        _discardOutputFrames = 0;
+        GD.Print($"AudioSourceDecoder:Seek - built the in-memory copy on first seek in {DecoderOpenTimes.Since(started):F0} ms");
     }
 
     private static bool CanAffordPcmStore(long durationUs, int sampleRate, int channels)

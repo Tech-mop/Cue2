@@ -66,6 +66,9 @@ public partial class ActiveCue
                 tasks.Add(SetupTimecodeControlComponent(timecodeControl));
             }
         }
+        // Children open their media alongside ours, so the group is ready as a whole and
+        // every child can start on the same frame as this cue's content.
+        tasks.Add(PreloadChildCuesAsync());
         await Task.WhenAll(tasks);
 
         // Stop/cancel during preload may complete awaits after Cleanup — never mark ready or link CC.
@@ -253,12 +256,15 @@ public partial class ActiveCue
             // Preload metadata if not already (assuming done in inspector/load)
             if (audioComponent.Metadata == null)
             {
+                long metadataStart = System.Diagnostics.Stopwatch.GetTimestamp();
                 audioComponent.Metadata = await _mediaEngine.GetAudioFileMetadataAsync(audioComponent.AudioFile);
+                GD.Print($"ActiveCue:SetupAudioComponent - Start timing {_cue.Name}: metadata read {Cue2.Media.Decoders.DecoderOpenTimes.Since(metadataStart):F0} ms");
                 if (!IsSetupStillValid())
                     return;
             }
 
             playback = new ActiveAudioPlayback(audioComponent, _audioDevices);
+            playback.PrepareStartTrace($"{_cue.Name} ({Path.GetFileName(audioComponent.AudioFile)})", _goTicks);
             await playback.InitAsync();
 
             // Stop/cancel during open: do not attach UI or register streams on a freed ActiveCue.
@@ -533,7 +539,9 @@ public partial class ActiveCue
             // Preload metadata if not already (assuming done in inspector/load)
             if (videoComponent.Metadata == null)
             {
+                long metadataStart = System.Diagnostics.Stopwatch.GetTimestamp();
                 videoComponent.Metadata = await _mediaEngine.GetVideoFileMetadataAsync(videoComponent.VideoFile);
+                GD.Print($"ActiveCue:SetupVideoComponent - Start timing {_cue.Name}: metadata read {Cue2.Media.Decoders.DecoderOpenTimes.Since(metadataStart):F0} ms");
                 if (!IsSetupStillValid())
                     return;
             }
@@ -549,9 +557,11 @@ public partial class ActiveCue
                 return;
 
             playback = new ActiveVideoPlayback(videoComponent, _audioDevices);
+            playback.LayerStackOrder = _layerStackOrder;
             // Must be in the scene tree so _Process can present video frames.
             // ActiveCue is a GodotObject (not a Node); parent under the active cue bar.
             _activeCueBar.AddChild(playback);
+            playback.PrepareStartTrace($"{_cue.Name} ({Path.GetFileName(videoComponent.VideoFile)})", _goTicks);
             await playback.InitAsync();
 
             // Stop/cancel during open: drop parented orphan (not yet in component maps).
@@ -764,6 +774,7 @@ public partial class ActiveCue
             textComponent.RecalculateDuration();
 
             playback = new ActiveTextPlayback(textComponent);
+            playback.LayerStackOrder = _layerStackOrder;
             // Must be in the scene tree so _Process can drive the hold timer.
             _activeCueBar.AddChild(playback);
             playback.Init();

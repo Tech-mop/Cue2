@@ -22,6 +22,18 @@ public enum VideoQualityMode
 }
 
 /// <summary>
+/// Showfile switch for GPU video decode. Off keeps every decoder on the CPU.
+/// </summary>
+public enum HardwareDecodeMode
+{
+    /// <summary>Use the platform video decoder when the codec and driver allow it. Otherwise software.</summary>
+    Auto = 0,
+
+    /// <summary>Never use a hardware decoder.</summary>
+    Off = 1
+}
+
+/// <summary>
 /// Inspector video preview resolution scale (never affects house outputs).
 /// </summary>
 public enum VideoPreviewQuality
@@ -47,7 +59,10 @@ public enum OutputVSyncMode
     /// <summary>Disable vsync (lower latency, possible tearing).</summary>
     Off = 1,
 
-    /// <summary>Prefer mailbox / adaptive-style low-latency present. Only partialy supported</summary>
+    /// <summary>
+    /// Prefer mailbox / adaptive-style low-latency present.
+    /// On the Compatibility renderer this is the same as <see cref="PreferVSync"/>.
+    /// </summary>
     LowLatency = 2
 }
 
@@ -62,10 +77,35 @@ public readonly struct VideoPresentTuning
     /// <summary>Prefetch again when buffered frames fall below this.</summary>
     public int PrefetchLowWater { get; }
 
-    /// <summary>Drop frames later than this many microseconds vs the master clock.</summary>
+    /// <summary>
+    /// Pictures decoded before a cue starts (at most two). The decode loop fills the rest of
+    /// <see cref="PrefetchTarget"/> as soon as the cue plays.
+    /// </summary>
+    public int StartPrefetchFrames => Math.Min(PrefetchTarget, 2);
+
+    /// <summary>
+    /// Pictures decoded before a cue starts, for a stream of this size and rate: two, or
+    /// four above 1080p60 (4K, high frame rates), where one slow decode at the start would
+    /// otherwise empty the buffer. Never more than <see cref="PrefetchTarget"/>.
+    /// </summary>
+    public int StartPrefetchFramesFor(int width, int height, long frameDurationUs)
+    {
+        double fps = frameDurationUs > 0 ? 1_000_000.0 / frameDurationUs : 30.0;
+        double pixelsPerSecond = (double)Math.Max(0, width) * Math.Max(0, height) * fps;
+        int frames = pixelsPerSecond > 1920.0 * 1080.0 * 60.0 * 1.1 ? 4 : 2;
+        return Math.Max(1, Math.Min(PrefetchTarget, frames));
+    }
+
+    /// <summary>
+    /// A presented frame later than this many microseconds is counted as late.
+    /// The present loop does not drop on this threshold.
+    /// </summary>
     public long MaxLatenessUs { get; }
 
-    /// <summary>Maximum frames to present or drop in a single main-thread tick.</summary>
+    /// <summary>
+    /// Input to the per-tick take cap. At most one frame is uploaded; older due frames are released.
+    /// The cap is at least 8 so a backlog drains over a few ticks.
+    /// </summary>
     public int MaxPresentPerTick { get; }
 
     /// <summary>Present a frame if it is no more than this early of the master clock (µs).</summary>

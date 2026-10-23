@@ -36,8 +36,11 @@ public static class CueSequencePlanner
 	/// Does not bake absolute times — follow waits for real content completion at runtime.
 	/// </summary>
 	/// <param name="head">Cue that was GO'd.</param>
+	/// <param name="stopBeforeIds">
+	/// Optional ids the chain ends before (never the head): cues the same GO starts on their own.
+	/// </param>
 	/// <returns>Ordered chain members from head through sequence end.</returns>
-	public static List<CueChainMember> BuildChain(Cue head)
+	public static List<CueChainMember> BuildChain(Cue head, ISet<int> stopBeforeIds = null)
 	{
 		var result = new List<CueChainMember>();
 		if (head == null) return result;
@@ -61,6 +64,8 @@ public static class CueSequencePlanner
 
 			var next = current.GetNextSiblingCue();
 			if (next == null)
+				break;
+			if (stopBeforeIds != null && stopBeforeIds.Contains(next.Id))
 				break;
 
 			// Next member is armed by this cue's continue/follow rules; post-wait is this cue's.

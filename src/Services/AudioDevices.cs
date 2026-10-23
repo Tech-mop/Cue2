@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
 using Cue2.Domain.Cuelist;
 using Cue2.Domain.Playback;
@@ -32,6 +33,50 @@ public partial class AudioDevices : Node
 	private MediaEngine _mediaEngine;
 	
 	private readonly Dictionary<int, AudioDevice> _openDevices = new Dictionary<int, AudioDevice>();
+
+	/// <summary>Missing devices already reported during the current suppressed batch (show load).</summary>
+	private readonly HashSet<string> _missingReportedInBatch = new HashSet<string>(DeviceNameComparer.Instance);
+
+	/// <summary>Saved names already logged as matching a live device only after normalising.</summary>
+	private readonly HashSet<string> _remapLogged = new HashSet<string>(StringComparer.Ordinal);
+
+	/// <summary>
+	/// True when two audio device names refer to the same device: Unicode NFC form,
+	/// ignoring case. Use for every device-name comparison.
+	/// </summary>
+	public static bool DeviceNamesMatch(string a, string b)
+	{
+		if (a == null || b == null)
+			return a == null && b == null;
+		if (string.Equals(a, b, StringComparison.Ordinal))
+			return true;
+		return string.Equals(NormalizeDeviceName(a), NormalizeDeviceName(b), StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static string NormalizeDeviceName(string name)
+	{
+		try { return name.Normalize(NormalizationForm.FormC); }
+		catch (ArgumentException) { return name; }
+	}
+
+	/// <summary>Equality comparer that follows <see cref="DeviceNamesMatch"/>.</summary>
+	public sealed class DeviceNameComparer : IEqualityComparer<string>
+	{
+		/// <summary>Shared instance; the comparer holds no state.</summary>
+		public static readonly DeviceNameComparer Instance = new DeviceNameComparer();
+
+		/// <summary>True when the two device names refer to the same device (see <see cref="DeviceNamesMatch"/>).</summary>
+		/// <param name="x">First device name, or null.</param>
+		/// <param name="y">Second device name, or null.</param>
+		/// <returns>True when the names match.</returns>
+		public bool Equals(string x, string y) => DeviceNamesMatch(x, y);
+
+		/// <summary>Hash code that agrees with <see cref="Equals(string, string)"/>: case-insensitive on the normalised name.</summary>
+		/// <param name="obj">Device name, or null.</param>
+		/// <returns>The hash code, or 0 for null.</returns>
+		public int GetHashCode(string obj) =>
+			obj == null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(NormalizeDeviceName(obj));
+	}
 	private readonly Dictionary<uint, int> _physicalIdToDeviceId = new Dictionary<uint, int>();
 	
 	private readonly Dictionary<uint, List<IAudioPlayback>> _activeAudioPlaybacks = new Dictionary<uint, List<IAudioPlayback>>();
@@ -284,7 +329,7 @@ public partial class AudioDevices : Node
 	/// </remarks>
 	public void SyncOpenDevices(IEnumerable<string> requiredNames, bool closeOthers = true)
 	{
-		var required = new HashSet<string>(StringComparer.Ordinal);
+		var required = new HashSet<string>(DeviceNameComparer.Instance);
 		if (requiredNames != null)
 		{
 			foreach (var name in requiredNames)
@@ -331,7 +376,19 @@ public partial class AudioDevices : Node
 	/// When true, open/close and <see cref="SyncOpenDevices"/> do not emit
 	/// <see cref="GlobalSignals.AudioDevicesChanged"/>. The caller emits once after a batch.
 	/// </summary>
-	public bool SuppressChangedSignals { get; set; }
+	public bool SuppressChangedSignals
+	{
+		get => _suppressChangedSignals;
+		set
+		{
+			_suppressChangedSignals = value;
+			// A batch ended: the next load reports missing devices again.
+			if (!value)
+				_missingReportedInBatch.Clear();
+		}
+	}
+
+	private bool _suppressChangedSignals;
 
 	/// <summary>
 	/// Emits <see cref="GlobalSignals.AudioDevicesChanged"/> (used after a suppressed batch).
@@ -356,7 +413,7 @@ public partial class AudioDevices : Node
 	    GD.Print($"OpenAudioDevice called for: {name}");
 	    foreach (var dev in _openDevices.Values)
 	    {
-		    if (dev.Name == name)
+		    if (DeviceNamesMatch(dev.Name, name))
 		    {
 			    GD.Print("    ^^ Device already opened");
 			    error = "";
@@ -364,14 +421,28 @@ public partial class AudioDevices : Node
 		    }
 	    }
 
-	    var physicalDeviceId = GetAudioDevicePhysicalIdFromName(name);
+	    var physicalDeviceId = GetAudioDevicePhysicalIdFromName(name, out string liveName);
+	    if (physicalDeviceId == 0)
+	    {
+		    // Not in the playback list: SDL would only answer "invalid device", which hides the cause.
+		    error = "Device not found";
+		    ReportMissingDevice(name);
+		    return null;
+	    }
+	    if (liveName != null && !string.Equals(liveName, name, StringComparison.Ordinal) && _remapLogged.Add(name))
+	    {
+		    // Keep the saved name on the device so patch keys still match it.
+		    GD.Print($"AudioDevices:OpenAudioDevice - '{name}' matched connected device '{liveName}'.");
+	    }
+
 	    // Open with device-native settings (null/0 spec).
 	    uint logicalId = SDL.OpenAudioDevice(physicalDeviceId, 0);
 	    if (logicalId == 0)
 	    {
-		    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-			    $"AudioDevices:OpenAudioDevice - Failed to find and open audio device of name: {name} ", 3);
+		    // Found but refused by SDL: keep SDL's reason.
 		    error = "Failed to open audio device: " + SDL.GetError();
+		    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+			    $"AudioDevices:OpenAudioDevice - Could not open audio device '{name}': {error}", 3);
 		    return null;
 	    }
 
@@ -417,6 +488,24 @@ public partial class AudioDevices : Node
 	    }
     }
     
+    /// <summary>
+    /// Logs a device that is not connected (or was renamed), with the devices that were found.
+    /// During a suppressed batch (show load) each name is reported once.
+    /// </summary>
+    private void ReportMissingDevice(string name)
+    {
+	    if (SuppressChangedSignals && !_missingReportedInBatch.Add(name ?? string.Empty))
+		    return;
+
+	    var available = GetAvailableAudioDeviceNames();
+	    string list = available == null || available.Count == 0
+		    ? "(none)"
+		    : string.Join(", ", available.Select(n => $"'{n}'"));
+	    GD.PrintErr($"AudioDevices:OpenAudioDevice - '{name}' not found. Available: {list}");
+	    _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+		    $"AudioDevices:OpenAudioDevice - Audio device '{name}' not found (not connected or renamed).", 3);
+    }
+
     /// <summary>
     /// Retrieves the names of all available audio playback devices using SDL.
     /// </summary>
@@ -874,25 +963,46 @@ public partial class AudioDevices : Node
 	    return specs;
     }
 
-    private uint GetAudioDevicePhysicalIdFromName(string name)
-    {
-	    var devices = SDL.GetAudioPlaybackDevices(out int _);
+    private uint GetAudioDevicePhysicalIdFromName(string name) =>
+	    GetAudioDevicePhysicalIdFromName(name, out _);
 
-	    if (devices != null)
+    /// <summary>
+    /// Finds a playback device by name. An exact match wins; otherwise the first name that
+    /// matches by <see cref="DeviceNamesMatch"/>. <paramref name="liveName"/> is the name SDL reports.
+    /// </summary>
+    private uint GetAudioDevicePhysicalIdFromName(string name, out string liveName)
+    {
+	    liveName = null;
+	    var devices = SDL.GetAudioPlaybackDevices(out int _);
+	    if (devices == null || name == null)
+		    return 0;
+
+	    uint looseId = 0;
+	    string looseName = null;
+	    foreach (var deviceId in devices)
 	    {
-		    foreach (var deviceId in devices)
+		    var deviceName = SDL.GetAudioDeviceName(deviceId);
+		    if (deviceName == null)
+			    continue;
+		    if (string.Equals(deviceName, name, StringComparison.Ordinal))
 		    {
-			    var deviceName = SDL.GetAudioDeviceName(deviceId);
-			    if (deviceName == name) return deviceId;
+			    liveName = deviceName;
+			    return deviceId;
+		    }
+		    if (looseId == 0 && DeviceNamesMatch(deviceName, name))
+		    {
+			    looseId = deviceId;
+			    looseName = deviceName;
 		    }
 	    }
 
-	    return 0;
+	    liveName = looseName;
+	    return looseId;
     }
 
     public int? GetAudioDeviceIdFromName(string name)
     {
-	    foreach (var device in _openDevices.Where(device => name == device.Value.Name))
+	    foreach (var device in _openDevices.Where(device => DeviceNamesMatch(name, device.Value.Name)))
 	    {
 		    return device.Key;
 	    }
@@ -918,15 +1028,20 @@ public partial class AudioDevices : Node
     /// True if at least one stream was created and bound; false if no output is assigned,
     /// devices could not be opened, or stream creation failed for all devices.
     /// </returns>
-    public async Task<bool> StartAudioPlayback(IAudioPlayback playback)
+    /// <remarks>
+    /// Binds on the calling (main) thread straight away and returns a finished task, so a
+    /// starting cue does not wait an extra frame before its sound is bound.
+    /// </remarks>
+    public Task<bool> StartAudioPlayback(IAudioPlayback playback) =>
+	    Task.FromResult(BindAudioPlayback(playback));
+
+    private bool BindAudioPlayback(IAudioPlayback playback)
     {
 	    if (playback == null)
 	    {
 		    GD.PrintErr("AudioDevices:StartAudioPlayback - Playback is null.");
 		    return false;
 	    }
-
-	    await Task.Yield(); // keep async signature for call sites
 
 	    if (playback.DeviceStreams == null)
 		    playback.DeviceStreams = new Dictionary<uint, IntPtr>();

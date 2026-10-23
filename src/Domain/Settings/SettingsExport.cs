@@ -76,7 +76,7 @@ public static class SettingsExport
         new(SettingsGeneral.MenuKey, SettingsGeneral.MenuKey,
             "GoScale", "CueListScale", "WaveformResolution", "StopFadeDuration", "StopFadeCurve",
             "DoubleGoProtection",
-            "MediaBackupEnabled", "MultiEditEnabled", "SelectNewCues", "ShowTimelineWaveforms",
+            "MediaBackupEnabled", "MultiEditEnabled", "SelectNewCues", "PreloadStandbyMode", "ShowTimelineWaveforms",
             "ShowMode"),
 
         // Settings → Audio
@@ -94,7 +94,7 @@ public static class SettingsExport
 
         // Settings → Video/Image (general video output panel; not Canvas topology)
         new(SettingsVideoOutput.MenuKey, SettingsVideoOutput.MenuKey,
-            "OutputBackgroundColor", "VideoQualityMode", "VideoPreviewQuality", "OutputVSyncMode"),
+            "OutputBackgroundColor", "VideoQualityMode", "HardwareDecodeMode", "VideoPreviewQuality", "OutputVSyncMode"),
 
         // Settings → Video/Image → Canvas Editor
         new(SettingsCanvasEditor.MenuKey, SettingsCanvasEditor.MenuKey,

@@ -77,6 +77,8 @@ public partial class CueCommandExecutor : Node
         
         _globalSignals.Go += GoCommand;
         _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
+        SetupAutoStandby();
+        SetupProgressiveStart();
 
         TreeExiting += CleanUp;
     }
@@ -156,6 +158,9 @@ public partial class CueCommandExecutor : Node
     /// GO: pre-spawn the entire continue/follow chain for each selected armed cue, wire event-driven
     /// arming (continue at content-phase start, follow at real content complete), advance playhead.
     /// Disarmed cues do not play; selection moves to the next eligible cue.
+    /// A selected cue inside a selected group is started by its group, not again on its own.
+    /// One top-level cue starts at once; several start progressively (see
+    /// <see cref="StartRootsProgressivelyAsync"/>).
     /// </summary>
     public void GoCommand()
     {
@@ -169,18 +174,25 @@ public partial class CueCommandExecutor : Node
         }
 
         var selected = ShellSelection.SelectedCues.ToList();
-        bool startedAny = false;
+        var armed = new List<Cue>(selected.Count);
         foreach (var cue in selected)
         {
+            if (cue == null)
+                continue;
             if (!cue.Armed)
             {
                 GD.Print($"CueCommandExecutor:GoCommand - Skipping disarmed cue {cue.Name} (id={cue.Id})");
                 continue;
             }
-
-            ActivateSequenceFrom(cue);
-            startedAny = true;
+            armed.Add(cue);
         }
+
+        var roots = GetSelectionRoots(armed);
+        bool startedAny = roots.Count > 0;
+        if (roots.Count == 1)
+            ActivateSequenceFrom(roots[0]);
+        else if (roots.Count > 1)
+            TaskUtil.FireAndForget(StartRootsProgressivelyAsync(roots), "CueCommandExecutor.GoCommand");
 
         // Only a GO that started something arms the cooldown (empty / disarmed-only GO does not).
         if (startedAny)
@@ -325,7 +337,12 @@ public partial class CueCommandExecutor : Node
     /// Optional absolute body-timeline seek (pre-wait + content) applied to the head before start
     /// (queued as a pending seek if the body has not started yet).
     /// </param>
-    public async Task ActivateSequenceFromAsync(Cue head, double? controlGoFadeIn = null, double? startAtTimelineSeconds = null)
+    /// <param name="chainStopIds">
+    /// Optional cue ids the continue/follow chain stops before (other cues started by the same
+    /// GO), so a cue is not also queued as a later member of this chain.
+    /// </param>
+    public async Task ActivateSequenceFromAsync(Cue head, double? controlGoFadeIn = null, double? startAtTimelineSeconds = null,
+        ISet<int> chainStopIds = null)
     {
         if (head == null)
         {
@@ -358,7 +375,7 @@ public partial class CueCommandExecutor : Node
         if (head.SoloMode != CueSoloMode.Off)
             StopOtherActiveCuesForSolo(head);
 
-        var chain = CueSequencePlanner.BuildChain(head);
+        var chain = CueSequencePlanner.BuildChain(head, chainStopIds);
         if (chain.Count == 0)
         {
             chain = new List<CueChainMember>
@@ -378,6 +395,7 @@ public partial class CueCommandExecutor : Node
         // Create all active rows, build UI in sequence order (so the list matches occurrence),
         // then wire events and start playback. Reuse OSC Load standby for the head when present.
         var actives = new List<ActiveCue>(chain.Count);
+        string headPreloadNote = string.Empty;
         for (int mi = 0; mi < chain.Count; mi++)
         {
             var member = chain[mi];
@@ -389,8 +407,24 @@ public partial class CueCommandExecutor : Node
                 if (active != null)
                 {
                     active.AttachChainMember(member);
+                    active.SetPreloadNote("preloaded by Load");
                     GD.Print(
                         $"CueCommandExecutor:ActivateSequenceFromAsync - Reusing standby preload for \"{member.Cue.Name}\"");
+                }
+                else
+                {
+                    // The playhead cue opened ahead of GO (automatic standby).
+                    var standby = TakeAutoStandby(member.Cue, out string preloadNote);
+                    if (standby != null)
+                    {
+                        active = standby;
+                        _activeCues.Add(active);
+                        active.Completed += () => _activeCues.Remove(active);
+                        active.AttachChainMember(member);
+                        GD.Print(
+                            $"CueCommandExecutor:ActivateSequenceFromAsync - Starting the preloaded standby for \"{member.Cue.Name}\"");
+                    }
+                    headPreloadNote = _globalData?.Settings?.PreloadStandbyActive == true ? preloadNote : string.Empty;
                 }
             }
 
@@ -407,6 +441,8 @@ public partial class CueCommandExecutor : Node
                 active.Completed += () => _activeCues.Remove(active);
             }
 
+            if (mi == 0 && !string.IsNullOrEmpty(headPreloadNote))
+                active.SetPreloadNote(headPreloadNote);
             actives.Add(active);
         }
 
@@ -1330,6 +1366,8 @@ public partial class CueCommandExecutor : Node
             _globalSignals.Go -= GoCommand;
             _globalSignals.ThemeColorsChanged -= OnThemeColorsChanged;
         }
+        TearDownAutoStandby();
+        TearDownProgressiveStart();
 
         foreach (var activeCue in _activeCues.ToList())
         {

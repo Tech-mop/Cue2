@@ -16,6 +16,7 @@ using Cue2.Domain.Cues;
 using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
+using Cue2.Media;
 using Cue2.Media.Audio;
 using Godot;
 using FFmpeg.AutoGen;
@@ -41,6 +42,10 @@ public partial class MediaEngine : Node
     /// </summary>
     private readonly object _waveformInflightLock = new object();
     private readonly Dictionary<string, Task<byte[]>> _waveformInflight = new Dictionary<string, Task<byte[]>>();
+    private readonly object _audioMetaInflightLock = new object();
+    private readonly Dictionary<string, Task<MediaEngine.AudioMetadataProbeResult>> _audioMetaInflight =
+        new Dictionary<string, Task<MediaEngine.AudioMetadataProbeResult>>(
+            OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
     
     public override void _Ready()
     {
@@ -54,6 +59,8 @@ public partial class MediaEngine : Node
             GD.Print("MediaEngine:_Ready - Loading FFmpeg libs.");
             LinkFFmpegLibraries();
             GD.Print($"MediaEngine:_Ready - FFmpeg version: {ffmpeg.av_version_info()}");
+            CallDeferred(nameof(LogVideoHost));
+            CallDeferred(nameof(WarmUpPlayback));
         }
         catch (NotSupportedException ex)
         {
@@ -73,6 +80,60 @@ public partial class MediaEngine : Node
             GD.PrintErr($"MediaEngine:_Ready - Initialization error: {ex.Message}, {ex.StackTrace}");
         }
         
+    }
+
+    /// <summary>
+    /// Logs renderer, GPU, and screen counts once the window exists.
+    /// Deferred from <see cref="_Ready"/> so the display servers are up.
+    /// </summary>
+    private void LogVideoHost()
+    {
+        try
+        {
+            VideoDiagnostics.LogHostOnce();
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"MediaEngine:LogVideoHost - {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Does the one-off work of the first video cue at launch instead of at its GO: the
+    /// hardware decoder device is created on a worker, and the colour shader is drawn once,
+    /// hidden under the interface, so it is compiled. Neither blocks the main thread for
+    /// more than loading the shader file.
+    /// </summary>
+    private void WarmUpPlayback()
+    {
+        try
+        {
+            bool hardwareOff = _globalData?.Settings != null
+                && _globalData.Settings.HardwareDecodeMode == HardwareDecodeMode.Off;
+            if (!hardwareOff)
+            {
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                        WarmUpHardwareDevice();
+                        double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0
+                                    / System.Diagnostics.Stopwatch.Frequency;
+                        GD.Print($"MediaEngine:WarmUpPlayback - hardware decoder ready in {ms:F0} ms");
+                    }
+                    catch (Exception ex)
+                    {
+                        GD.PrintErr($"MediaEngine:WarmUpPlayback - hardware decoder: {ex.Message}");
+                    }
+                });
+            }
+            ActiveVideoPlayback.WarmUpYuvShader(this);
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"MediaEngine:WarmUpPlayback - {ex.Message}");
+        }
     }
 
     // NOTE ON LICENSING:
@@ -159,17 +220,117 @@ public partial class MediaEngine : Node
     /// <summary>
     /// Gets metadata for an audio file using FFmpeg (duration, channels, sample rate, bit depth, codec/format).
     /// Fast extraction without full decoding; supports broad formats (MP3, FLAC, AAC, etc.).
-    /// Returns default-initialized metadata on failure.
     /// </summary>
     /// <param name="path">Audio file path.</param>
-    /// <returns>AudioFileMetadata with extracted values.</returns>
+    /// <returns>Extracted metadata, or null when the file could not be read (so callers retry later).</returns>
     public async Task<AudioFileMetadata> GetAudioFileMetadataAsync(string path)
     {
+        var result = await ProbeAudioFileMetadataAsync(path);
+        return result.Metadata;
+    }
+
+    /// <summary>Outcome of an audio metadata probe.</summary>
+    public sealed class AudioMetadataProbeResult
+    {
+        /// <summary>Extracted metadata, or null on failure.</summary>
+        public AudioFileMetadata Metadata { get; init; }
+
+        /// <summary>Why the probe failed, or null on success.</summary>
+        public string Error { get; init; }
+
+        /// <summary>True when the file was missing or could not be opened, which can clear up (a copy still in progress).</summary>
+        public bool CanRetry { get; init; }
+    }
+
+    /// <summary>
+    /// Probes an audio file. Concurrent probes of the same file share one FFmpeg open;
+    /// every caller gets its own copy of the result.
+    /// </summary>
+    public async Task<AudioMetadataProbeResult> ProbeAudioFileMetadataAsync(string path)
+    {
         path = ResolveMediaPath(path);
+        string key;
+        try { key = Path.GetFullPath(path); }
+        catch { key = path ?? string.Empty; }
+
+        Task<AudioMetadataProbeResult> job;
+        lock (_audioMetaInflightLock)
+        {
+            if (!_audioMetaInflight.TryGetValue(key, out job) || job.IsCompleted)
+            {
+                job = RunAudioMetadataProbeAsync(path, key);
+                // A probe that finished at once (file missing) already removed its entry.
+                if (!job.IsCompleted)
+                    _audioMetaInflight[key] = job;
+            }
+        }
+
+        var shared = await job;
+        return new AudioMetadataProbeResult
+        {
+            Metadata = CloneAudioMetadata(shared.Metadata),
+            Error = shared.Error,
+            CanRetry = shared.CanRetry,
+        };
+    }
+
+    /// <summary>
+    /// Probes an audio file and, when it could not be opened, tries again after 0.5 s and 2 s.
+    /// For new cues whose file may still be locked by a copy.
+    /// </summary>
+    public async Task<AudioMetadataProbeResult> ProbeAudioFileMetadataWithRetryAsync(string path)
+    {
+        var result = await ProbeAudioFileMetadataAsync(path);
+        foreach (int delayMs in AudioMetadataRetryDelaysMs)
+        {
+            if (result.Metadata != null || !result.CanRetry)
+                break;
+            await Task.Delay(delayMs);
+            result = await ProbeAudioFileMetadataAsync(path);
+        }
+        return result;
+    }
+
+    private static readonly int[] AudioMetadataRetryDelaysMs = { 500, 2000 };
+
+    private static AudioFileMetadata CloneAudioMetadata(AudioFileMetadata m)
+    {
+        if (m == null)
+            return null;
+        return new AudioFileMetadata
+        {
+            Duration = m.Duration,
+            Channels = m.Channels,
+            SampleRate = m.SampleRate,
+            BitDepth = m.BitDepth,
+            Codec = m.Codec,
+            Format = m.Format,
+        };
+    }
+
+    private async Task<AudioMetadataProbeResult> RunAudioMetadataProbeAsync(string path, string key)
+    {
+        try
+        {
+            return await ReadAudioMetadataCoreAsync(path);
+        }
+        catch (Exception ex)
+        {
+            return new AudioMetadataProbeResult { Error = ex.Message };
+        }
+        finally
+        {
+            lock (_audioMetaInflightLock)
+                _audioMetaInflight.Remove(key);
+        }
+    }
+
+    private async Task<AudioMetadataProbeResult> ReadAudioMetadataCoreAsync(string path)
+    {
         if (!File.Exists(path)) 
         { 
-            GD.PrintErr("MediaEngine:GetAudioFileMetadataAsync - File not found.");
-            return new AudioFileMetadata(); // Default empty on fail
+            GD.PrintErr($"MediaEngine:GetAudioFileMetadataAsync - File not found: {path}");
+            return new AudioMetadataProbeResult { Error = "File not found", CanRetry = true };
         }
 
         GD.Print("MediaEngine:GetAudioFileMetadataAsync - Extracting metadata.");
@@ -181,12 +342,14 @@ public partial class MediaEngine : Node
                 AVFormatContext* formatCtx = null; 
 
                 var metadata = new AudioFileMetadata(); 
+                bool opened = false;
 
                 try 
                 { 
                     // Open input 
                     int ret = ffmpeg.avformat_open_input(&formatCtx, path, null, null); 
                     if (ret < 0) throw new Exception($"Failed to open file: {GetFFmpegError(ret)}");
+                    opened = true;
 
                     ret = ffmpeg.avformat_find_stream_info(formatCtx, null); 
                     if (ret < 0) throw new Exception($"Failed to find stream info: {GetFFmpegError(ret)}"); 
@@ -246,12 +409,13 @@ public partial class MediaEngine : Node
                         metadata.Format = "unknown"; // Fallback for null guess
                     }
                     GD.Print("MediaEngine:GetAudioFileMetadataAsync - Metadata extracted successfully.");
-                    return metadata; 
+                    return new AudioMetadataProbeResult { Metadata = metadata };
                 } 
                 catch (Exception ex) 
                 { 
                     GD.PrintErr($"MediaEngine:GetAudioFileMetadataAsync - Error: {ex.Message}");
-                    return new AudioFileMetadata(); // Default on fail
+                    // Null metadata on failure: callers leave the component empty and retry later.
+                    return new AudioMetadataProbeResult { Error = ex.Message, CanRetry = !opened };
                 } 
                 finally 
                 { 
@@ -891,66 +1055,107 @@ public partial class MediaEngine : Node
         });
     }
 
+    private static readonly object _hwDeviceLock = new object();
+    private static unsafe AVBufferRef* _sharedHwDevice;
+    private static AVHWDeviceType _sharedHwType = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
+    private static bool _hwDeviceProbed;
+
+    /// <summary>Device type chosen by <see cref="RetainHardwareDevice"/>, or none.</summary>
+    public static AVHWDeviceType ActiveHardwareDeviceType => _sharedHwType;
+
     /// <summary>
-    /// Checks for available hardware acceleration devices and returns the best supported type.
-    /// Prioritizes CUDA (NVDEC) for NVIDIA GPUs, then VAAPI for Linux, VideoToolbox for macOS.
-    /// Returns AVHWDeviceType.None if no hardware acceleration is available.
+    /// Returns a new reference to the process-wide hardware decoder device, or null when
+    /// this machine has none. Callers own the returned reference and must let FFmpeg unref it.
     /// </summary>
-    /// <returns>The best available hardware device type for video decoding.</returns>
-    public static unsafe AVHWDeviceType GetBestHardwareDeviceType()
+    public static unsafe AVBufferRef* RetainHardwareDevice(out string name)
     {
-        // List of preferred hardware types in order
-        AVHWDeviceType[] preferredTypes = {
-            AVHWDeviceType.AV_HWDEVICE_TYPE_CUDA,    // NVIDIA NVDEC
-            AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI,   // Intel/AMD on Linux
-            AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX, // Apple on macOS
-            AVHWDeviceType.AV_HWDEVICE_TYPE_DXVA2,   // Windows DirectX
-            AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA  // Windows D3D11
-        };
-
-        foreach (var type in preferredTypes)
+        name = "none";
+        lock (_hwDeviceLock)
         {
-            if (ffmpeg.av_hwdevice_get_type_name(type) != null)
+            if (!_hwDeviceProbed)
             {
-                // Check if we can create a device context (basic availability test)
-                AVBufferRef* hwDeviceCtx = null;
-                int ret = ffmpeg.av_hwdevice_ctx_create(&hwDeviceCtx, type, null, null, 0);
-                if (ret >= 0)
-                {
-                    ffmpeg.av_buffer_unref(&hwDeviceCtx);
-                    GD.Print($"MediaEngine:GetBestHardwareDeviceType - Hardware acceleration available: {ffmpeg.av_hwdevice_get_type_name(type)}");
-                    return type;
-                }
+                _hwDeviceProbed = true;
+                ProbeHardwareDevice();
             }
+            if (_sharedHwDevice == null)
+                return null;
+            name = HardwareTypeName(_sharedHwType);
+            return ffmpeg.av_buffer_ref(_sharedHwDevice);
         }
-
-        GD.Print("MediaEngine:GetBestHardwareDeviceType - No hardware acceleration available, falling back to software decoding.");
-        return AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
     }
 
     /// <summary>
-    /// Creates a hardware device context for the specified device type.
-    /// Returns null if creation fails or type is NONE.
+    /// Creates the shared hardware decoder device now if it was not made yet. Blocks while
+    /// the device is created, so call it from a worker.
     /// </summary>
-    /// <param name="deviceType">The hardware device type to create.</param>
-    /// <returns>Pointer to the hardware device context buffer, or null on failure.</returns>
-    public static unsafe AVBufferRef* CreateHardwareDeviceContext(AVHWDeviceType deviceType)
+    public static void WarmUpHardwareDevice()
     {
-        if (deviceType == AVHWDeviceType.AV_HWDEVICE_TYPE_NONE)
+        lock (_hwDeviceLock)
         {
-            return null;
+            if (_hwDeviceProbed)
+                return;
+            _hwDeviceProbed = true;
+            ProbeHardwareDevice();
         }
+    }
 
-        AVBufferRef* hwDeviceCtx = null;
-        int ret = ffmpeg.av_hwdevice_ctx_create(&hwDeviceCtx, deviceType, null, null, 0);
-        if (ret < 0)
+    /// <summary>Releases the shared hardware device. Safe to call more than once.</summary>
+    public static unsafe void ReleaseSharedHardwareDevice()
+    {
+        lock (_hwDeviceLock)
         {
-            GD.PrintErr($"MediaEngine:CreateHardwareDeviceContext - Failed to create hardware device context for {ffmpeg.av_hwdevice_get_type_name(deviceType)}: {GetFFmpegError(ret)}");
-            return null;
+            if (_sharedHwDevice != null)
+            {
+                fixed (AVBufferRef** pp = &_sharedHwDevice)
+                    ffmpeg.av_buffer_unref(pp);
+                _sharedHwDevice = null;
+            }
+            _sharedHwType = AVHWDeviceType.AV_HWDEVICE_TYPE_NONE;
+            _hwDeviceProbed = true;
+            // Stay probed: a decoder opened during shutdown must not create a device
+            // that nothing would release. It decodes in software instead.
         }
+    }
 
-        GD.Print($"MediaEngine:CreateHardwareDeviceContext - Created hardware device context for {ffmpeg.av_hwdevice_get_type_name(deviceType)}");
-        return hwDeviceCtx;
+    public override void _ExitTree()
+    {
+        ReleaseSharedHardwareDevice();
+        base._ExitTree();
+    }
+
+    private static unsafe void ProbeHardwareDevice()
+    {
+        foreach (AVHWDeviceType type in PreferredHardwareTypes())
+        {
+            AVBufferRef* created = null;
+            int ret = ffmpeg.av_hwdevice_ctx_create(&created, type, null, null, 0);
+            if (ret < 0 || created == null)
+                continue;
+            _sharedHwDevice = created;
+            _sharedHwType = type;
+            GD.Print($"MediaEngine:ProbeHardwareDevice - {HardwareTypeName(type)}");
+            return;
+        }
+        GD.Print("MediaEngine:ProbeHardwareDevice - no hardware decoder, software decode.");
+    }
+
+    private static AVHWDeviceType[] PreferredHardwareTypes()
+    {
+        if (OperatingSystem.IsWindows())
+            return new[] { AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA };
+        if (OperatingSystem.IsMacOS())
+            return new[] { AVHWDeviceType.AV_HWDEVICE_TYPE_VIDEOTOOLBOX };
+        return new[]
+        {
+            AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI,
+            AVHWDeviceType.AV_HWDEVICE_TYPE_CUDA
+        };
+    }
+
+    private static string HardwareTypeName(AVHWDeviceType type)
+    {
+        string name = ffmpeg.av_hwdevice_get_type_name(type);
+        return string.IsNullOrEmpty(name) ? type.ToString() : name;
     }
 
     /// <summary>

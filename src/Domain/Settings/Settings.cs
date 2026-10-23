@@ -12,6 +12,20 @@ using Godot.Collections;
 namespace Cue2.Domain.ShowSettings;
 
 /// <summary>
+/// When the cue on the playhead has its media opened ahead of GO (the standby preload).
+/// Stored as an int; the order is the order of the options in Settings, General.
+/// </summary>
+public enum PreloadStandbyMode
+{
+    /// <summary>Preload in Edit Mode and in Show Mode.</summary>
+    EditAndShowMode = 0,
+    /// <summary>Preload only while Show Mode is on (default).</summary>
+    ShowModeOnly = 1,
+    /// <summary>Never preload; media opens at GO.</summary>
+    Off = 2
+}
+
+/// <summary>
 /// How component defaults resolve audio output (standalone audio or video embedded audio).
 /// </summary>
 public enum ComponentAudioOutputDefaultMode
@@ -101,6 +115,9 @@ public partial class Settings : Node
     /// <summary>Default for selecting a newly created cue after Add / drop.</summary>
     public const bool DefaultSelectNewCues = true;
 
+    /// <summary>Default for opening the playhead cue's media ahead of GO (standby): Show Mode only.</summary>
+    public const PreloadStandbyMode DefaultPreloadStandby = PreloadStandbyMode.ShowModeOnly;
+
     /// <summary>Default show mode (false = edit mode; true = live show / cue edits locked).</summary>
     public const bool DefaultShowMode = false;
 
@@ -115,6 +132,9 @@ public partial class Settings : Node
 
     /// <summary>Default decode/present quality mode for live video outputs.</summary>
     public static readonly VideoQualityMode DefaultVideoQualityMode = VideoQualityMode.Balanced;
+
+    /// <summary>Default hardware video decode: try the GPU, fall back to software.</summary>
+    public static readonly HardwareDecodeMode DefaultHardwareDecodeMode = HardwareDecodeMode.Auto;
 
     /// <summary>Default inspector video preview quality.</summary>
     public static readonly VideoPreviewQuality DefaultVideoPreviewQuality = VideoPreviewQuality.Full;
@@ -359,6 +379,18 @@ public partial class Settings : Node
     public bool SelectNewCues = DefaultSelectNewCues;
 
     /// <summary>
+    /// When the cue on the playhead has its media opened ahead of GO (hidden, silent), so GO
+    /// starts it straight away: in Edit and Show Mode, in Show Mode only, or never.
+    /// Persisted with the showfile.
+    /// </summary>
+    public PreloadStandbyMode PreloadStandby = DefaultPreloadStandby;
+
+    /// <summary>True when the standby preload may run now (setting and current Show Mode).</summary>
+    public bool PreloadStandbyActive =>
+        PreloadStandby == PreloadStandbyMode.EditAndShowMode
+        || (PreloadStandby == PreloadStandbyMode.ShowModeOnly && ShowMode);
+
+    /// <summary>
     /// When true, the UI is in Show Mode: cue/cuelist editing is locked (inspectors hidden,
     /// shell inline edits disabled, structural cue ops blocked). When false (default), Edit Mode.
     /// Persisted with the showfile. Not tracked by undo/redo.
@@ -387,6 +419,12 @@ public partial class Settings : Node
     /// Persisted with the showfile.
     /// </summary>
     public VideoQualityMode VideoQualityMode = DefaultVideoQualityMode;
+
+    /// <summary>
+    /// GPU video decode for this show. Auto falls back to software per file.
+    /// Persisted with the showfile. Takes effect the next time a decoder opens.
+    /// </summary>
+    public HardwareDecodeMode HardwareDecodeMode = DefaultHardwareDecodeMode;
 
     /// <summary>
     /// Inspector video preview resolution scale (never affects house outputs).
@@ -892,8 +930,7 @@ public partial class Settings : Node
             !available.Contains(deviceName, StringComparer.Ordinal))
         {
             // Case-insensitive match (Windows device names can vary slightly).
-            var match = available.FirstOrDefault(n =>
-                string.Equals(n, deviceName, StringComparison.OrdinalIgnoreCase));
+            var match = available.FirstOrDefault(n => AudioDevices.DeviceNamesMatch(n, deviceName));
             if (match != null)
                 deviceName = match;
             else
@@ -1045,10 +1082,12 @@ public partial class Settings : Node
         MediaBackupEnabled = DefaultMediaBackupEnabled;
         MultiEditEnabled = DefaultMultiEditEnabled;
         SelectNewCues = DefaultSelectNewCues;
+        PreloadStandby = DefaultPreloadStandby;
         ShowMode = DefaultShowMode;
         ShowTimelineWaveforms = DefaultShowTimelineWaveforms;
         OutputBackgroundColor = DefaultOutputBackgroundColor;
         VideoQualityMode = DefaultVideoQualityMode;
+        HardwareDecodeMode = DefaultHardwareDecodeMode;
         VideoPreviewQuality = DefaultVideoPreviewQuality;
         OutputVSyncMode = DefaultOutputVSyncMode;
         AudioLatencyMode = DefaultAudioLatencyMode;

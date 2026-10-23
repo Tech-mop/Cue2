@@ -118,6 +118,10 @@ public partial class Settings
             MultiEditEnabled = ReadBoolVariant(value);
         if (TryGetSettingsValue(settingsData, "SelectNewCues", out value))
             SelectNewCues = ReadBoolVariant(value);
+        if (TryGetSettingsValue(settingsData, "PreloadStandbyMode", out value))
+            PreloadStandby = ClampEnum(value.AsInt32(), PreloadStandbyMode.EditAndShowMode, PreloadStandbyMode.Off, DefaultPreloadStandby);
+        else if (TryGetSettingsValue(settingsData, "PreloadStandbyCue", out value))
+            PreloadStandby = ReadBoolVariant(value) ? PreloadStandbyMode.ShowModeOnly : PreloadStandbyMode.Off;
         if (TryGetSettingsValue(settingsData, "ShowMode", out value))
         {
             ShowMode = ReadBoolVariant(value);
@@ -132,6 +136,8 @@ public partial class Settings
         }
         if (TryGetSettingsValue(settingsData, "VideoQualityMode", out value))
             VideoQualityMode = ClampEnum(value.AsInt32(), VideoQualityMode.PreferQuality, VideoQualityMode.PreferPerformance, DefaultVideoQualityMode);
+        if (TryGetSettingsValue(settingsData, "HardwareDecodeMode", out value))
+            HardwareDecodeMode = ClampEnum(value.AsInt32(), HardwareDecodeMode.Auto, HardwareDecodeMode.Off, DefaultHardwareDecodeMode);
         if (TryGetSettingsValue(settingsData, "VideoPreviewQuality", out value))
             VideoPreviewQuality = ClampEnum(value.AsInt32(), VideoPreviewQuality.Full, VideoPreviewQuality.Quarter, DefaultVideoPreviewQuality);
         if (TryGetSettingsValue(settingsData, "OutputVSyncMode", out value))
@@ -445,6 +451,9 @@ public partial class Settings
             case "SelectNewCues":
                 value = SelectNewCues ? 1 : 0;
                 return true;
+            case "PreloadStandbyMode":
+                value = (int)PreloadStandby;
+                return true;
             case "ShowMode":
                 value = ShowMode ? 1 : 0;
                 return true;
@@ -456,6 +465,9 @@ public partial class Settings
                 return true;
             case "VideoQualityMode":
                 value = (int)VideoQualityMode;
+                return true;
+            case "HardwareDecodeMode":
+                value = (int)HardwareDecodeMode;
                 return true;
             case "VideoPreviewQuality":
                 value = (int)VideoPreviewQuality;

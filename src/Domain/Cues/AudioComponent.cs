@@ -203,7 +203,8 @@ public class AudioComponent : ICueComponent
         }
         // Waveform peaks are session disk-cache only (Waveforms/*.c2wf), not showfile payload.
 
-        if (Metadata != null) 
+        // An empty record means the file was never read; leave it out so the next load probes again.
+        if (AudioFileMetadata.IsUsable(Metadata))
         { 
             var metaDict = new Dictionary(); 
             metaDict.Add("Duration", Metadata.Duration); 
@@ -707,6 +708,11 @@ public class AudioComponent : ICueComponent
             Metadata.Codec = metaDict.ContainsKey("Codec") ? (string)metaDict["Codec"] : "unknown"; 
             Metadata.Format = metaDict.ContainsKey("Format") ? (string)metaDict["Format"] : "unknown"; 
             // Sync legacy fields from metadata (for backward compat) 
+            if (!AudioFileMetadata.IsUsable(Metadata))
+            {
+                GD.Print("AudioComponent:LoadFromData - Saved metadata is empty; will read the file again.");
+                Metadata = null;
+            }
         } 
         else 
         { 

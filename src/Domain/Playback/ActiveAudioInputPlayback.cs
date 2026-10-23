@@ -123,7 +123,7 @@ public partial class ActiveAudioInputPlayback : GodotObject, IAudioPlayback, ICo
         _clock.Restart();
         _fillCts = new CancellationTokenSource();
         var token = _fillCts.Token;
-        _fillTask = Task.Run(() => FillLoop(token), token);
+        _fillTask = PlaybackWorkers.StartLoop(() => FillLoop(token), token);
         return Task.CompletedTask;
     }
 

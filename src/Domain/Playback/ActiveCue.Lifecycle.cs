@@ -30,10 +30,29 @@ public partial class ActiveCue
     public async Task StartAsync()
     {
         if (_isPlaying || _contentStarted) return;
+        _startRequested = true;
         GD.Print($"ActiveCue:StartAsync - Starting: {_cue.Name} (chain={_chainMember != null}, incoming={_incomingMode})");
 
         // Leaving standby-load mode for real playback.
         _standbyPreload = false;
+
+        // GO time for start timing: a GO head starts now; a group child shares its parent's GO.
+        // Continue/follow members start later on their own trigger (no GO time).
+        if (_goTicks == 0)
+        {
+            if (ParentActive != null)
+                _goTicks = ParentActive._goTicks;
+            else if (_incomingMode == FollowType.None)
+                _goTicks = Stopwatch.GetTimestamp();
+        }
+
+        // Opened ahead of the parent's content start: show the row now that it really starts.
+        if (_hiddenUntilStart)
+        {
+            _hiddenUntilStart = false;
+            if (_activeCueBar != null && IsInstanceValid(_activeCueBar))
+                _activeCueBar.Visible = true;
+        }
         
         // UI may already be prepared (chain order / OSC Load); otherwise build now.
         if (!_uiPrepared)
@@ -198,7 +217,7 @@ public partial class ActiveCue
         }
 
         // Preload own media (or finish pending chain preload) before pre-wait / content.
-        // Children still wait for content phase to spawn.
+        // Children open their media during this setup too, but start only at content phase.
         // Timing rule (decided): a cue's pre-wait counts from when the cue itself starts,
         // never from the GO press.
         // - The GO head starts when its media is ready, so its pre-wait counts from the end of
@@ -221,6 +240,14 @@ public partial class ActiveCue
             PlaybackActivity.EndStart();
         }
         double setupSeconds = (Stopwatch.GetTimestamp() - setupStartTicks) / (double)Stopwatch.Frequency;
+        if (_goTicks != 0 && ParentActive == null)
+        {
+            double beforeSetupMs = (setupStartTicks - _goTicks) * 1000.0 / Stopwatch.Frequency;
+            string preloadPart = string.IsNullOrEmpty(_preloadNote) ? string.Empty : $", {_preloadNote}";
+            GD.Print(
+                $"ActiveCue:StartPlaybackCoreAsync - Start timing {_cue.Name}: media setup {setupSeconds * 1000.0:F0} ms " +
+                $"(started {beforeSetupMs:F0} ms after GO{preloadPart})");
+        }
         double sinceAnchorSeconds = (Stopwatch.GetTimestamp() - anchorTicks) / (double)Stopwatch.Frequency;
 
         // Stopped while setup was running: no pre-wait timer, no content. Late
@@ -269,6 +296,13 @@ public partial class ActiveCue
             }
             ApplyPendingTimelineSeekIfAny();
             return;
+        }
+
+        if (!doPreWait && anchoredStart && !_pendingTimelineSeekSeconds.HasValue && sinceAnchorSeconds > 0.05)
+        {
+            // Diagnostic only: media was not ready when the trigger fired.
+            GD.Print(
+                $"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: content starts {sinceAnchorSeconds:F3}s after it was triggered (media setup)");
         }
 
         // Zero or skipped pre-wait: content origin sits at PreWait on the proportional bar
@@ -430,7 +464,12 @@ public partial class ActiveCue
                 continue;
             }
 
-            var activeCue = new ActiveCue(child, childCueList, _mediaEngine, _audioDevices, _globalSignals);
+            // Reuse the instance opened during this cue's setup so its media is already ready.
+            ActiveCue activeCue = null;
+            if (_preloadedChildCues.Remove(childId, out var preloaded)
+                && preloaded != null && IsInstanceValid(preloaded) && !preloaded._isCleaned)
+                activeCue = preloaded;
+            activeCue ??= new ActiveCue(child, childCueList, _mediaEngine, _audioDevices, _globalSignals);
             _childActiveCues.Add(activeCue);
             activeCue.Completed += () => OnChildCompleted(activeCue);
             // Child solo keeps this group's whole sequence playing (see RootActive).
@@ -445,6 +484,99 @@ public partial class ActiveCue
 
             _ = activeCue.StartAsync();
         }
+
+        // Opened but not started (skipped above): release their media.
+        DiscardPreloadedChildCues(freeImmediately: false);
+    }
+
+    /// <summary>
+    /// Opens the media of this cue's children while this cue sets up its own, so a group and
+    /// its children are ready together and all start on the same frame. The children stay
+    /// hidden and do not start (no pre-wait, no solo) until <see cref="StartChildCues"/>.
+    /// </summary>
+    /// <returns>Task that completes when every child's setup has finished or failed.</returns>
+    private async Task PreloadChildCuesAsync()
+    {
+        if (_cue?.ChildCues == null || _cue.ChildCues.Count == 0) return;
+        if (_activeCueBar == null || !IsInstanceValid(_activeCueBar)) return;
+
+        var childCueList = _activeCueBar.GetNodeOrNull<VBoxContainer>("%ChildCuelist");
+        if (childCueList == null) return;
+
+        var tasks = new List<Task>();
+        foreach (var childId in _cue.ChildCues)
+        {
+            if (_finishedChildCueIds.Contains(childId) || _preloadedChildCues.ContainsKey(childId))
+                continue;
+            if (_childActiveCues.Any(c => c != null && IsInstanceValid(c) && c.Cue?.Id == childId))
+                continue;
+            // Loops and missing cues are reported when the children start.
+            if (IsSelfOrModelAncestor(childId))
+                continue;
+            var child = CueList.FetchCueFromId(childId);
+            if (child == null)
+                continue;
+
+            var activeCue = new ActiveCue(child, childCueList, _mediaEngine, _audioDevices, _globalSignals);
+            activeCue.ParentActive = this;
+            _preloadedChildCues[childId] = activeCue;
+            tasks.Add(activeCue.PreloadForParentAsync());
+        }
+
+        if (tasks.Count > 0)
+            await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Builds this child's row (hidden) and opens its media without starting it.
+    /// </summary>
+    /// <returns>Task that completes when setup finishes; a failure is logged and retried at start.</returns>
+    private async Task PreloadForParentAsync()
+    {
+        if (_isCleaned || _contentStarted) return;
+
+        if (!_uiPrepared)
+            PrepareUiInOrder();
+        if (_activeCueBar != null && IsInstanceValid(_activeCueBar))
+        {
+            _activeCueBar.Visible = false;
+            _hiddenUntilStart = true;
+        }
+
+        // Disarmed children never open media; they still keep their place in the list.
+        if (_cue != null && !_cue.Armed)
+            return;
+
+        try
+        {
+            await EnsureComponentsSetupAsync();
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"ActiveCue:PreloadForParentAsync - {_cue?.Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Cleans up children that were opened for this cue but never started.
+    /// </summary>
+    /// <param name="freeImmediately">Passed to each child's <see cref="Cleanup"/>.</param>
+    private void DiscardPreloadedChildCues(bool freeImmediately)
+    {
+        if (_preloadedChildCues.Count == 0) return;
+        foreach (var child in _preloadedChildCues.Values.ToList())
+        {
+            if (child == null || !IsInstanceValid(child)) continue;
+            try
+            {
+                child.Cleanup(freeImmediately);
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"ActiveCue:DiscardPreloadedChildCues - {_cue?.Name}: {ex.Message}");
+            }
+        }
+        _preloadedChildCues.Clear();
     }
 
     /// <summary>
@@ -714,6 +846,7 @@ public partial class ActiveCue
                 return;
             }
             var playback = _activeAudioComponents[panel];
+            playback.PrepareStartTrace($"{_cue.Name} ({Path.GetFileName(audioComp.AudioFile)})", _goTicks);
 
             bool started = await _audioDevices.StartAudioPlayback(playback);
             if (!started || playback.DeviceStreams == null || playback.DeviceStreams.Count == 0)
@@ -763,6 +896,7 @@ public partial class ActiveCue
                 return;
             }
             var playback = _activeVideoComponents[panel];
+            playback.PrepareStartTrace($"{_cue.Name} ({Path.GetFileName(videoComp.VideoFile)})", _goTicks);
 
             if (videoComp.UseAudio && videoComp.HasAudio && videoComp.HasAudioOutputAssigned)
             {

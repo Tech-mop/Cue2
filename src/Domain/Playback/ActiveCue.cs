@@ -572,6 +572,24 @@ public partial class ActiveCue : GodotObject
 
     private readonly List<ActiveCue> _childActiveCues = new List<ActiveCue>();
 
+    /// <summary>
+    /// Children whose media was opened while this cue set up its own, waiting (hidden, not
+    /// started) for this cue's content start. Keyed by child cue id.
+    /// </summary>
+    private readonly Dictionary<int, ActiveCue> _preloadedChildCues = new Dictionary<int, ActiveCue>();
+
+    /// <summary>True while this row is hidden because it was opened ahead of its parent's content start.</summary>
+    private bool _hiddenUntilStart;
+
+    /// <summary>
+    /// Output stacking position for this cue's video and text, taken at creation so children
+    /// (created after their parent) draw above it on a shared layer.
+    /// </summary>
+    private long _layerStackOrder;
+
+    /// <summary>Stopwatch ticks of the GO that started this cue (or its group), 0 = not from a GO.</summary>
+    private long _goTicks;
+
     // --- Body timeline (head progress / parent↔child seek) ---
     // Layout: [0, PreWait) pre-wait, [PreWait, PreWait+Duration) content (Duration includes nested children).
 
@@ -712,6 +730,7 @@ public partial class ActiveCue : GodotObject
         _chainMember = chainMember;
         _incomingMode = chainMember?.IncomingMode ?? FollowType.None;
         _incomingWaitDuration = chainMember?.IncomingPostWait ?? 0.0;
+        _layerStackOrder = Cue2.Domain.Devices.VideoOutputDevice.ReserveLayerStackOrder();
     }
 
     /// <summary>

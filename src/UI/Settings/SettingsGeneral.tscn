@@ -220,6 +220,49 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Media"
 
+[node name="PreloadStandbyRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="PreloadStandbyLabel" type="Label" parent="VBoxContainer/PreloadStandbyRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "Preload standby cue"
+vertical_alignment = 1
+tooltip_text = "Opens the media of the cue on the playhead ahead of GO (hidden and silent), so GO starts it straight away. Edit and show mode: always. Show mode only: not while you edit. Off: media opens at GO."
+
+[node name="PreloadStandbyOptionButton" type="OptionButton" parent="VBoxContainer/PreloadStandbyRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+tooltip_text = "Opens the media of the cue on the playhead ahead of GO (hidden and silent), so GO starts it straight away. Edit and show mode: always. Show mode only: not while you edit. Off: media opens at GO."
+focus_mode = 0
+selected = 1
+item_count = 3
+popup/item_0/text = "Edit and show mode"
+popup/item_0/id = 0
+popup/item_1/text = "Show mode only"
+popup/item_1/id = 1
+popup/item_2/text = "Off"
+popup/item_2/id = 2
+
+[node name="PreloadStandbyResetButton" type="Button" parent="VBoxContainer/PreloadStandbyRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+tooltip_text = "Reset to default"
+
+[node name="PreloadStandbyHint" type="Label" parent="VBoxContainer/PreloadStandbyRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "Open the playhead cue's media before GO for a faster start."
+vertical_alignment = 1
+
 [node name="MediaBackupRow" type="HBoxContainer" parent="VBoxContainer"]
 layout_mode = 2
 

@@ -9,7 +9,9 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Cue2.Domain.Cues;
+using Cue2.Domain.ShowSettings;
 using Cue2.Services;
+using Cue2.Media;
 using Cue2.Media.Audio;
 using Cue2.Media.Decoders;
 using Godot;
@@ -25,8 +27,8 @@ namespace Cue2.Domain.Playback;
 /// thread by a master clock (audio position when available, else wall clock).
 /// Audio: same pull-based path as pure audio cues (<see cref="AudioSourceDecoder"/> + SDL fill).
 /// </para>
-/// A/V sync strategy: audio is the master clock when present; video presents or drops frames
-/// to stay within a tolerance of that clock. When the soundtrack ends before the video
+/// A/V sync strategy: audio is the master clock when present; each tick uploads only the
+/// newest frame that is due. When the soundtrack ends before the video
 /// stream, the master falls back to wall time so remaining frames can present and the cue can
 /// complete. On seek/pause/loop both streams are reset to the same media timestamp.
 /// </summary>
@@ -55,8 +57,71 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private string _lastSubtitleText = string.Empty;
     private ImageTexture _godotTexture;
     private Image _godotImage;
+    private Image _uvImage;
+    private ImageTexture _uvTexture;
+    private ShaderMaterial _yuvMaterial;
+    private bool _presentPlanar;
+    private string _statsUpload = "rgba";
+    private int _appliedMatrixId = int.MinValue;
+    private int _appliedLimited = int.MinValue;
     /// <summary>Fallback upload buffer, only used if a decoder buffer is not exactly one frame.</summary>
     private byte[] _displayRgba;
+
+    /// <summary>Last opacity written to layer modulate. NaN forces the next write.</summary>
+    private float _appliedOpacity = float.NaN;
+
+    /// <summary>Last fade alpha written to layer modulate.</summary>
+    private float _appliedFadeAlpha = float.NaN;
+
+    private bool _summaryLogged;
+    private ulong _nextStatsLogMs;
+    private int _presentsThisTick;
+    private long _shown;
+    private long _superseded;
+    private long _lateShown;
+    private long _maxLatenessUs = long.MinValue;
+    private int _maxPresentsInOneTick;
+    private long _setDataTicks;
+    private long _setDataMaxTicks;
+    private long _updateTicks;
+    private long _updateMaxTicks;
+    private long _presentLoopTicks;
+    private long _presentLoopMaxTicks;
+    private long _presentLoopCount;
+
+    // Present cadence diagnostics (main thread only).
+    private long _prevTickTimestamp;
+    private long _tickIntervalTicks;
+    private long _tickIntervalMaxTicks;
+    private long _tickIntervalCount;
+    private long _prevRawMasterUs = long.MinValue;
+    private long _clockStepMaxUs;
+    private long _clockStallTicks;
+    private long _clockSnaps;
+    private bool _lastClockFromAudio;
+
+    // Audio clock published by the code that queues PCM: the media time at the end of
+    // everything queued so far. Odd sequence = a push is in progress (values may disagree).
+    private long _audioQueuedEndUs;
+    private int _audioClockSeq;
+    // Last consistent audio master (main thread), used when a push is in progress.
+    private long _lastAudioMasterUs = long.MinValue;
+    private long _lastAudioEndUs;
+    private long _lastAudioQueuedUs;
+
+    // Smoothed clock used to choose frames (main thread only). See SmoothPresentClock.
+    private bool _presentClockValid;
+    private long _presentClockUs;
+    private long _presentClockAtTimestamp;
+
+    /// <summary>A present clock further than this from the audio clock is reset to it.</summary>
+    private const long PresentClockSnapUs = 100_000;
+
+    /// <summary>Longer than this between present ticks (pause, seek, hitch) resets the present clock.</summary>
+    private const long PresentClockMaxGapUs = 100_000;
+
+    /// <summary>Each tick corrects this fraction (1/n) of the gap to the audio clock.</summary>
+    private const long PresentClockGainDivisor = 10;
 
     // Settings last turned into tuning by RefreshTuningIfSettingsChanged.
     private GlobalData _tuningGlobalData;
@@ -81,6 +146,30 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private readonly VideoComponent _videoComponent;
     private readonly AudioDevices _audioDevices;
     private VideoTargetLayer _targetLayer;
+
+    private readonly PlaybackStartTrace _startTrace = new PlaybackStartTrace();
+
+    /// <summary>Sets the label and GO time (Stopwatch ticks, 0 = unknown) logged for the next play.</summary>
+    public void PrepareStartTrace(string label, long goTicks) => _startTrace.Prepare(label, goTicks);
+
+    /// <summary>Stacking position on the output layer (see <see cref="Cue2.Domain.Devices.VideoOutputDevice.ReserveLayerStackOrder"/>); 0 = when added.</summary>
+    public long LayerStackOrder { get; set; }
+
+    /// <summary>Moves this playback's output layers to <paramref name="stackOrder"/> on every output.</summary>
+    public void Restack(long stackOrder)
+    {
+        LayerStackOrder = stackOrder;
+        if (DisplaysManager.Outputs == null)
+            return;
+        foreach (var host in _targetLayers.Keys.ToList())
+        {
+            foreach (var display in DisplaysManager.Outputs)
+            {
+                if (display != null && IsInstanceValid(display) && display.SetLayerStackOrder(host, stackOrder))
+                    break;
+            }
+        }
+    }
 
     private AudioSourceDecoder _audioDecoder;
     private CancellationTokenSource _audioFillCts;
@@ -219,7 +308,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         _videoComponent = videoComponent ?? throw new ArgumentNullException(nameof(videoComponent));
         _audioDevices = audioDevices ?? throw new ArgumentNullException(nameof(audioDevices));
 
-        _videoDecoder = new VideoSourceDecoder();
+        _videoDecoder = new VideoSourceDecoder { DeliverPlanar420 = true };
         // Only set up the embedded-audio path when an output is assigned. Without streams the
         // audio decoder position never advances and must not be used as the master clock.
         if (UseAudio && videoComponent.HasAudioOutputAssigned)
@@ -301,42 +390,125 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         try
         {
             GD.Print("ActiveVideoPlayback:InitAsync - Initializing...");
+            long initStart = Stopwatch.GetTimestamp();
             RefreshPresentTuning();
             _currentPlayCount = 1;
 
             string mediaPath = ResolveMediaPath(_videoComponent.VideoFile);
-            await _videoDecoder.OpenAsync(mediaPath);
+            var showSettings = GetNodeOrNull<GlobalData>("/root/GlobalData")?.Settings;
+            _videoDecoder.AllowHardwareDecode = showSettings == null
+                || showSettings.HardwareDecodeMode != HardwareDecodeMode.Off;
+            // Planes need the colour shader. Without it, fall back to RGBA frames.
+            _videoDecoder.DeliverPlanar420 = GetYuvShader() != null;
+            // The worker copies each picture into Godot images, so the main thread only uploads.
+            _videoDecoder.PreparePlaneImages = true;
+            long startUs = _startTimeUs;
+            // Start after a couple of pictures (four above 1080p60) and about 100 ms of sound;
+            // the playback loops fill the rest once the cue plays.
+            var presentTuning = _presentTuning;
+            int videoPrefetch = presentTuning.StartPrefetchFrames;
+            int audioRingMs = 0, audioPrefetchMs = 0;
+            if (_audioDecoder != null)
+            {
+                // Stream embedded audio (no full PCM expand): long video soundtracks would
+                // otherwise pin tens/hundreds of MB on the LOH for the whole cue lifetime.
+                // Ring sized from latency mode so PreferStability prefetch (1400 ms) fits.
+                RefreshAudioTuning();
+                audioRingMs = _audioTuning.RecommendedRingMs;
+                audioPrefetchMs = _audioTuning.StartPrefetchMs;
+            }
+
+            // Picture, sound and subtitles open at the same time, each on its own worker.
+            // Each worker does its open, seek and first fill in one go, so the main thread
+            // is only waited for once. The sound opener skips the picture stream so the file
+            // is not probed twice (MP4/MOV only).
+            var videoDecoder = _videoDecoder;
+            double seekMs = 0, firstPictureMs = 0, prefetchMs = 0, soundPrefetchMs = 0;
+            long videoEnd = 0, soundEnd = 0, subtitlesEnd = 0;
+            Task videoTask = Task.Run(() =>
+            {
+                videoDecoder.Open(mediaPath);
+                long t = Stopwatch.GetTimestamp();
+                if (startUs > 0)
+                    videoDecoder.Seek(startUs);
+                seekMs = DecoderOpenTimes.Since(t);
+                t = Stopwatch.GetTimestamp();
+                videoDecoder.Prefetch(1);
+                firstPictureMs = DecoderOpenTimes.Since(t);
+                var info = videoDecoder.Info;
+                if (info != null)
+                    videoPrefetch = presentTuning.StartPrefetchFramesFor(info.Width, info.Height, info.FrameDurationUs);
+                videoDecoder.Prefetch(videoPrefetch);
+                prefetchMs = DecoderOpenTimes.Since(t);
+                videoEnd = Stopwatch.GetTimestamp();
+            });
+
+            Task soundTask = Task.CompletedTask;
+            var audioDecoder = _audioDecoder;
+            if (audioDecoder != null)
+            {
+                audioDecoder.SkipVideoProbe = true;
+                soundTask = Task.Run(() =>
+                {
+                    audioDecoder.Open(mediaPath, preferSampleAccurateStore: false, ringMs: audioRingMs);
+                    long t = Stopwatch.GetTimestamp();
+                    if (startUs > 0)
+                        audioDecoder.Seek(startUs);
+                    audioDecoder.Prefetch(audioPrefetchMs);
+                    PublishAudioQueuedEnd(audioDecoder.PositionUs);
+                    soundPrefetchMs = DecoderOpenTimes.Since(t);
+                    soundEnd = Stopwatch.GetTimestamp();
+                });
+            }
+
+            async Task LoadSubtitlesTimedAsync()
+            {
+                await TryLoadSubtitlesAsync(mediaPath);
+                subtitlesEnd = Stopwatch.GetTimestamp();
+            }
+            Task subtitlesTask = LoadSubtitlesTimedAsync();
+
+            // WhenAll waits for every worker even if one fails, so none is still running
+            // against a decoder when Clean runs in the catch below.
+            await Task.WhenAll(videoTask, soundTask, subtitlesTask);
+            long lastWorkerEnd = Math.Max(Math.Max(videoEnd, soundEnd), subtitlesEnd);
+            double mediaMs = DecoderOpenTimes.Since(initStart);
+            double mainWaitMs = lastWorkerEnd > 0 ? DecoderOpenTimes.Since(lastWorkerEnd) : 0;
+            double videoOpenMs = (videoDecoder.LastOpenTimes.EndTicks - initStart) * 1000.0 / Stopwatch.Frequency;
+            double soundOpenMs = audioDecoder?.LastOpenTimes != null
+                ? (audioDecoder.LastOpenTimes.EndTicks - initStart) * 1000.0 / Stopwatch.Frequency
+                : 0;
+            double subtitlesMs = subtitlesEnd > 0 ? (subtitlesEnd - initStart) * 1000.0 / Stopwatch.Frequency : 0;
+            long stageStart = Stopwatch.GetTimestamp();
+
             // Do not replace image hold end with container duration (often 0 or N/A for stills).
             if (!_videoComponent.IsImage && !_useCustomEnd && _videoDecoder.Info.DurationUs > 0)
                 _endTimeUs = _videoDecoder.Info.DurationUs;
 
-            await TryLoadSubtitlesAsync(mediaPath);
-
-            // Seek + prefetch off the main thread (GOP discard / decode can take many ms).
-            long startUs = _startTimeUs;
-            int videoPrefetch = _presentTuning.PrefetchTarget;
-            await Task.Run(() =>
-            {
-                if (startUs > 0)
-                    _videoDecoder.Seek(startUs);
-                _videoDecoder.Prefetch(videoPrefetch);
-            });
-
             int w = _videoDecoder.Info.Width;
             int h = _videoDecoder.Info.Height;
-            _godotImage = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
-            _godotTexture = ImageTexture.CreateFromImage(_godotImage);
+            _presentPlanar = _videoDecoder.OutputsPlanar420;
+            _statsUpload = _presentPlanar ? "yuv420" : "rgba";
+            if (_presentPlanar)
+                CreatePlanarTargets(w, h);
+            else
+            {
+                _godotImage = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
+                _godotTexture = ImageTexture.CreateFromImage(_godotImage);
+            }
 
             foreach (var display in DisplaysManager.Outputs)
             {
-                var layerControl = display.AddLayer(_videoComponent.TargetLayerId);
+                var layerControl = display.AddLayer(_videoComponent.TargetLayerId, LayerStackOrder);
                 var layerTextRect = layerControl.GetNode<TextureRect>("%LayerOutput");
                 layerTextRect.Texture = _godotTexture;
+                if (_presentPlanar)
+                    AssignYuvMaterial(layerTextRect);
                 _targetLayers.Add(layerControl, layerTextRect);
                 layerTextRect.TreeExited += () => OnLayerExited(layerTextRect);
             }
 
-            // Stay invisible until PlayAsync / FadeInAsync — Init assigns the shared texture early,
+            // Stay invisible until PlayAsync / FadeInAsync. Init assigns the shared texture early,
             // so a non-zero modulate would flash the first decoded frame at full opacity.
             _fadeAlpha = 0f;
             SetVolume(0f);
@@ -352,35 +524,30 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
             if (_audioDecoder != null)
             {
-                // Stream embedded audio (no full PCM expand) — long video soundtracks would
-                // otherwise pin tens/hundreds of MB on the LOH for the whole cue lifetime.
-                // Ring sized from latency mode so PreferStability prefetch (1400 ms) fits.
-                RefreshAudioTuning();
-                await _audioDecoder.OpenAsync(
-                    mediaPath,
-                    preferSampleAccurateStore: false,
-                    ringMs: _audioTuning.RecommendedRingMs);
                 SourceChannels = _audioDecoder.Info.Channels;
                 SourceSampleRate = _audioDecoder.Info.SampleRate;
                 SourceFormat = SDL.AudioFormat.AudioF32LE;
                 SourceBytesPerFrame = SourceChannels * sizeof(float);
 
-                long audioStartUs = _startTimeUs;
-                int audioPrefetchMs = _audioTuning.PrefetchMs;
-                await Task.Run(() =>
-                {
-                    if (audioStartUs > 0)
-                        _audioDecoder.Seek(audioStartUs);
-                    _audioDecoder.Prefetch(audioPrefetchMs);
-                });
-
                 int maxFrames = Math.Max(SourceSampleRate / 10, 1024);
                 _audioSrcBuffer = new float[maxFrames * SourceChannels];
                 _audioMixBuffer = new float[maxFrames * 16];
             }
+            double texturesMs = DecoderOpenTimes.Since(stageStart);
 
             SetProcess(false); // enabled on Play
             GD.Print($"ActiveVideoPlayback:InitAsync - complete video={w}x{h} audio={_audioDecoder != null}");
+            string soundPart = _audioDecoder != null
+                ? $", sound open {soundOpenMs:F0} ({_audioDecoder.LastOpenTimes}) then prefetch {soundPrefetchMs:F0}"
+                : string.Empty;
+            string seekPart = startUs > 0 ? $", seek to in point {seekMs:F0}" : string.Empty;
+            string subtitlesPart = subtitlesMs > 1 ? $", subtitles {subtitlesMs:F0}" : string.Empty;
+            GD.Print(
+                $"ActiveVideoPlayback:InitAsync - Start timing {_startTrace.Label}: init {DecoderOpenTimes.Since(initStart):F0} ms, " +
+                $"media in parallel {mediaMs:F0} = picture open {videoOpenMs:F0} " +
+                $"({_videoDecoder.LastOpenTimes}, hw {_videoDecoder.HardwareName}){seekPart}, " +
+                $"first picture {firstPictureMs:F0}, {videoPrefetch} pictures {prefetchMs:F0}" +
+                $"{soundPart}{subtitlesPart}; waiting for the main thread {mainWaitMs:F0}; textures {texturesMs:F0}");
         }
         catch
         {
@@ -400,12 +567,30 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
     private void PresentFrame(VideoFrame frame)
     {
-        if (frame?.Rgba == null || _isExiting) return;
-        if (!IsInstanceValid(_godotImage) || !IsInstanceValid(_godotTexture)) return;
+        if (frame == null || _isExiting) return;
+        if (frame.IsPlanar)
+        {
+            if (!IsInstanceValid(_godotImage) || !IsInstanceValid(_godotTexture))
+                return;
+        }
+        else if (frame.Rgba == null || !IsInstanceValid(_godotImage) || !IsInstanceValid(_godotTexture))
+        {
+            return;
+        }
 
         // Apply fade/opacity BEFORE uploading pixels. TextureRects already hold this
         // ImageTexture from Init — Update() would otherwise flash a full-opacity frame.
         ApplyOpacityModulate();
+
+        _presentsThisTick++;
+        if (_presentsThisTick > _maxPresentsInOneTick)
+            _maxPresentsInOneTick = _presentsThisTick;
+
+        if (frame.IsPlanar)
+        {
+            UploadPlanar(frame);
+            return;
+        }
 
         // Upload the decoder's buffer directly (SetData copies it into Godot's image, and the
         // caller releases it after this returns). Pool buffers are exactly one frame; the copy
@@ -420,22 +605,254 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             pixels = _displayRgba;
         }
 
-        if (_godotImage.GetWidth() != frame.Width || _godotImage.GetHeight() != frame.Height)
+        bool textureReplaced = false;
+        bool leavingPlanes = _presentPlanar;
+        if (leavingPlanes
+            || _godotImage.GetFormat() != Image.Format.Rgba8
+            || _godotImage.GetWidth() != frame.Width
+            || _godotImage.GetHeight() != frame.Height)
         {
             _godotImage = Image.CreateEmpty(frame.Width, frame.Height, false, Image.Format.Rgba8);
             _godotTexture = ImageTexture.CreateFromImage(_godotImage);
+            textureReplaced = true;
+            _presentPlanar = false;
+            _statsUpload = "rgba";
         }
 
+        long setDataStart = Stopwatch.GetTimestamp();
         _godotImage.SetData(frame.Width, frame.Height, false, Image.Format.Rgba8, pixels);
+        long setDataTicks = Stopwatch.GetTimestamp() - setDataStart;
+        long updateStart = Stopwatch.GetTimestamp();
         _godotTexture.Update(_godotImage);
+        long updateTicks = Stopwatch.GetTimestamp() - updateStart;
+        AddUploadSample(ref _setDataTicks, ref _setDataMaxTicks, setDataTicks);
+        AddUploadSample(ref _updateTicks, ref _updateMaxTicks, updateTicks);
+        VideoDiagnostics.NoteUpload(setDataTicks, updateTicks);
+        NoteUploadCost(setDataTicks + updateTicks);
+        VideoDiagnostics.NotePresented();
+        _shown++;
+        _startTrace.NotePicture();
+
+        if (!textureReplaced)
+            return;
 
         foreach (var layer in _targetLayers)
         {
             if (layer.Value == null || !IsInstanceValid(layer.Value))
                 continue;
             layer.Value.Texture = _godotTexture;
+            // An RGBA frame after plane frames: the colour shader must not run on it.
+            if (leavingPlanes)
+                layer.Value.Material = null;
         }
     }
+
+    /// <summary>Path of the canvas shader that converts the Y and UV planes to RGB.</summary>
+    private const string YuvShaderPath = "res://src/UI/Output/VideoYuv.gdshader";
+
+    /// <summary>Loaded once per process and shared by every playback. Main thread only.</summary>
+    private static Shader _yuvShader;
+
+    private static bool _yuvShaderLoadFailed;
+
+    /// <summary>
+    /// Returns the shared YUV shader, loading it on first use. Null when it cannot be loaded;
+    /// playback then uploads RGBA frames instead of planes. Main thread only.
+    /// </summary>
+    private static Shader GetYuvShader()
+    {
+        if (_yuvShader != null && IsInstanceValid(_yuvShader))
+            return _yuvShader;
+        if (_yuvShaderLoadFailed)
+            return null;
+
+        _yuvShader = ResourceLoader.Exists(YuvShaderPath) ? GD.Load<Shader>(YuvShaderPath) : null;
+        if (_yuvShader == null)
+        {
+            _yuvShaderLoadFailed = true;
+            GD.PrintErr($"ActiveVideoPlayback:GetYuvShader - Could not load {YuvShaderPath}. Video uses RGBA upload.");
+        }
+        return _yuvShader;
+    }
+
+    /// <summary>
+    /// Draws the colour shader once on a 1x1 picture in a canvas layer below the whole
+    /// interface, so the graphics driver compiles it at launch and not at the first video
+    /// GO. The picture is black, almost fully transparent and covered by the interface, and
+    /// it is removed after half a second. Main thread only.
+    /// </summary>
+    internal static void WarmUpYuvShader(Node host)
+    {
+        if (host == null || !IsInstanceValid(host) || !host.IsInsideTree())
+            return;
+        Shader shader = GetYuvShader();
+        if (shader == null)
+            return;
+
+        var luma = ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.L8));
+        var chroma = ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.Rg8));
+        var material = new ShaderMaterial { Shader = shader };
+        material.SetShaderParameter("chroma_tex", chroma);
+        material.SetShaderParameter("range_limited", 1f);
+        material.SetShaderParameter("matrix_id", 1f);
+
+        var layer = new CanvasLayer { Layer = -128, Name = "VideoShaderWarmUp" };
+        var rect = new TextureRect
+        {
+            Texture = luma,
+            Material = material,
+            Position = Vector2.Zero,
+            Size = Vector2.One,
+            CustomMinimumSize = Vector2.One,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Modulate = new Color(0f, 0f, 0f, 0.01f)
+        };
+        layer.AddChild(rect);
+        host.AddChild(layer);
+        host.GetTree().CreateTimer(0.5).Timeout += () =>
+        {
+            if (IsInstanceValid(layer))
+                layer.QueueFree();
+        };
+    }
+
+    /// <summary>
+    /// Builds the Y and UV textures and the colour-conversion material.
+    /// The material uses the shared shader from <see cref="GetYuvShader"/>, so it compiles once.
+    /// </summary>
+    private void CreatePlanarTargets(int width, int height)
+    {
+        int cw = Math.Max(1, (width + 1) >> 1);
+        int ch = Math.Max(1, (height + 1) >> 1);
+        // L8 repeats luma into RGB. R8 leaves green and blue at 0, so the default
+        // canvas shader draws the picture red when the colour shader is not used.
+        _godotImage = Image.CreateEmpty(width, height, false, Image.Format.L8);
+        _godotTexture = ImageTexture.CreateFromImage(_godotImage);
+        _uvImage = Image.CreateEmpty(cw, ch, false, Image.Format.Rg8);
+        _uvTexture = ImageTexture.CreateFromImage(_uvImage);
+
+        _yuvMaterial = new ShaderMaterial();
+        _yuvMaterial.Shader = GetYuvShader();
+        ApplyYuvUniforms(1f, 1f);
+        GD.Print("ActiveVideoPlayback:CreatePlanarTargets - YUV shader assigned.");
+    }
+
+    /// <summary>
+    /// Puts the shared colour shader on one output rectangle.
+    /// The same pattern as the canvas editor: set the shader code, then the material, no copy.
+    /// </summary>
+    private void AssignYuvMaterial(TextureRect rect)
+    {
+        if (_yuvMaterial == null || rect == null || !IsInstanceValid(rect))
+            return;
+        rect.Material = _yuvMaterial;
+    }
+
+    private void ApplyYuvUniforms(float rangeLimited, float matrixId)
+    {
+        if (_yuvMaterial == null || !IsInstanceValid(_yuvMaterial))
+            return;
+        _yuvMaterial.SetShaderParameter("chroma_tex", _uvTexture);
+        _yuvMaterial.SetShaderParameter("range_limited", rangeLimited);
+        _yuvMaterial.SetShaderParameter("matrix_id", matrixId);
+    }
+
+    /// <summary>
+    /// Uploads luma and interleaved chroma, then lets the canvas shader convert to RGB.
+    /// </summary>
+    private void UploadPlanar(VideoFrame frame)
+    {
+        if (_yuvMaterial == null || !IsInstanceValid(_yuvMaterial))
+        {
+            // The cue opened on RGBA frames and the stream changed to planes mid-file.
+            Shader shader = GetYuvShader();
+            if (shader == null)
+                return;
+            _yuvMaterial = new ShaderMaterial();
+            _yuvMaterial.Shader = shader;
+        }
+
+        bool replaced = false;
+        if (!_presentPlanar)
+        {
+            _presentPlanar = true;
+            _statsUpload = "yuv420";
+            replaced = true;
+        }
+        if (_godotImage.GetFormat() != Image.Format.L8
+            || _godotImage.GetWidth() != frame.Width
+            || _godotImage.GetHeight() != frame.Height)
+        {
+            _godotImage = Image.CreateEmpty(frame.Width, frame.Height, false, Image.Format.L8);
+            _godotTexture = ImageTexture.CreateFromImage(_godotImage);
+            replaced = true;
+        }
+
+        if (_uvImage == null
+            || !IsInstanceValid(_uvImage)
+            || _uvImage.GetWidth() != frame.ChromaWidth
+            || _uvImage.GetHeight() != frame.ChromaHeight)
+        {
+            _uvImage = Image.CreateEmpty(Math.Max(1, frame.ChromaWidth), Math.Max(1, frame.ChromaHeight), false, Image.Format.Rg8);
+            _uvTexture = ImageTexture.CreateFromImage(_uvImage);
+            replaced = true;
+        }
+
+        int limited = frame.LimitedRange ? 1 : 0;
+        if (frame.MatrixId != _appliedMatrixId || limited != _appliedLimited || replaced)
+        {
+            _appliedMatrixId = frame.MatrixId;
+            _appliedLimited = limited;
+            ApplyYuvUniforms(limited, frame.MatrixId);
+        }
+
+        // Timed inline: closures here would allocate four delegates per presented frame.
+        long setDataTicks;
+        long updateTicks;
+        if (frame.HasPlaneImages)
+        {
+            // Images were made on the decode worker: only the upload runs here.
+            long u0 = Stopwatch.GetTimestamp();
+            _godotTexture.Update(frame.YImage);
+            _uvTexture.Update(frame.UvImage);
+            setDataTicks = 0;
+            updateTicks = Stopwatch.GetTimestamp() - u0;
+        }
+        else
+        {
+            long t0 = Stopwatch.GetTimestamp();
+            _godotImage.SetData(frame.Width, frame.Height, false, Image.Format.L8, frame.Y);
+            long t1 = Stopwatch.GetTimestamp();
+            _godotTexture.Update(_godotImage);
+            long t2 = Stopwatch.GetTimestamp();
+            _uvImage.SetData(frame.ChromaWidth, frame.ChromaHeight, false, Image.Format.Rg8, frame.Uv);
+            long t3 = Stopwatch.GetTimestamp();
+            _uvTexture.Update(_uvImage);
+            long t4 = Stopwatch.GetTimestamp();
+            setDataTicks = (t1 - t0) + (t3 - t2);
+            updateTicks = (t2 - t1) + (t4 - t3);
+        }
+
+        AddUploadSample(ref _setDataTicks, ref _setDataMaxTicks, setDataTicks);
+        AddUploadSample(ref _updateTicks, ref _updateMaxTicks, updateTicks);
+        VideoDiagnostics.NoteUpload(setDataTicks, updateTicks);
+        NoteUploadCost(setDataTicks + updateTicks);
+        VideoDiagnostics.NotePresented();
+        _shown++;
+        _startTrace.NotePicture();
+
+        if (!replaced)
+            return;
+
+        foreach (var layer in _targetLayers)
+        {
+            if (layer.Value == null || !IsInstanceValid(layer.Value))
+                continue;
+            layer.Value.Texture = _godotTexture;
+            AssignYuvMaterial(layer.Value);
+        }
+    }
+
 
     /// <summary>
     /// Re-applies expand/stretch layout and opacity from the video component to live TextureRects.
@@ -454,7 +871,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _videoComponent.ApplyTextureLayout(rect);
         }
 
-        ApplyOpacityModulate();
+        ApplyOpacityModulateForced();
     }
 
     /// <summary>
@@ -474,7 +891,20 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             textPlayback.IsSubtitleSlave = true;
     }
 
-    private void ApplyOpacityModulate()
+    /// <summary>
+    /// Writes layer modulate when opacity or fade alpha changed.
+    /// Must stay parameterless: fade-out calls it through <c>CallDeferred</c>, and Godot
+    /// only binds the method with the arguments it declares.
+    /// </summary>
+    private void ApplyOpacityModulate() => WriteOpacityModulate(force: false);
+
+    /// <summary>
+    /// Writes layer modulate even when the value matches the last apply.
+    /// Used when layers are created or the inspector refreshes layout.
+    /// </summary>
+    private void ApplyOpacityModulateForced() => WriteOpacityModulate(force: true);
+
+    private void WriteOpacityModulate(bool force)
     {
         float opacity;
         lock (_lock)
@@ -482,7 +912,13 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             opacity = _runtimeOpacity ?? Mathf.Clamp(_videoComponent?.Opacity ?? 1f, 0f, 1f);
         }
         opacity = Mathf.Clamp(opacity, 0f, 1f);
-        var modulate = new Color(1f, 1f, 1f, opacity * _fadeAlpha);
+        float fade = _fadeAlpha;
+        if (!force && opacity == _appliedOpacity && fade == _appliedFadeAlpha)
+            return;
+
+        _appliedOpacity = opacity;
+        _appliedFadeAlpha = fade;
+        var modulate = new Color(1f, 1f, 1f, opacity * fade);
 
         foreach (var layer in _targetLayers)
         {
@@ -635,8 +1071,11 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// audio stream than video, and a frozen playhead would leave the last frames in the
     /// ring (too early to present) so the cue would never hit EOS or <c>_endTimeUs</c>.
     /// </remarks>
-    private long GetMasterClockUs()
+    private long GetMasterClockUs() => GetMasterClockUs(out _);
+
+    private long GetMasterClockUs(out bool fromAudio)
     {
+        fromAudio = false;
         // Hold at seek target while the worker discards/prefetches so progress bars do not
         // snap back to the pre-seek audio/wall position.
         if (_seekInProgress)
@@ -647,30 +1086,46 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
         if (_audioDecoder != null && UseAudio && HasBoundAudioStreams && !audioMasterExhausted)
         {
-            long audioUs = _audioDecoder.PositionUs;
-            long queuedUs = 0;
-            int count = 0;
-            foreach (var b in _streamBindings.Snapshot)
+            fromAudio = true;
+            long audioUs;
+            long queuedUs;
+            long master;
+            if (TryReadAudioClock(out audioUs, out queuedUs))
             {
-                long qb = _streamBindings.GetQueued(b);
-                if (qb < 0) continue;
-                int outCh = GetStreamChannels(b);
-                if (outCh <= 0 || SourceSampleRate <= 0) continue;
-                queuedUs += qb * MicrosecondsPerSecond / (SourceSampleRate * outCh * sizeof(float));
-                count++;
+                master = audioUs - queuedUs;
+                if (master < _startTimeUs)
+                    master = _startTimeUs;
+                _lastAudioMasterUs = master;
+                _lastAudioEndUs = audioUs;
+                _lastAudioQueuedUs = queuedUs;
             }
-            if (count > 0) queuedUs /= count;
-            long master = audioUs - queuedUs;
-            if (master < _startTimeUs)
+            else if (_lastAudioMasterUs != long.MinValue)
+            {
+                // PCM is being queued right now: reuse the last consistent reading.
+                master = _lastAudioMasterUs;
+                audioUs = _lastAudioEndUs;
+                queuedUs = _lastAudioQueuedUs;
+            }
+            else
+            {
                 master = _startTimeUs;
+                audioUs = _startTimeUs;
+                queuedUs = 0;
+            }
 
             // ~8ms matches present early-tolerance: treat the soundtrack as finished once
             // decode is at EOS (or past its stream duration) and SDL has drained.
+            // The decoder is only asked once the queue is nearly empty: its lock is held
+            // by the fill thread while it decodes, and this runs on the main thread.
             const long drainedQueuedUs = 8_000;
-            long audioDurationUs = _audioDecoder.Info?.DurationUs ?? 0;
-            bool audioDone = _audioDecoder.EndOfStream
-                || (audioDurationUs > 0 && audioUs >= audioDurationUs);
-            if (audioDone && queuedUs <= drainedQueuedUs)
+            bool audioDone = false;
+            if (queuedUs <= drainedQueuedUs)
+            {
+                long audioDurationUs = _audioDecoder.Info?.DurationUs ?? 0;
+                audioDone = _audioDecoder.EndOfStream
+                    || (audioDurationUs > 0 && audioUs >= audioDurationUs);
+            }
+            if (audioDone)
             {
                 lock (_lock)
                 {
@@ -691,7 +1146,111 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
         if (!_wallClock.IsRunning)
             return _wallMediaOriginUs;
-        return _wallMediaOriginUs + _wallClock.ElapsedMilliseconds * 1000;
+        // Microsecond resolution (TimeSpan ticks are 100 ns), not whole milliseconds.
+        return _wallMediaOriginUs + _wallClock.Elapsed.Ticks / 10;
+    }
+
+    /// <summary>
+    /// Reads the published end-of-queue media time and the PCM still queued in SDL as one
+    /// consistent pair. Returns false when PCM is being queued during every attempt.
+    /// </summary>
+    private bool TryReadAudioClock(out long audioEndUs, out long queuedUs)
+    {
+        audioEndUs = 0;
+        queuedUs = 0;
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            int before = Volatile.Read(ref _audioClockSeq);
+            if ((before & 1) != 0)
+            {
+                Thread.SpinWait(16);
+                continue;
+            }
+
+            long queued = 0;
+            int count = 0;
+            foreach (var b in _streamBindings.Snapshot)
+            {
+                long qb = _streamBindings.GetQueued(b);
+                if (qb < 0) continue;
+                int outCh = GetStreamChannels(b);
+                if (outCh <= 0 || SourceSampleRate <= 0) continue;
+                queued += qb * MicrosecondsPerSecond / (SourceSampleRate * outCh * sizeof(float));
+                count++;
+            }
+            if (count > 0) queued /= count;
+            long endUs = Volatile.Read(ref _audioQueuedEndUs);
+
+            if (Volatile.Read(ref _audioClockSeq) == before)
+            {
+                audioEndUs = endUs;
+                queuedUs = queued;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Publishes the media time at the end of the PCM queued so far. Call after the PCM
+    /// has been queued (or the queue cleared and the decoder moved), from the thread that did it.
+    /// </summary>
+    private void PublishAudioQueuedEnd(long endUs)
+    {
+        Interlocked.Increment(ref _audioClockSeq);
+        Volatile.Write(ref _audioQueuedEndUs, endUs);
+        Interlocked.Increment(ref _audioClockSeq);
+    }
+
+    /// <summary>
+    /// Clock used to pick which frame to show. The audio clock only moves when the sound
+    /// device takes a block of PCM (often 10 to 21 ms), so sampled once per display tick it
+    /// advances unevenly. This clock advances by real elapsed time each tick and is pulled
+    /// gently towards the audio clock, so frames change on an even cadence while staying in
+    /// sync on average. It resets to the audio clock after a gap, a seek, or a large error.
+    /// </summary>
+    private long SmoothPresentClock(long masterUs, bool fromAudio)
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (!fromAudio)
+        {
+            _presentClockValid = false;
+            return masterUs;
+        }
+
+        if (_presentClockValid)
+        {
+            long elapsedUs = (now - _presentClockAtTimestamp) * MicrosecondsPerSecond / Stopwatch.Frequency;
+            if (elapsedUs >= 0 && elapsedUs <= PresentClockMaxGapUs)
+            {
+                long predicted = _presentClockUs + elapsedUs;
+                long error = masterUs - predicted;
+                if (Math.Abs(error) <= PresentClockSnapUs)
+                {
+                    long next = predicted + error / PresentClockGainDivisor;
+                    if (next < _presentClockUs)
+                        next = _presentClockUs;
+                    _presentClockUs = next;
+                    _presentClockAtTimestamp = now;
+                    return next;
+                }
+            }
+            _clockSnaps++;
+        }
+
+        _presentClockUs = masterUs;
+        _presentClockAtTimestamp = now;
+        _presentClockValid = true;
+        return masterUs;
+    }
+
+    /// <summary>Forgets the smoothed present clock and the cadence baselines (seek, pause, play).</summary>
+    private void ResetPresentClock()
+    {
+        _presentClockValid = false;
+        _prevTickTimestamp = 0;
+        _prevRawMasterUs = long.MinValue;
+        _lastAudioMasterUs = long.MinValue;
     }
 
     private void HandleSegmentEnd()
@@ -909,8 +1468,10 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         }
 
         // Push modulate before any present/prefill so the first visible frame is not full-opacity.
-        ApplyOpacityModulate();
+        ApplyOpacityModulateForced();
 
+        _startTrace.Arm();
+        ResetPresentClock();
         SetProcess(true);
         StartVideoPrefetchLoop();
         // Only drive audio when streams were bound; otherwise wall-clock masters silent video.
@@ -921,6 +1482,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             // Prime the SDL queue before the device can underrun, then start demand fill.
             ArmDeclickRamp();
             PrefillAudioStreams();
+            _startTrace.NoteAudioPrimed(MinQueuedBytes());
             StartAudioFillLoop();
         }
 
@@ -941,6 +1503,42 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         if (!_isPlaying || IsPaused || IsStopped || _isExiting || _videoDecoder == null)
             return;
 
+        long loopStart = Stopwatch.GetTimestamp();
+        if (_prevTickTimestamp != 0)
+        {
+            long interval = loopStart - _prevTickTimestamp;
+            // Ignore gaps from pauses and seeks (over a quarter second).
+            if (interval > 0 && interval < Stopwatch.Frequency / 4)
+            {
+                _tickIntervalTicks += interval;
+                _tickIntervalCount++;
+                if (interval > _tickIntervalMaxTicks)
+                    _tickIntervalMaxTicks = interval;
+            }
+        }
+        _prevTickTimestamp = loopStart;
+        _presentsThisTick = 0;
+        VideoDiagnostics.BeginCueTick(loopStart);
+        try
+        {
+            PresentCatchUpFramesBody();
+        }
+        finally
+        {
+            long elapsed = Stopwatch.GetTimestamp() - loopStart;
+            _presentLoopCount++;
+            AddUploadSample(ref _presentLoopTicks, ref _presentLoopMaxTicks, elapsed);
+            VideoDiagnostics.NotePresentLoop(elapsed);
+            VideoDiagnostics.NoteCueTick(elapsed);
+            MaybeLogPerSecondStats();
+        }
+    }
+
+    private void PresentCatchUpFramesBody()
+    {
+        if (_videoDecoder == null)
+            return;
+
         // Seek/discard holds the decoder lock for a long time — skip present rather than stall UI.
         // Still emit TimeUpdated at the seek target so progress bars hold (not snap back).
         if (_seekInProgress)
@@ -949,7 +1547,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             return;
         }
 
-        long masterUs = GetMasterClockUs();
+        long masterUs = GetMasterClockUs(out bool clockFromAudio);
+        NoteClockStep(masterUs, clockFromAudio);
         EmitSignal(SignalName.TimeUpdated, masterUs / (double)MicrosecondsPerSecond);
         UpdateLinkedSubtitles(masterUs);
 
@@ -982,7 +1581,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 if (_videoDecoder.TryTakeFrame(out VideoFrame frame))
                 {
                     PresentFrame(frame);
-                    _videoDecoder.ReleaseFrameBuffer(frame.Rgba);
+                    _videoDecoder.ReleaseFrame(frame);
                     _imageFramePresented = true;
                 }
                 else if (_videoDecoder.EndOfStream && !_imageFramePresented)
@@ -1003,50 +1602,225 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         // Audio fill threads consume the last _audioTuning snapshot only (no GetNode off-thread).
         RefreshTuningIfSettingsChanged();
 
-        int presented = 0;
-        int maxPresentPerTick = _presentTuning.MaxPresentPerTick;
-        // Cap late drops per tick so a large catch-up never monopolises the main thread.
-        // Drops are counted on their own and do not use up the present budget.
-        int maxLateDrops = Math.Max(maxPresentPerTick, 8);
-        int lateDrops = 0;
-        while (presented < maxPresentPerTick)
+        // Frame choice and the drop marker follow the smoothed clock; end handling above
+        // stays on the master clock.
+        long presentUs = SmoothPresentClock(masterUs, clockFromAudio);
+
+        // Pictures older than one frame are discarded on the worker before the slow convert.
+        long frameDurationUs = _videoDecoder.Info?.FrameDurationUs ?? 16_667;
+        _videoDecoder.SetDropBefore(presentUs - frameDurationUs);
+        _videoDecoder.SetPrefetchLowWater(_presentTuning.PrefetchLowWater);
+
+        // When several cues' uploads no longer fit in a frame, they take turns: a cue told to
+        // wait keeps its pictures buffered and shows the newest one next frame.
+        if (_shown > 0
+            && CurrentOutputAlpha() > 0f
+            && _videoDecoder.TryPeekPtsBuffered(out long duePts)
+            && duePts < _endTimeUs
+            && presentUs - duePts >= -_presentTuning.PresentEarlyToleranceUs
+            && !VideoUploadBudget.TryUpload(_uploadCostTicks, ref _lastUploadWaitFrame))
+        {
+            _uploadWaits++;
+            return;
+        }
+
+        // One upload per tick. Older due frames are released without SetData.
+        // Take cap drains a hitch backlog over several ticks without monopolising this one.
+        _videoDecoder.ObserveRingDepth();
+        int takeCap = Math.Max(_presentTuning.MaxPresentPerTick, 8);
+        VideoFrame newest = null;
+        int taken = 0;
+        bool segmentEnd = false;
+        bool eosEmpty = false;
+        while (taken < takeCap)
         {
             // Ring-only: never DecodeMore on the present path.
             if (!_videoDecoder.TryPeekPtsBuffered(out long nextPts))
             {
                 if (_videoDecoder.EndOfStream)
-                    HandleSegmentEnd();
+                    eosEmpty = true;
                 break;
             }
 
             // Frame is at/past the out-point — do not wait for a clock that may stall short of it.
             if (_endTimeUs < long.MaxValue && nextPts >= _endTimeUs)
             {
-                HandleSegmentEnd();
+                segmentEnd = true;
                 break;
             }
 
-            long lateness = masterUs - nextPts;
+            long lateness = presentUs - nextPts;
             if (lateness < -_presentTuning.PresentEarlyToleranceUs)
                 break;
 
             if (!_videoDecoder.TryTakeFrame(out VideoFrame frame))
                 break;
 
-            if (lateness > _presentTuning.MaxLatenessUs
-                && lateDrops < maxLateDrops
-                && _videoDecoder.TryPeekPtsBuffered(out long peek2)
-                && peek2 <= masterUs)
+            if (newest != null)
             {
-                _videoDecoder.ReleaseFrameBuffer(frame.Rgba);
-                lateDrops++;
-                continue;
+                _videoDecoder.ReleaseFrame(newest);
+                _superseded++;
             }
-
-            PresentFrame(frame);
-            _videoDecoder.ReleaseFrameBuffer(frame.Rgba);
-            presented++;
+            newest = frame;
+            taken++;
         }
+
+        // Fully transparent: nothing is seen, so the upload is skipped. The newest picture is
+        // kept and uploaded as soon as the cue shows again.
+        if (newest != null && _shown > 0 && CurrentOutputAlpha() <= 0f)
+        {
+            ApplyOpacityModulate();
+            if (_hiddenFrame != null)
+                _videoDecoder.ReleaseFrame(_hiddenFrame);
+            _hiddenFrame = newest;
+            newest = null;
+            _hiddenSkips++;
+        }
+        else if (newest == null && _hiddenFrame != null && CurrentOutputAlpha() > 0f)
+        {
+            newest = _hiddenFrame;
+            _hiddenFrame = null;
+        }
+        else if (newest != null && _hiddenFrame != null)
+        {
+            _videoDecoder.ReleaseFrame(_hiddenFrame);
+            _hiddenFrame = null;
+        }
+
+        if (newest != null)
+        {
+            long lateness = presentUs - newest.PtsUs;
+            if (lateness > _maxLatenessUs)
+                _maxLatenessUs = lateness;
+            if (lateness > _presentTuning.MaxLatenessUs)
+                _lateShown++;
+            PresentFrame(newest);
+            _videoDecoder.ReleaseFrame(newest);
+        }
+
+        // Present first so the last in-range frame stays up for the follow handoff.
+        if (segmentEnd || eosEmpty)
+            HandleSegmentEnd();
+    }
+
+    /// <summary>Records how far the master clock moved since the last present tick.</summary>
+    private void NoteClockStep(long masterUs, bool fromAudio)
+    {
+        _lastClockFromAudio = fromAudio;
+        if (_prevRawMasterUs != long.MinValue)
+        {
+            long step = masterUs - _prevRawMasterUs;
+            if (step == 0)
+                _clockStallTicks++;
+            else if (step > 0 && step < 250_000 && step > _clockStepMaxUs)
+                _clockStepMaxUs = step;
+        }
+        _prevRawMasterUs = masterUs;
+    }
+
+    // Newest picture not uploaded because the cue is fully transparent.
+    private VideoFrame _hiddenFrame;
+    private long _hiddenSkips;
+
+    /// <summary>Opacity times fade, as written to the output layers. Main thread.</summary>
+    private float CurrentOutputAlpha()
+    {
+        float opacity;
+        lock (_lock)
+        {
+            opacity = _runtimeOpacity ?? Mathf.Clamp(_videoComponent?.Opacity ?? 1f, 0f, 1f);
+        }
+        return Mathf.Clamp(opacity, 0f, 1f) * _fadeAlpha;
+    }
+
+    /// <summary>Gives the kept transparent-time picture back to the decoder.</summary>
+    private void ReleaseHiddenFrame()
+    {
+        VideoFrame held = _hiddenFrame;
+        _hiddenFrame = null;
+        if (held == null)
+            return;
+        try { _videoDecoder?.ReleaseFrame(held); } catch { /* decoder already closed */ }
+    }
+
+    // Smoothed cost of one upload of this cue, for the shared upload budget.
+    private long _uploadCostTicks;
+    private ulong _lastUploadWaitFrame = ulong.MaxValue;
+    private long _uploadWaits;
+
+    private void NoteUploadCost(long ticks)
+    {
+        if (ticks < 0)
+            ticks = 0;
+        _uploadCostTicks = _uploadCostTicks <= 0 ? ticks : _uploadCostTicks + (ticks - _uploadCostTicks) / 8;
+    }
+
+    private static void AddUploadSample(ref long sum, ref long max, long ticks)
+    {
+        if (ticks < 0)
+            ticks = 0;
+        sum += ticks;
+        if (ticks > max)
+            max = ticks;
+    }
+
+    private void MaybeLogPerSecondStats()
+    {
+        if (!VideoDiagnostics.PerSecondEnabled || _videoDecoder == null)
+            return;
+
+        ulong now = Time.GetTicksMsec();
+        if (now < _nextStatsLogMs)
+            return;
+        _nextStatsLogMs = now + 1000;
+        GD.Print("ActiveVideoPlayback:Stats - " + FormatVideoStats());
+    }
+
+    private void LogPlaybackSummary()
+    {
+        if (_summaryLogged)
+            return;
+        _summaryLogged = true;
+        if (_videoDecoder == null && _shown == 0 && _superseded == 0)
+            return;
+        GD.Print("ActiveVideoPlayback:Stop - " + FormatVideoStats());
+    }
+
+    private string FormatVideoStats()
+    {
+        VideoDecodeStats.Snapshot decode = _videoDecoder != null
+            ? _videoDecoder.GetDecodeStats()
+            : default;
+        string ring = decode.MinRingDepth == int.MaxValue ? "na" : decode.MinRingDepth.ToString();
+        long prepareTicks = 0, prepareMaxTicks = 0, prepared = 0;
+        _videoDecoder?.ReadPrepareStats(out prepareTicks, out prepareMaxTicks, out prepared);
+        long maxLate = _maxLatenessUs == long.MinValue ? 0 : _maxLatenessUs;
+        string file = _videoDecoder?.Info?.FilePath;
+        if (string.IsNullOrEmpty(file))
+            file = _videoComponent?.VideoFile ?? "";
+
+        return
+            $"upload={_statsUpload} hw={_videoDecoder?.HardwareName ?? "none"} file={file} shown={_shown} superseded={_superseded} lateShown={_lateShown} " +
+            $"maxLateUs={maxLate} maxInTick={_maxPresentsInOneTick} ringMin={ring} " +
+            $"decoded={decode.Decoded} converted={decode.Converted} droppedBeforeConvert={decode.DroppedBeforeConvert} " +
+            $"keptToCatchUp={decode.KeptToCatchUp} nonRefSkips={decode.NonRefSkipStarts} " +
+            $"decodeAvgMs={VideoDiagnostics.FormatAvgMs(decode.DecodeTicks, decode.Decoded)} " +
+            $"decodeMaxMs={VideoDiagnostics.FormatMs(decode.DecodeMaxTicks)} " +
+            $"convertAvgMs={VideoDiagnostics.FormatAvgMs(decode.ConvertTicks, decode.Converted)} " +
+            $"convertMaxMs={VideoDiagnostics.FormatMs(decode.ConvertMaxTicks)} " +
+            $"copyAvgMs={VideoDiagnostics.FormatAvgMs(decode.CopyTicks, decode.Converted)} " +
+            $"imageAvgMs={VideoDiagnostics.FormatAvgMs(prepareTicks, prepared)} imageMaxMs={VideoDiagnostics.FormatMs(prepareMaxTicks)} " +
+            $"setDataAvgMs={VideoDiagnostics.FormatAvgMs(_setDataTicks, _shown)} " +
+            $"setDataMaxMs={VideoDiagnostics.FormatMs(_setDataMaxTicks)} " +
+            $"updateAvgMs={VideoDiagnostics.FormatAvgMs(_updateTicks, _shown)} " +
+            $"updateMaxMs={VideoDiagnostics.FormatMs(_updateMaxTicks)} " +
+            $"presentAvgMs={VideoDiagnostics.FormatAvgMs(_presentLoopTicks, _presentLoopCount)} " +
+            $"presentMaxMs={VideoDiagnostics.FormatMs(_presentLoopMaxTicks)} " +
+            $"clock={(_lastClockFromAudio ? "audio" : "wall")} " +
+            $"tickAvgMs={VideoDiagnostics.FormatAvgMs(_tickIntervalTicks, _tickIntervalCount)} " +
+            $"tickMaxMs={VideoDiagnostics.FormatMs(_tickIntervalMaxTicks)} " +
+            $"clockStepMaxMs={(_clockStepMaxUs / 1000.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} " +
+            $"clockStalls={_clockStallTicks} clockSnaps={_clockSnaps} uploadWaits={_uploadWaits} hiddenSkips={_hiddenSkips}";
     }
 
     /// <summary>
@@ -1105,6 +1879,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             _pausedAtUs = GetMasterClockUs();
             _wallClock.Stop();
         }
+        ResetPresentClock();
 
         _streamBindings.ClearAll();
         _audioDecoder?.FlushBuffers();
@@ -1238,6 +2013,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     /// </summary>
     private void ReleaseWorkerResources()
     {
+        LogPlaybackSummary();
+        ReleaseHiddenFrame();
         try { _audioDecoder?.Dispose(); } catch { /* ignore */ }
         _audioDecoder = null;
         try { _videoDecoder?.Dispose(); } catch { /* ignore */ }
@@ -1277,7 +2054,10 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             try
             {
                 if (IsInstanceValid(kv.Value))
+                {
+                    kv.Value.Material = null;
                     kv.Value.Texture = null;
+                }
                 if (IsInstanceValid(kv.Key))
                     kv.Key.QueueFree();
             }
@@ -1295,6 +2075,22 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             try { _godotImage.Dispose(); } catch { /* ignore */ }
         }
         _godotImage = null;
+        if (_uvTexture != null && IsInstanceValid(_uvTexture))
+        {
+            try { _uvTexture.Dispose(); } catch { /* ignore */ }
+        }
+        _uvTexture = null;
+        if (_uvImage != null && IsInstanceValid(_uvImage))
+        {
+            try { _uvImage.Dispose(); } catch { /* ignore */ }
+        }
+        _uvImage = null;
+        if (_yuvMaterial != null && IsInstanceValid(_yuvMaterial))
+        {
+            try { _yuvMaterial.Dispose(); } catch { /* ignore */ }
+        }
+        _yuvMaterial = null;
+        _presentPlanar = false;
     }
 
     public override void _ExitTree()

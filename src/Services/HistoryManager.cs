@@ -73,6 +73,9 @@ public partial class HistoryManager : Node
 	/// <summary>Source of fresh document state ids. Never reset, so ids are never reused.</summary>
 	private long _nextStateId = 1;
 
+	/// <summary>Backing field for <see cref="PlaybackEditId"/>. Only ever counts up.</summary>
+	private long _playbackEditId;
+
 	/// <summary>
 	/// Active continuous-edit session key (typing / drag / spin). Only merges while this is set
 	/// and matches the incoming key. Discrete records (null key) or <see cref="EndCoalesceSession"/>
@@ -135,6 +138,15 @@ public partial class HistoryManager : Node
 	public long CurrentStateId => _currentStateId;
 
 	/// <summary>
+	/// Counts up on every cue, cuelist and settings edit (and on their undo and redo) except
+	/// edits that only touch the screen and layer layout (the "Displays" settings slice).
+	/// A cue opened ahead of GO compares it to tell whether an edit can change what it plays:
+	/// layout edits are applied to its layer hosts live, like a playing cue's, so they do not
+	/// need it to be opened again.
+	/// </summary>
+	public long PlaybackEditId => _playbackEditId;
+
+	/// <summary>
 	/// Marks the current document state as matching disk (after New / Open has loaded a clean session).
 	/// </summary>
 	public void MarkSaved()
@@ -159,6 +171,7 @@ public partial class HistoryManager : Node
 	public void MarkUnsavedWithoutHistory()
 	{
 		_currentStateId = _nextStateId++;
+		_playbackEditId++;
 		EmitSignal(SignalName.HistoryChanged);
 	}
 
@@ -589,6 +602,7 @@ public partial class HistoryManager : Node
 		_redoStack.Clear();
 		_currentStateId = 0;
 		_savedStateId = 0;
+		_playbackEditId++;
 		EmitSignal(SignalName.HistoryChanged);
 		GD.Print("HistoryManager:Clear - History cleared.");
 	}
@@ -681,6 +695,7 @@ public partial class HistoryManager : Node
 			entry.RestoresToStateId = _currentStateId;
 			_currentStateId = _nextStateId++;
 			entry.TopStateId = _currentStateId;
+			NotePlaybackEdit(entry);
 		}
 		TrimToMaxDepth();
 		EmitSignal(SignalName.HistoryChanged);
@@ -700,6 +715,7 @@ public partial class HistoryManager : Node
 			return;
 		_currentStateId = _nextStateId++;
 		top.TopStateId = _currentStateId;
+		NotePlaybackEdit(top);
 	}
 
 	/// <summary>
@@ -720,7 +736,23 @@ public partial class HistoryManager : Node
 			opposite.TopStateId = arriving;
 		}
 		_currentStateId = arriving;
+		NotePlaybackEdit(restored);
 	}
+
+	/// <summary>Moves <see cref="PlaybackEditId"/> on unless the entry only holds the screen and layer layout.</summary>
+	private void NotePlaybackEdit(HistoryEntry entry)
+	{
+		if (!IsLayoutOnlyEntry(entry))
+			_playbackEditId++;
+	}
+
+	/// <summary>True for a settings entry whose only slice is "Displays" (screens, layers, canvas).</summary>
+	private static bool IsLayoutOnlyEntry(HistoryEntry entry) =>
+		entry != null
+		&& entry.Scope == HistoryScope.Settings
+		&& entry.SettingsData != null
+		&& entry.SettingsData.Count == 1
+		&& entry.SettingsData.ContainsKey("Displays");
 
 	private static bool IsDocumentScope(HistoryScope scope) =>
 		scope is HistoryScope.Cue or HistoryScope.Cuelist or HistoryScope.Settings or HistoryScope.MultiCue;
@@ -1033,10 +1065,12 @@ public partial class HistoryManager : Node
 		"MediaBackupEnabled",
 		"MultiEditEnabled",
 		"SelectNewCues",
+		"PreloadStandbyMode",
 		"ShowMode",
 		"ShowTimelineWaveforms",
 		"OutputBackgroundColor",
 		"VideoQualityMode",
+		"HardwareDecodeMode",
 		"VideoPreviewQuality",
 		"OutputVSyncMode",
 		"AudioLatencyMode",
