@@ -35,6 +35,7 @@
 - Preload standby cue (Settings, General, Media): "Edit and show mode", "Show mode only" (default) or "Off". The cue on the playhead has its media opened before GO, hidden and silent, so GO starts it straight away. Groups of more than 16 cues are not preloaded.
 
 ### Fixed
+- Audio and video inspectors refresh the Output menu and routing matrix when output patches are edited, without rebinding the whole inspector.
 - Closing Cue2 no longer logs a parent-busy `remove_child` error from the cue-move preview overlay.
 - Closing Cue2 no longer leaves leaked objects from video preview textures, inspector tab icons, and playback objects that only freed on a deferred idle frame.
 - Video inspector preview stays inside the canvas outline when expand or stretch mode changes. The preview rect was filling the whole view instead of the target layer.
@@ -94,6 +95,7 @@
 - Several 4K videos at once play much more smoothly: each picture is prepared on its decoding thread, so the interface thread only hands it to the graphics card.
 - Memory clean-up no longer runs while video plays (it waits up to a minute), so it no longer causes a stutter.
 - Video cues that are fully transparent (opacity or fade at 0) no longer send pictures to the graphics card.
+- Audio output patch matrix: added buses are named Ch3, Ch4, … from the current channel count, instead of "New Channel".
 
 ## [0.1.1] - 2026-09-21
 

@@ -146,6 +146,7 @@ public partial class AudioInspector : Control
         // Media backup rewrites paths while a cue stays selected — refresh URL without re-select
         _globalSignals.SyncShellInspector += RefreshMediaPathDisplay;
         _globalSignals.CueMediaHealthChanged += OnCueMediaHealthChanged;
+        _globalSignals.AudioPatchesChanged += OnAudioPatchesChanged;
         
         
         // Ui Node setup
@@ -506,6 +507,7 @@ public partial class AudioInspector : Control
             _globalSignals.SyncShellInspector -= RefreshMediaPathDisplay;
             _globalSignals.SyncShellInspector -= OnSyncFromHistory;
             _globalSignals.CueMediaHealthChanged -= OnCueMediaHealthChanged;
+            _globalSignals.AudioPatchesChanged -= OnAudioPatchesChanged;
         }
 
         if (_waveformZoom != null)

@@ -158,6 +158,12 @@ public partial class GlobalSignals : Node
 	[Signal] public delegate void AudioDevicesChangedEventHandler();
 
 	/// <summary>
+	/// Fired when show audio output patches change (create/delete/rename, buses, devices).
+	/// Open inspectors refresh Output and routing only — not a full cue rebind.
+	/// </summary>
+	[Signal] public delegate void AudioPatchesChangedEventHandler();
+
+	/// <summary>
 	/// Fired when session master audio volume or runtime mute changes.
 	/// </summary>
 	/// <param name="linear">Session master volume linear 0–1 (ignores mute).</param>

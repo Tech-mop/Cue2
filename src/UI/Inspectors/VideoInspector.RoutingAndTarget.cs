@@ -39,6 +39,25 @@ public partial class VideoInspector
 	/// reassigned after a layer delete (unassign / replace) while this inspector is open.
 	/// Preserves the cue's stored <see cref="VideoComponent.TargetLayerId"/> (no failover).
 	/// </summary>
+	/// <summary>
+	/// Refreshes Output and the routing matrix after a live patch edit.
+	/// Does not rebind the cue, waveform, or other inspector fields.
+	/// </summary>
+	private void OnAudioPatchesChanged()
+	{
+		if (!IsInsideTree() || !GodotObject.IsInstanceValid(this))
+			return;
+		if (_inspectorContent == null || !_inspectorContent.Visible)
+			return;
+		if (_focusedVideoComponent == null)
+			return;
+		if (_globalData?.HistoryManager?.IsRestoring == true)
+			return;
+
+		PopulateOutputOptions();
+		BuildRoutingMatrix();
+	}
+
 	private void OnDisplaysChangedForTargetLayers()
 	{
 		if (_focusedCue == null)

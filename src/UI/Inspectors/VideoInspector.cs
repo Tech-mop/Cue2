@@ -160,6 +160,7 @@ public partial class VideoInspector : Control
 		_globalSignals.CueMediaHealthChanged += OnCueMediaHealthChanged;
 		// Layer add/remove/rename while inspector is open — refresh without failover
 		_globalSignals.DisplaysChanged += OnDisplaysChangedForTargetLayers;
+		_globalSignals.AudioPatchesChanged += OnAudioPatchesChanged;
 
 		AssignUiNodeParameters();
 		SetupWaveformUi();
@@ -320,6 +321,7 @@ public partial class VideoInspector : Control
 			_globalSignals.SyncShellInspector -= OnSyncFromHistory;
 			_globalSignals.CueMediaHealthChanged -= OnCueMediaHealthChanged;
 			_globalSignals.DisplaysChanged -= OnDisplaysChangedForTargetLayers;
+			_globalSignals.AudioPatchesChanged -= OnAudioPatchesChanged;
 		}
 
 		if (_waveformZoom != null)

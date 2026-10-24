@@ -473,6 +473,8 @@ public partial class AudioOutputPatchMatrix : Control
         {
             _isRebuilding = false;
         }
+
+        _globalData?.Settings?.NotifyAudioPatchesChanged();
     }
 
     private void ApplyViewToGrid()
@@ -562,6 +564,7 @@ public partial class AudioOutputPatchMatrix : Control
                 RecordPatchHistory("Rename patch channel", chCoalesceKey);
                 Patch.RenameChannel(channelId, newText);
                 RebuildRoutingList();
+                _globalData?.Settings?.NotifyAudioPatchesChanged();
             }
             catch (Exception ex)
             {
@@ -621,7 +624,7 @@ public partial class AudioOutputPatchMatrix : Control
         if (_isDisposed || !GodotObject.IsInstanceValid(this) || Patch == null || !GodotObject.IsInstanceValid(Patch))
             return;
         RecordPatchHistory("Add patch channel");
-        Patch.NewChannel("New Channel", out var error);
+        Patch.NewChannel(out var error);
         if (error != null)
         {
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log), error, 2);

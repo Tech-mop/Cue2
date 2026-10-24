@@ -187,6 +187,14 @@ public partial class AudioOutputPatch : Godot.GodotObject
     }
 
     /// <summary>
+    /// Adds a new patch bus named <c>ChN</c>, where N is the 1-based count after this add.
+    /// A stereo Left/Right patch becomes <c>Ch3</c>, then <c>Ch4</c>, and so on.
+    /// </summary>
+    /// <param name="error">Output error string if the channel limit is reached; otherwise null.</param>
+    public void NewChannel(out string error) =>
+        NewChannel($"Ch{Channels.Count + 1}", out error);
+
+    /// <summary>
     /// Adds a new channel to the patch with the given name.
     /// </summary>
     /// <param name="name">The name of the new channel.</param>

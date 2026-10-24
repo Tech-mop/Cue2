@@ -39,6 +39,25 @@ namespace Cue2.UI.Inspectors;
 /// </summary>
 public partial class AudioInspector
 {
+    /// <summary>
+    /// Refreshes Output and the routing matrix after a live patch edit.
+    /// Does not rebind the cue, waveform, or other inspector fields.
+    /// </summary>
+    private void OnAudioPatchesChanged()
+    {
+        if (!IsInsideTree() || !GodotObject.IsInstanceValid(this))
+            return;
+        if (_inspectorContent == null || !_inspectorContent.Visible)
+            return;
+        if (_focusedAudioComponent == null && _focusedAudioInput == null)
+            return;
+        if (_globalData?.HistoryManager?.IsRestoring == true)
+            return;
+
+        PopulateOutputOptions();
+        BuildRoutingMatrix();
+    }
+
     private void BuildRoutingMatrix()
     {
     	TaskUtil.Run(BuildRoutingMatrixAsync, "AudioInspector.BuildRoutingMatrix");

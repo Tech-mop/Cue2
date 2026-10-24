@@ -700,6 +700,7 @@ public partial class Settings : Node
     {
         _audioOutputPatches[patch.Id] = patch;
         GD.Print($"Settings:UpdatePatch - Updated patch with id: {patch.Id} and name: {patch.Name}");
+        NotifyAudioPatchesChanged();
     }
 
     public void DeletePatch(int patchId)
@@ -708,13 +709,26 @@ public partial class Settings : Node
         _audioOutputPatches.Remove(patchId);
         // Shell ✕ / media health depends on patch existence
         GetNodeOrNull<MediaHealthService>("/root/MediaHealthService")?.RecheckAllQuiet();
+        NotifyAudioPatchesChanged();
     } 
     
     public AudioOutputPatch CreateNewPatch()
     {
         var newPatch = new AudioOutputPatch();
         _audioOutputPatches.Add(newPatch.Id, newPatch);
+        NotifyAudioPatchesChanged();
         return newPatch;
+    }
+
+    /// <summary>
+    /// Pings open inspectors that output patches changed. Skipped during history restore
+    /// (inspectors rebind via <c>ShellFocused</c>).
+    /// </summary>
+    public void NotifyAudioPatchesChanged()
+    {
+        if (_globalData?.HistoryManager?.IsRestoring == true)
+            return;
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.AudioPatchesChanged));
     }
 
     /// <summary>
