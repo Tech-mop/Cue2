@@ -6,7 +6,7 @@ using System;
 namespace Cue2.Domain.Cues;
 
 /// <summary>
-/// One playable span on an audio timeline.
+/// One playable span on a media timeline (audio or video).
 /// Loop-bound (non-continue) nodes own the region before them. Nodes with
 /// <see cref="AudioTimelineNode.ContinueRegion"/> are skipped when splitting regions.
 /// The implicit tail after the last loop-bound node uses <see cref="NodeId"/> 0, play count 1.

@@ -60,50 +60,42 @@ public partial class VideoInspector
 
 	private async Task DrawWaveform()
 	{
-		if (_waveformAccordian == null || _waveformAccordian.Visible == false) return;
-		if (_focusedVideoComponent == null || !_focusedVideoComponent.UseAudio ||
-		    _focusedVideoComponent.WaveformData == null ||
-		    _focusedVideoComponent.WaveformData.Length == 0)
-		{
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-				"VideoInspector:DrawWaveform - No waveform data available or audio not enabled", 1);
+		if (_timelineAccordian == null || _timelineAccordian.Visible == false) return;
+		if (_focusedVideoComponent == null || _focusedVideoComponent.IsImage)
 			return;
-		}
 
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 		// Guard: component may have been rebound during the await (undo/redo).
-		if (_focusedVideoComponent == null || !_focusedVideoComponent.UseAudio ||
-		    _focusedVideoComponent.WaveformData == null ||
-		    _focusedVideoComponent.WaveformData.Length == 0)
+		if (_focusedVideoComponent == null || _focusedVideoComponent.IsImage)
 			return;
 
 		float width = _waveformPanel.Size.X;
 		if (width < 50)
 			width = Math.Max(0, _inspectorContent.Size.X - 48);
 		if (width < 50)
-		{
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-				"VideoInspector:DrawWaveform - Waveform panel too small to draw", 1);
 			return;
-		}
 
-		if (_cachedPeaks == null || !ReferenceEquals(_cachedPeaksSource, _focusedVideoComponent.WaveformData))
+		if (_focusedVideoComponent.UseAudio && _focusedVideoComponent.HasAudio
+		    && _focusedVideoComponent.WaveformData != null
+		    && _focusedVideoComponent.WaveformData.Length > 0)
 		{
-			_cachedPeaks = WaveformPeaks.FromBytes(_focusedVideoComponent.WaveformData);
-			_cachedPeaksSource = _focusedVideoComponent.WaveformData;
+			if (_cachedPeaks == null || !ReferenceEquals(_cachedPeaksSource, _focusedVideoComponent.WaveformData))
+			{
+				_cachedPeaks = WaveformPeaks.FromBytes(_focusedVideoComponent.WaveformData);
+				_cachedPeaksSource = _focusedVideoComponent.WaveformData;
+			}
 		}
-		if (_cachedPeaks == null)
+		else
 		{
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-				"VideoInspector:DrawWaveform - Invalid waveform payload", 1);
-			return;
+			_cachedPeaks = null;
+			_cachedPeaksSource = null;
 		}
 
 		double duration = _focusedVideoComponent.Metadata?.Duration ?? 0;
 		if (duration <= 0) duration = 1;
 		if (_waveformZoom != null)
-			_waveformZoom.Viewport.DurationSeconds = duration;
+			_waveformZoom.Viewport.DurationSeconds = duration / _focusedVideoComponent.EffectivePlayRate;
 
 		RedrawWaveformView();
 	}
@@ -111,14 +103,12 @@ public partial class VideoInspector
 	private void RedrawWaveformView()
 	{
 		if (_waveformDisplay == null || _waveformZoom == null) return;
-		if (_focusedVideoComponent == null || !_focusedVideoComponent.UseAudio) return;
-		if (_focusedVideoComponent.WaveformData == null || _focusedVideoComponent.WaveformData.Length == 0)
-			return;
-		if (_cachedPeaks == null) return;
+		if (_focusedVideoComponent == null || _focusedVideoComponent.IsImage) return;
 
 		double duration = _focusedVideoComponent.Metadata?.Duration ?? 0;
 		if (duration <= 0) duration = 1;
-		_waveformZoom.Viewport.DurationSeconds = duration;
+		double playRate = _focusedVideoComponent.EffectivePlayRate;
+		_waveformZoom.Viewport.DurationSeconds = duration / playRate;
 		float startNorm = (float)(_focusedVideoComponent.StartTime / duration);
 		float endTime = _focusedVideoComponent.EndTime < 0
 			? (float)duration
@@ -134,7 +124,8 @@ public partial class VideoInspector
 			_focusedVideoComponent.FadeInDuration,
 			_focusedVideoComponent.FadeOutDuration,
 			_focusedVideoComponent.FadeInCurve,
-			_focusedVideoComponent.FadeOutCurve);
+			_focusedVideoComponent.FadeOutCurve,
+			playRate);
 
 		float w = _waveformPanel != null ? _waveformPanel.Size.X : 0f;
 		float h = _waveformPanel != null ? _waveformPanel.Size.Y : 0f;
@@ -142,55 +133,25 @@ public partial class VideoInspector
 		_waveformDisplay.PlaceHandle(_endDragHandle, endNorm, isStart: false, w, h);
 		_waveformDisplay.PlaceFadeHandle(_fadeInHandle, _waveformDisplay.FadeInEndNorm, isFadeIn: true, w, h);
 		_waveformDisplay.PlaceFadeHandle(_fadeOutHandle, _waveformDisplay.FadeOutStartNorm, isFadeIn: false, w, h);
+		_inspectorTimeline?.Sync();
 	}
 
-	private void UpdateWaveformPlayhead()
+	/// <summary>
+	/// Binds the shared timeline host to the focused video component.
+	/// </summary>
+	private void BindInspectorTimeline()
 	{
-		if (_waveformZoom == null || _waveformDisplay == null) return;
-		if (_waveformAccordian == null || !_waveformAccordian.Visible)
-		{
-			_waveformZoom.SetPlayheadNorm(-1f);
+		if (_inspectorTimeline == null)
 			return;
-		}
-
-		double duration = _focusedVideoComponent?.Metadata?.Duration ?? 0;
-		if (duration <= 0 || _focusedCue == null || _focusedVideoComponent == null || !_focusedVideoComponent.UseAudio)
-		{
-			_waveformZoom.SetPlayheadNorm(-1f);
-			return;
-		}
-
-		var exec = _globalData?.CueCommandExecutor;
-		if (exec == null)
-		{
-			_waveformZoom.SetPlayheadNorm(-1f);
-			return;
-		}
-
-		foreach (var root in exec.ActiveCues)
-		{
-			if (root == null || !IsInstanceValid(root)) continue;
-			try
-			{
-				foreach (var active in root.EnumerateSelfAndDescendants())
-				{
-					if (active == null || !IsInstanceValid(active)) continue;
-					if (active.Cue == null || active.Cue.Id != _focusedCue.Id) continue;
-					foreach (var playback in active.EnumerateVideoPlaybacks())
-					{
-						double sec = playback.GetPlaybackTimeSeconds();
-						_waveformZoom.SetPlayheadNorm((float)Math.Clamp(sec / duration, 0, 1));
-						return;
-					}
-				}
-			}
-			catch
-			{
-				// Playback may be mid-teardown
-			}
-		}
-
-		_waveformZoom.SetPlayheadNorm(-1f);
+		bool showAudio = _focusedVideoComponent != null
+		                 && !_focusedVideoComponent.IsImage
+		                 && _focusedVideoComponent.HasAudio
+		                 && _focusedVideoComponent.UseAudio;
+		_inspectorTimeline.ShowAudioAutomation = showAudio;
+		_inspectorTimeline.ShowOpacityAutomation = _focusedVideoComponent is { IsImage: false };
+		_inspectorTimeline.Bind(
+			_focusedVideoComponent is { IsImage: false } ? _focusedVideoComponent.Timeline : null,
+			_focusedCue?.Id ?? -1);
 	}
 
 	private void OnStartHandleInput(InputEvent @event)
@@ -387,7 +348,7 @@ public partial class VideoInspector
 		accordian.Visible = !accordian.Visible;
 		button.Icon = GetThemeIcon(accordian.Visible ? "Down" : "Right", "AtlasIcons");
 
-		if (accordian.Name == "WaveformAccordian")
+		if (accordian.Name == "TimelineAccordian")
 		{
 			await DrawWaveform();
 		}
@@ -399,6 +360,7 @@ public partial class VideoInspector
 		{
 			_videoPreviewer.SetAreasDeferred(_focusedVideoComponent.TargetLayerId);
 			_videoPreviewer.LoadDecoder(_focusedVideoComponent.VideoFile);
+			ApplyPreviewPlayRate();
 		}
 		else
 		{

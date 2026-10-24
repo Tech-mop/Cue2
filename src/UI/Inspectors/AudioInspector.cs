@@ -130,28 +130,7 @@ public partial class AudioInspector : Control
     private bool _isDraggingEnd;
     private bool _isDraggingFadeIn;
     private bool _isDraggingFadeOut;
-    private readonly List<Button> _timelineNodeHandles = new();
-    private readonly List<Button> _timelineVolumeHandles = new();
-    private VBoxContainer _timelineNodeList;
-    private Label _timelineNodeHint;
-    private HBoxContainer _timelineNodeHeader;
-    private HBoxContainer _timelineAddRow;
-    private Button _timelineAddNodeButton;
-    private readonly Dictionary<int, LineEdit> _timelineNodeTimeEdits = new();
-    private readonly Dictionary<int, LineEdit> _timelineNodeVolumeEdits = new();
-    private readonly Dictionary<int, LineEdit> _timelineNodeRateEdits = new();
-    private readonly Dictionary<int, LineEdit> _timelineNodePitchEdits = new();
-    private readonly Dictionary<int, OptionButton> _timelineNodeInterpOptions = new();
-    private readonly Dictionary<int, CheckBox> _timelineNodeContinueChecks = new();
-    private readonly Dictionary<int, CheckBox> _timelineNodeLoopChecks = new();
-    private readonly Dictionary<int, LineEdit> _timelineNodePlayCountEdits = new();
-    private List<int> _listedTimelineNodeIds = new();
-    private int _selectedTimelineNodeId = -1;
-    private int _draggingTimelineNodeId = -1;
-    private bool _draggingTimelineVolume;
-    private float _pendingTimelineNodeNorm = -1f;
-    private int _pendingTimelineNodeCueId = -1;
-    private SceneTreeTimer _pendingTimelineNodeTimer;
+    private InspectorTimeline _inspectorTimeline;
     
     private FileDialog _fileDialog;
     
@@ -274,9 +253,30 @@ public partial class AudioInspector : Control
         _timelineAccordian.AddChild(_waveformZoom);
         _waveformZoom.Attach(_waveformDisplay, _waveformPanel);
         _waveformZoom.ViewChanged += OnWaveformViewChanged;
-        _waveformZoom.PanelClicked += OnTimelinePanelClicked;
-        _waveformZoom.PanelDoubleClicked += OnTimelinePanelDoubleClicked;
-        BuildTimelineNodeListHost(); 
+        _inspectorTimeline = new InspectorTimeline();
+        AddChild(_inspectorTimeline);
+        _inspectorTimeline.RecordHistory = RecordAudioHistory;
+        _inspectorTimeline.CoalesceKey = AudioCoalesceKey;
+        _inspectorTimeline.EndCoalesce = key =>
+            InspectorMultiEditSupport.EndCoalesce(_globalData, UseMultiHistory(), key, key);
+        _inspectorTimeline.DurationChanged = SyncDuration;
+        _inspectorTimeline.IsBusy = () =>
+            _isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true;
+        _inspectorTimeline.Log = (msg, level) =>
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, level);
+        _inspectorTimeline.GetFileDuration = () => _focusedAudioComponent?.Metadata?.Duration ?? 0;
+        _inspectorTimeline.GetFocusedCue = () => _focusedCue;
+        _inspectorTimeline.GetGlobalData = () => _globalData;
+        _inspectorTimeline.GetGlobalSignals = () => _globalSignals;
+        _inspectorTimeline.SeekAudioOnScrub = true;
+        _inspectorTimeline.SeekVideoOnScrub = false;
+        _inspectorTimeline.ShowAudioAutomation = true;
+        _inspectorTimeline.Attach(
+            _timelineAccordian,
+            _waveformPanel,
+            _waveformDisplay,
+            _waveformZoom,
+            _startDragHandle?.GetParent() as Control); 
         
         
         
@@ -370,7 +370,7 @@ public partial class AudioInspector : Control
     /// <inheritdoc />
     public override void _Process(double delta)
     {
-        UpdateWaveformPlayhead();
+        _inspectorTimeline?.TickPlayhead();
     }
 
     /// <summary>
@@ -509,13 +509,8 @@ public partial class AudioInspector : Control
         }
 
         if (_waveformZoom != null)
-        {
             _waveformZoom.ViewChanged -= OnWaveformViewChanged;
-            _waveformZoom.PanelClicked -= OnTimelinePanelClicked;
-            _waveformZoom.PanelDoubleClicked -= OnTimelinePanelDoubleClicked;
-        }
-        CancelPendingTimelineNodeClick();
-        ClearTimelineNodeHandles();
+        _inspectorTimeline?.Detach();
 
         if (_fileUrl != null && GodotObject.IsInstanceValid(_fileUrl))
             InspectorMediaUrlStyle.Apply(_fileUrl, null, false);
@@ -558,9 +553,7 @@ public partial class AudioInspector : Control
         WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
         WaveformDisplay.StyleFadeHandle(_fadeInHandle, isFadeIn: true);
         WaveformDisplay.StyleFadeHandle(_fadeOutHandle, isFadeIn: false);
-        foreach (var handle in _timelineNodeHandles)
-            WaveformDisplay.StyleNodeHandle(handle);
-        RefreshTimelineNodeListChrome();
+        _inspectorTimeline?.Localize();
         PopulateFadeCurveOptions();
         if (_focusedCue == null)
             ShowNoSelection();

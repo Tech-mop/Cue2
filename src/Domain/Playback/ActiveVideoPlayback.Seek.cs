@@ -37,20 +37,26 @@ public partial class ActiveVideoPlayback
     {
         lock (_lock)
         {
-            double segmentDuration = GetSegmentDurationSecondsUnlocked();
-            if (segmentDuration <= 1e-12)
-                return 0;
+            if (_videoComponent.IsImage)
+            {
+                double hold = _videoComponent.Duration > 0 ? _videoComponent.Duration : 0;
+                if (hold <= 1e-12)
+                    return 0;
+                double posSec = GetMasterClockUs() / (double)MicrosecondsPerSecond;
+                return Math.Clamp(posSec, 0.0, hold);
+            }
 
-            double posSec = GetMasterClockUs() / (double)MicrosecondsPerSecond;
-            double startSec = _startTimeUs / (double)MicrosecondsPerSecond;
-            double segmentElapsed = Math.Clamp(posSec - startSec, 0.0, segmentDuration);
+            double sequence = GetSequenceDurationSecondsUnlocked();
+            double elapsedSequence = GetElapsedInSequenceSecondsUnlocked();
+            if (elapsedSequence < 0)
+                elapsedSequence = 0;
 
-            if (_videoComponent.Loop || EffectivePlayCount >= int.MaxValue / 4)
-                return segmentElapsed;
+            if (_videoComponent.Loop || sequence < 0 || EffectivePlayCount >= int.MaxValue / 4)
+                return elapsedSequence;
 
             int completed = Math.Max(0, _currentPlayCount - 1);
             completed = Math.Min(completed, Math.Max(0, EffectivePlayCount - 1));
-            return completed * segmentDuration + segmentElapsed;
+            return completed * sequence + elapsedSequence;
         }
     }
 
@@ -62,74 +68,230 @@ public partial class ActiveVideoPlayback
     {
         if (contentSeconds < 0) contentSeconds = 0;
 
-        double segmentDuration;
+        double sequence;
         int effectiveCount;
         bool isLoop;
+        bool isImage;
         lock (_lock)
         {
-            segmentDuration = GetSegmentDurationSecondsUnlocked();
+            sequence = GetSequenceDurationSecondsUnlocked();
             effectiveCount = EffectivePlayCount;
             isLoop = _videoComponent.Loop;
+            isImage = _videoComponent.IsImage;
         }
 
-        if (segmentDuration <= 1e-12)
+        if (isImage)
+        {
+            double hold = _videoComponent.Duration > 0 ? _videoComponent.Duration : 0;
+            if (hold <= 1e-12)
+            {
+                Seek(0);
+                return;
+            }
+            Seek(Math.Clamp(contentSeconds, 0.0, hold));
+            return;
+        }
+
+        if (sequence <= 1e-12)
         {
             Seek(_startTimeUs / (double)MicrosecondsPerSecond);
             return;
         }
 
-        if (isLoop || effectiveCount >= int.MaxValue / 4)
+        if (isLoop || sequence < 0 || effectiveCount >= int.MaxValue / 4)
         {
-            double local = contentSeconds % segmentDuration;
-            if (local < 0) local += segmentDuration;
-            Seek(_startTimeUs / (double)MicrosecondsPerSecond + local);
+            SeekIntoSequence(contentSeconds);
             return;
         }
 
-        double total = segmentDuration * Math.Max(1, effectiveCount);
+        double total = sequence * Math.Max(1, effectiveCount);
         contentSeconds = Math.Clamp(contentSeconds, 0.0, total);
 
         int playIndex;
-        double localInSegment;
+        double localInSequence;
         if (contentSeconds >= total - 1e-9)
         {
             playIndex = Math.Max(0, effectiveCount - 1);
-            localInSegment = segmentDuration;
+            localInSequence = sequence;
         }
         else
         {
-            playIndex = (int)Math.Floor(contentSeconds / segmentDuration);
+            playIndex = (int)Math.Floor(contentSeconds / sequence);
             playIndex = Math.Clamp(playIndex, 0, Math.Max(0, effectiveCount - 1));
-            localInSegment = contentSeconds - playIndex * segmentDuration;
-            localInSegment = Math.Clamp(localInSegment, 0.0, segmentDuration);
+            localInSequence = contentSeconds - playIndex * sequence;
+            localInSequence = Math.Clamp(localInSequence, 0.0, sequence);
         }
 
         lock (_lock)
-        {
             _currentPlayCount = playIndex + 1;
-        }
 
-        Seek(_startTimeUs / (double)MicrosecondsPerSecond + localInSegment);
+        SeekIntoSequence(localInSequence);
     }
 
-    private double GetSegmentDurationSecondsUnlocked()
+    /// <summary>Wall-clock length of one full pass through all timeline regions, or −1 if a region loops.</summary>
+    private double GetSequenceDurationSecondsUnlocked()
     {
-        if (_endTimeUs < long.MaxValue && _endTimeUs > _startTimeUs)
-            return (_endTimeUs - _startTimeUs) / (double)MicrosecondsPerSecond;
-
         if (_videoComponent.IsImage)
             return _videoComponent.Duration > 0 ? _videoComponent.Duration : 0;
 
-        double span = GetDuration();
-        if (span > 0)
+        if (_regions == null || _regions.Count == 0)
+            return _videoComponent.Duration > 0 ? _videoComponent.Duration : 0;
+
+        double sum = 0;
+        for (int i = 0; i < _regions.Count; i++)
         {
-            double start = _startTimeUs / (double)MicrosecondsPerSecond;
-            // GetDuration is full file length for video decoder; prefer component Duration when set.
-            if (_videoComponent.Duration > 0)
-                return _videoComponent.Duration;
-            return Math.Max(0, span - start);
+            if (_regions[i].Loop)
+                return -1;
+            sum += RegionWallSeconds(i) * Math.Max(1, _regions[i].PlayCount);
         }
-        return _videoComponent.Duration > 0 ? _videoComponent.Duration : 0;
+        return sum;
+    }
+
+    /// <summary>Wall-clock from the start of the current region play to <paramref name="posSec"/>.</summary>
+    private double ElapsedInRegionPlay(int index, double posSec)
+    {
+        if (_videoComponent == null || _regions == null || index < 0 || index >= _regions.Count)
+            return 0;
+        var region = _regions[index];
+        double clamped = Math.Clamp(posSec, region.StartSeconds, region.EndSeconds);
+        return _videoComponent.IntegrateTimelineWallClock(region.StartSeconds, clamped);
+    }
+
+    private double GetElapsedInSequenceSecondsUnlocked()
+    {
+        if (_regions == null || _regions.Count == 0)
+            return 0;
+        double posSec = GetMasterClockUs() / (double)MicrosecondsPerSecond;
+        double elapsed = 0;
+        for (int i = 0; i < _regionIndex && i < _regions.Count; i++)
+        {
+            var prior = _regions[i];
+            if (prior.Loop)
+                return elapsed;
+            elapsed += RegionWallSeconds(i) * Math.Max(1, prior.PlayCount);
+        }
+
+        int idx = Math.Clamp(_regionIndex, 0, _regions.Count - 1);
+        var region = _regions[idx];
+        double regionLen = RegionWallSeconds(idx);
+        double inPlay = ElapsedInRegionPlay(idx, posSec);
+        if (region.Loop)
+            return elapsed + inPlay;
+
+        int completedPlays = Math.Min(
+            Math.Max(0, _regionPlayIndex - 1),
+            Math.Max(0, region.PlayCount - 1));
+        return elapsed + completedPlays * regionLen + inPlay;
+    }
+
+    /// <summary>
+    /// Seeks to a wall-clock offset within one region sequence (0 = start of first region).
+    /// </summary>
+    private void SeekIntoSequence(double localSeconds)
+    {
+        if (localSeconds < 0)
+            localSeconds = 0;
+        long targetUs;
+        lock (_lock)
+        {
+            if (_regions == null || _regions.Count == 0 || _videoComponent == null)
+            {
+                double startSec = _startTimeUs / (double)MicrosecondsPerSecond;
+                double endSec = _endTimeUs == long.MaxValue
+                    ? startSec + Math.Max(localSeconds, 0)
+                    : _endTimeUs / (double)MicrosecondsPerSecond;
+                double fileTime = _videoComponent != null
+                    ? _videoComponent.FileTimeAtWallOffset(startSec, endSec, localSeconds)
+                    : startSec + localSeconds;
+                targetUs = (long)(fileTime * MicrosecondsPerSecond);
+            }
+            else
+            {
+                double remaining = localSeconds;
+                int found = _regions.Count - 1;
+                double localInPlay = 0;
+                int playInRegion = 0;
+                for (int i = 0; i < _regions.Count; i++)
+                {
+                    var region = _regions[i];
+                    double regionLen = RegionWallSeconds(i);
+                    if (regionLen <= 1e-12)
+                        continue;
+                    if (region.Loop)
+                    {
+                        found = i;
+                        localInPlay = remaining % regionLen;
+                        if (localInPlay < 0)
+                            localInPlay += regionLen;
+                        playInRegion = 0;
+                        break;
+                    }
+
+                    double regionTotal = regionLen * Math.Max(1, region.PlayCount);
+                    if (remaining < regionTotal - 1e-9)
+                    {
+                        found = i;
+                        playInRegion = (int)Math.Floor(remaining / regionLen);
+                        playInRegion = Math.Clamp(playInRegion, 0, Math.Max(0, region.PlayCount - 1));
+                        localInPlay = remaining - playInRegion * regionLen;
+                        break;
+                    }
+                    remaining -= regionTotal;
+                    found = i;
+                    playInRegion = Math.Max(0, region.PlayCount - 1);
+                    localInPlay = regionLen;
+                }
+
+                ApplyRegionUnlocked(found);
+                _regionPlayIndex = playInRegion + 1;
+                var chosen = _regions[found];
+                double fileTime = _videoComponent.FileTimeAtWallOffset(
+                    chosen.StartSeconds, chosen.EndSeconds, localInPlay);
+                targetUs = (long)(fileTime * MicrosecondsPerSecond);
+                if (targetUs < _regionStartUs)
+                    targetUs = _regionStartUs;
+                if (targetUs > _regionEndUs)
+                    targetUs = _regionEndUs;
+            }
+        }
+
+        if (_endTimeUs < long.MaxValue)
+            targetUs = Math.Min(targetUs, _endTimeUs);
+        SeekInternal(targetUs, restartClock: !IsPaused && _isPlaying, syncRegion: false);
+        lock (_lock)
+        {
+            if (IsPaused)
+                _pausedAtUs = targetUs;
+        }
+    }
+
+    /// <summary>Playback speed at a file time (clamped, timeline-automated).</summary>
+    private double CurrentPlayRateAt(long fileUs) => CurrentTimelineAt(fileUs).PlayRate;
+
+    /// <summary>Volume, rate, and pitch at the current decoder/file position.</summary>
+    private TimelineAutomation CurrentTimeline()
+    {
+        long posUs = _audioDecoder?.PositionUs
+                     ?? (_videoDecoder?.PositionUs ?? _startTimeUs);
+        return CurrentTimelineAt(posUs);
+    }
+
+    /// <summary>Volume, rate, and pitch at a file time.</summary>
+    private TimelineAutomation CurrentTimelineAt(long fileUs)
+    {
+        if (_videoComponent == null)
+        {
+            return new TimelineAutomation
+            {
+                VolumeLinear = AudioTimelineNode.DefaultVolumeLinear,
+                PlayRate = AudioComponent.DefaultPlayRate,
+                PitchCents = AudioComponent.DefaultPitchCents,
+                OpacityScale = AudioTimelineNode.DefaultOpacityScale
+            };
+        }
+
+        double posSec = fileUs / (double)MicrosecondsPerSecond;
+        return _videoComponent.EvaluateTimeline(posSec);
     }
 
     /// <summary>Seeks both video and audio to the same media time (seconds).</summary>
@@ -140,7 +302,7 @@ public partial class ActiveVideoPlayback
         if (_endTimeUs < long.MaxValue)
             us = Math.Min(us, _endTimeUs);
 
-        SeekInternal(us, restartClock: !IsPaused && _isPlaying);
+        SeekInternal(us, restartClock: !IsPaused && _isPlaying, syncRegion: true);
         lock (_lock)
         {
             if (IsPaused)
@@ -151,17 +313,24 @@ public partial class ActiveVideoPlayback
     /// <summary>
     /// Seeks video (+ embedded audio) to <paramref name="timestampUs"/>.
     /// Heavy FFmpeg seek/discard/prefetch runs on a worker so scrub does not freeze the UI.
+    /// Rapid live-scrub calls coalesce onto one worker: the UI parks immediately, and the
+    /// decoder seeks to the latest target when the in-flight seek finishes.
     /// </summary>
-    private void SeekInternal(long timestampUs, bool restartClock)
+    /// <param name="timestampUs">Target media time in microseconds.</param>
+    /// <param name="restartClock">When true, restart the wall clock from the seek target.</param>
+    /// <param name="syncRegion">
+    /// When true, select the timeline region that contains the seek time and reset its play index.
+    /// Pass false when the caller already applied a region (content-sequence seek).
+    /// </param>
+    private void SeekInternal(long timestampUs, bool restartClock, bool syncRegion = true)
     {
-        // Hold the fill loop so it cannot PutAudioStreamData across a Clear (stale PCM after seek).
-        // Do not use public IsSeeking here — that flag is also held for the whole UI scrub drag.
-        // Keep fill suspended across cancel → new seek (do not release the hold here).
-        CancelSeekWorker(releaseFillHold: false);
+        timestampUs = Math.Max(_startTimeUs, timestampUs);
+        if (_endTimeUs < long.MaxValue)
+            timestampUs = Math.Min(timestampUs, _endTimeUs);
 
-        var cts = new CancellationTokenSource();
-        _seekCts = cts;
+        // Park UI/clock immediately so the playhead follows the pointer during live scrub.
         _seekTargetUs = timestampUs;
+        _clockHoldUs = timestampUs;
         _seekInProgress = true;
         ReleaseHiddenFrame();
 
@@ -170,52 +339,99 @@ public partial class ActiveVideoPlayback
             _audioFillSuspended = true;
             _audioMasterExhausted = false;
             _segmentEndScheduled = false;
+            if (syncRegion && _videoComponent is { IsImage: false })
+                SyncRegionForPositionUnlocked(timestampUs);
         }
 
-        _streamBindings.ClearAll();
-        ResetPresentClock();
-
-        // Always park the wall clock at the seek target so silent-video masters and UI
-        // match immediately (audio master still holds via _seekTargetUs until finish).
         _wallMediaOriginUs = timestampUs;
         if (restartClock && _isPlaying && !IsPaused)
             _wallClock.Restart();
         else if (!restartClock)
             _wallClock.Reset();
 
+        _queuedSeekUs = timestampUs;
+        _seekQueued = true;
+
+        // A worker is running or its completion is still queued on the main thread:
+        // that completion starts the latest queued target.
+        if (_seekTask != null)
+        {
+            // Click press+release (and tiny pointer jitter) must not abort the seek already
+            // going to this time: cancelling it lets CompleteSeekWorker "finish" without
+            // seeking, then leftover 4K frames snap the picture and playhead back.
+            if (Math.Abs(timestampUs - _inFlightSeekUs) <= SeekSameTargetEpsilonUs)
+                return;
+            try { _seekCts?.Cancel(); } catch { /* ignore */ }
+            return;
+        }
+
+        StartSeekWorker();
+    }
+
+    /// <summary>Starts a decoder seek to the latest queued target. Main thread only.</summary>
+    private void StartSeekWorker()
+    {
+        if (_isExiting || IsStopped)
+        {
+            _seekQueued = false;
+            _seekInProgress = false;
+            _clockHoldUs = -1;
+            lock (_lock)
+                _audioFillSuspended = false;
+            return;
+        }
+
+        long timestampUs = _queuedSeekUs;
+        _seekQueued = false;
+        _seekTargetUs = timestampUs;
+        _inFlightSeekUs = timestampUs;
+        _clockHoldUs = timestampUs;
+        _seekInProgress = true;
+
+        _streamBindings.ClearAll();
+        _ratePitch.Reset();
+        ResetPresentClock();
         RefreshPresentTuning();
         RefreshAudioTuning();
+
+        var cts = new CancellationTokenSource();
+        _seekCts = cts;
 
         var video = _videoDecoder;
         var audio = _audioDecoder;
         int videoPrefetch = _presentTuning.PrefetchTarget;
         int audioPrefetchMs = _audioTuning.PrefetchMs;
-        bool shouldPrime;
-        lock (_lock)
-            shouldPrime = audio != null && _isPlaying && !IsPaused && HasBoundAudioStreams;
 
         _seekTask = Task.Run(() =>
         {
+            bool completed = false;
             try
             {
-                cts.Token.ThrowIfCancellationRequested();
+                if (IsSeekTokenCancelled(cts))
+                    return;
                 video?.Seek(timestampUs);
-                cts.Token.ThrowIfCancellationRequested();
+                if (IsSeekTokenCancelled(cts))
+                    return;
                 video?.Prefetch(videoPrefetch);
 
                 if (audio != null)
                 {
-                    cts.Token.ThrowIfCancellationRequested();
+                    if (IsSeekTokenCancelled(cts))
+                        return;
                     audio.FlushBuffers();
                     audio.Seek(timestampUs);
                     audio.Prefetch(audioPrefetchMs);
-                    // Fill is held and the streams are empty: the clock now starts at the target.
                     PublishAudioQueuedEnd(audio.PositionUs);
                 }
+                completed = true;
             }
             catch (OperationCanceledException)
             {
                 // Superseded by a newer seek or teardown.
+            }
+            catch (ObjectDisposedException)
+            {
+                // Token disposed during teardown.
             }
             catch (Exception ex)
             {
@@ -223,30 +439,61 @@ public partial class ActiveVideoPlayback
             }
             finally
             {
-                // Complete only if this generation is still current.
-                if (!cts.IsCancellationRequested)
-                {
-                    bool prime = shouldPrime;
-                    Callable.From(() => FinishSeekWorker(cts, prime)).CallDeferred();
-                }
+                long us = timestampUs;
+                bool ok = completed;
+                Callable.From(() => CompleteSeekWorker(cts, us, ok)).CallDeferred();
             }
-        }, cts.Token);
+        });
+    }
+
+    /// <summary>
+    /// Main-thread completion: either start the latest queued live-scrub target, or resume.
+    /// A cancelled worker always restarts when a target is still queued, even if the
+    /// queued time equals this worker's time (click-release must not "succeed" without seeking).
+    /// </summary>
+    private void CompleteSeekWorker(CancellationTokenSource cts, long timestampUs, bool completed)
+    {
+        if (ReferenceEquals(_seekCts, cts))
+            _seekCts = null;
+        try { cts?.Dispose(); } catch { /* ignore */ }
+
+        if (_isExiting || IsStopped)
+        {
+            _seekQueued = false;
+            _seekTask = null;
+            lock (_lock)
+                _audioFillSuspended = false;
+            _seekInProgress = false;
+            _clockHoldUs = -1;
+            try { _videoDecoder?.WakePrefetch(); } catch { /* decoder already gone */ }
+            return;
+        }
+
+        if (_seekQueued && (!completed || _queuedSeekUs != timestampUs))
+        {
+            StartSeekWorker();
+            return;
+        }
+
+        _seekQueued = false;
+        _seekTask = null;
+        if (!completed)
+            _clockHoldUs = -1;
+        bool shouldPrime = _isPlaying && !IsPaused && !IsSeeking && HasBoundAudioStreams
+                           && _audioDecoder != null;
+        FinishSeekWorker(shouldPrime);
     }
 
     /// <summary>
     /// Main-thread completion for an async seek: re-prime audio and release present/fill holds.
     /// </summary>
-    private void FinishSeekWorker(CancellationTokenSource cts, bool shouldPrime)
+    private void FinishSeekWorker(bool shouldPrime)
     {
-        if (cts == null || cts.IsCancellationRequested)
-            return;
-        // Superseded by a newer seek generation.
-        if (!ReferenceEquals(_seekCts, cts))
-            return;
         if (_isExiting || IsStopped)
         {
             lock (_lock) _audioFillSuspended = false;
             _seekInProgress = false;
+            _clockHoldUs = -1;
             _videoDecoder?.WakePrefetch();
             return;
         }
@@ -269,6 +516,14 @@ public partial class ActiveVideoPlayback
             {
                 _audioFillSuspended = false;
             }
+            // Seed the audio-master fallback so the first readable clock after hold
+            // is the seek target, not the clip in-point.
+            if (_clockHoldUs >= 0)
+            {
+                _lastAudioMasterUs = _clockHoldUs;
+                _lastAudioEndUs = _clockHoldUs;
+                _lastAudioQueuedUs = 0;
+            }
             _seekInProgress = false;
             _videoDecoder?.WakePrefetch();
         }
@@ -281,23 +536,31 @@ public partial class ActiveVideoPlayback
     /// </param>
     private void CancelSeekWorker(bool releaseFillHold = true)
     {
+        _seekQueued = false;
+        try { _seekCts?.Cancel(); } catch { /* ignore */ }
+        // Do not Dispose here: the worker may still read the token. CompleteSeekWorker disposes.
+        if (releaseFillHold)
+        {
+            _seekInProgress = false;
+            _clockHoldUs = -1;
+            try { _videoDecoder?.WakePrefetch(); } catch { /* decoder already gone */ }
+            lock (_lock)
+                _audioFillSuspended = false;
+        }
+    }
+
+    /// <summary>True when the seek token is cancelled or already disposed.</summary>
+    private static bool IsSeekTokenCancelled(CancellationTokenSource cts)
+    {
+        if (cts == null)
+            return true;
         try
         {
-            _seekCts?.Cancel();
+            return cts.IsCancellationRequested;
         }
-        catch { /* ignore */ }
-        finally
+        catch (ObjectDisposedException)
         {
-            try { _seekCts?.Dispose(); } catch { /* ignore */ }
-            _seekCts = null;
-            _seekTask = null;
-            _seekInProgress = false;
-            try { _videoDecoder?.WakePrefetch(); } catch { /* decoder already gone */ }
-            if (releaseFillHold)
-            {
-                lock (_lock)
-                    _audioFillSuspended = false;
-            }
+            return true;
         }
     }
 }

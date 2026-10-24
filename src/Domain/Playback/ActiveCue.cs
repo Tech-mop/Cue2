@@ -671,6 +671,12 @@ public partial class ActiveCue : GodotObject
     public bool IsStandbyPreloaded =>
         _standbyPreload && !_contentStarted && !_isCleaned && _uiPrepared;
 
+    /// <summary>True once this instance has been cleaned up (its media and UI are released).</summary>
+    public bool IsCleaned => _isCleaned;
+
+    /// <summary>True while a user stop fade is running on this instance.</summary>
+    public bool IsStopFading => _isStopFading;
+
     /// <summary>True while the user is scrubbing the head progress bar.</summary>
     private bool _headIsSeeking;
 

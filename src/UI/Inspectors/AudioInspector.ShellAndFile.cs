@@ -47,12 +47,6 @@ public partial class AudioInspector
     private async Task ShellSelectedAsync(int cueId)
     {
         int gen = ++_shellSelectGeneration;
-        if (_focusedCue == null || _focusedCue.Id != cueId)
-        {
-            _selectedTimelineNodeId = -1;
-            _draggingTimelineNodeId = -1;
-            CancelPendingTimelineNodeClick();
-        }
 
         if (cueId < 0)
         {
@@ -153,6 +147,7 @@ public partial class AudioInspector
         
         // Audio Component Found — file audio and audio input are mutually exclusive.
         _focusedAudioComponent = _focusedCue.Components.OfType<AudioComponent>().First();
+        BindInspectorTimeline();
         if (_audioInputRow != null)
             _audioInputRow.Visible = false;
         if (_deleteAudioComponentButton != null)
@@ -234,12 +229,8 @@ public partial class AudioInspector
     /// </summary>
     private void ShowNoSelection()
     {
-        _selectedTimelineNodeId = -1;
-        _draggingTimelineNodeId = -1;
-        CancelPendingTimelineNodeClick();
-        ClearTimelineNodeHandles();
+        BindInspectorTimeline();
         _waveformDisplay?.SetNodes(null);
-        RebuildTimelineNodeList(new List<AudioTimelineNode>());
         if (_deleteAudioComponentButton != null)
             _deleteAudioComponentButton.Visible = false;
         _focusedAudioInput = null;
@@ -269,6 +260,8 @@ public partial class AudioInspector
             _focusedCue = _audioTargets[^1].Cue;
             _focusedAudioComponent = _audioTargets[^1].Component;
         }
+
+        BindInspectorTimeline();
 
         int selected = InspectorMultiEditSupport.GetSelectedCues().Count;
         if (_audioTargets.Count == 0)

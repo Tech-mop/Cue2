@@ -7,7 +7,7 @@ using Cue2.Media.Audio;
 namespace Cue2.Domain.Cues;
 
 /// <summary>
-/// Evaluates <see cref="TimelineVolumeInterpolation"/> shapes for volume (dB), rate (log), and pitch (cents).
+/// Evaluates <see cref="TimelineVolumeInterpolation"/> shapes for volume (dB), rate (log), pitch (cents), and opacity (linear).
 /// </summary>
 public static class TimelineVolume
 {
@@ -103,6 +103,27 @@ public static class TimelineVolume
         return AudioComponent.ClampPitchCents(a + (b - a) * u);
     }
 
+    /// <summary>
+    /// Interpolates relative opacity in linear 0–1 (matches the waveform opacity line).
+    /// </summary>
+    /// <param name="mode">Interpolation shape.</param>
+    /// <param name="fromScale">Opacity scale at the previous node.</param>
+    /// <param name="toScale">Opacity scale at the destination node.</param>
+    /// <param name="t">Progress 0–1 along the span.</param>
+    /// <returns>Clamped relative opacity (1 = 100% of the component).</returns>
+    public static float InterpolateOpacityScale(
+        TimelineVolumeInterpolation mode, float fromScale, float toScale, float t)
+    {
+        float u = Shape(mode, t);
+        float a = AudioTimelineNode.ClampOpacityScale(fromScale);
+        float b = AudioTimelineNode.ClampOpacityScale(toScale);
+        if (u <= 0f)
+            return a;
+        if (u >= 1f)
+            return b;
+        return AudioTimelineNode.ClampOpacityScale(a + (b - a) * u);
+    }
+
     /// <summary>English caption for the inspector OptionButton.</summary>
     /// <param name="mode">Interpolation shape.</param>
     /// <returns>English caption.</returns>
@@ -118,7 +139,7 @@ public static class TimelineVolume
     /// <returns>English tooltip.</returns>
     public static string Tooltip(TimelineVolumeInterpolation mode) => mode switch
     {
-        TimelineVolumeInterpolation.Snap => "Hold this node's volume, rate, and pitch for the whole span from the previous node (step).",
+        TimelineVolumeInterpolation.Snap => "Hold this node's volume, rate, pitch, and opacity for the whole span from the previous node (step).",
         TimelineVolumeInterpolation.Bezier => "Ease in and out from the previous node to this one.",
         _ => "Straight ramp from the previous node to this one."
     };

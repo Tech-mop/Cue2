@@ -4,7 +4,7 @@
 namespace Cue2.Domain.Cues;
 
 /// <summary>
-/// Absolute volume, play rate, and pitch at one file time on an audio timeline.
+/// Absolute play rate and pitch, plus relative volume and opacity, at one file time on a media timeline.
 /// </summary>
 public readonly struct TimelineAutomation
 {
@@ -16,4 +16,7 @@ public readonly struct TimelineAutomation
 
     /// <summary>Absolute pitch in cents (component cents + relative offset, clamped).</summary>
     public float PitchCents { get; init; }
+
+    /// <summary>Relative opacity scale at this time (1 = 100% of the component). Video only.</summary>
+    public float OpacityScale { get; init; }
 }

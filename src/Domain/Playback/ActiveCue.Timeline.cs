@@ -333,6 +333,79 @@ public partial class ActiveCue
     }
 
     /// <summary>
+    /// Seeks own audio and/or video playbacks to a decoder file time and snaps the head bar.
+    /// Used by inspector-timeline ruler scrub.
+    /// </summary>
+    /// <param name="fileSeconds">Target media file time in seconds.</param>
+    /// <param name="audio">When true, seek live audio file playbacks.</param>
+    /// <param name="video">When true, seek live video playbacks.</param>
+    /// <param name="scrubbing">
+    /// True while the pointer is down on the ruler: playbacks hold <see cref="ActiveAudioPlayback.IsSeeking"/>
+    /// so they do not resume between coalesced live-scrub seeks. False on release.
+    /// </param>
+    public void SeekOwnMediaToFileTime(double fileSeconds, bool audio, bool video, bool scrubbing = false)
+    {
+        if (_isCleaned) return;
+        if (fileSeconds < 0) fileSeconds = 0;
+
+        double contentLocal = 0;
+        bool haveContent = false;
+
+        if (audio)
+        {
+            foreach (var kv in _activeAudioComponents.ToList())
+            {
+                var playback = kv.Value;
+                if (playback == null) continue;
+                try
+                {
+                    playback.IsSeeking = scrubbing;
+                    playback.Seek((long)(fileSeconds * 1_000_000.0));
+                }
+                catch (Exception ex)
+                {
+                    GD.PrintErr($"ActiveCue:SeekOwnMediaToFileTime - Audio seek failed on {_cue?.Name}: {ex.Message}");
+                }
+            }
+
+            var audioComp = _cue?.GetAudioComponent();
+            if (audioComp != null)
+            {
+                contentLocal = audioComp.WallClockAtFileTime(fileSeconds);
+                haveContent = true;
+            }
+        }
+
+        if (video)
+        {
+            foreach (var kv in _activeVideoComponents.ToList())
+            {
+                var playback = kv.Value;
+                if (playback == null) continue;
+                try
+                {
+                    playback.IsSeeking = scrubbing;
+                    playback.Seek(fileSeconds);
+                }
+                catch (Exception ex)
+                {
+                    GD.PrintErr($"ActiveCue:SeekOwnMediaToFileTime - Video seek failed on {_cue?.Name}: {ex.Message}");
+                }
+            }
+
+            var videoComp = _cue?.GetVideoComponent();
+            if (videoComp != null)
+            {
+                contentLocal = videoComp.WallClockAtFileTime(fileSeconds);
+                haveContent = true;
+            }
+        }
+
+        if (haveContent)
+            SyncHeadTimelineFromComponentSeek(contentLocal);
+    }
+
+    /// <summary>
     /// Seeks own audio/video components to a content-local time, mapping across playcount iterations.
     /// </summary>
     private void SeekOwnMediaToContentTime(double contentTimeSeconds)

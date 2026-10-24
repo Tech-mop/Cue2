@@ -4,13 +4,25 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using Array = Godot.Collections.Array;
 using Dictionary = Godot.Collections.Dictionary;
 
 namespace Cue2.Domain.Cues;
 
-public class AudioComponent : ICueComponent
+public class AudioComponent : ICueComponent, IMediaTimelineHost
 {
+    /// <summary>
+    /// Shared node / region / rate-curve engine for this component.
+    /// </summary>
+    public MediaTimeline Timeline { get; }
+
+    /// <summary>
+    /// Creates an audio component with an empty media timeline.
+    /// </summary>
+    public AudioComponent()
+    {
+        Timeline = new MediaTimeline(this);
+    }
+
     public string Type => "Audio";
     public AudioOutputPatch Patch { get; set; }
     public int PatchId { get; set; } = -1; // This value is used to link patch whence loaded
@@ -91,11 +103,14 @@ public class AudioComponent : ICueComponent
     }
     private double _playRate = DefaultPlayRate;
 
+    /// <summary>System default for <see cref="KeepPitch"/> (on for new components).</summary>
+    public const bool DefaultKeepPitch = true;
+
     /// <summary>
     /// When true, time-stretch so musical pitch stays put as <see cref="PlayRate"/> changes.
     /// Extra <see cref="PitchCents"/> still apply.
     /// </summary>
-    public bool KeepPitch { get; set; }
+    public bool KeepPitch { get; set; } = DefaultKeepPitch;
 
     /// <summary>
     /// Extra pitch shift in cents (100 cents = 1 semitone), independent of rate.
@@ -143,14 +158,20 @@ public class AudioComponent : ICueComponent
     public FadeCurveType FadeOutCurve { get; set; } = FadeCurveType.Linear;
 
     /// <summary>Maximum user-placed markers on one audio timeline (plus the locked end-of-file node).</summary>
-    public const int MaxTimelineNodes = 32;
+    public const int MaxTimelineNodes = MediaTimeline.MaxUserNodes;
 
     /// <summary>
     /// Numbered markers on the file timeline (file seconds). Display order is by time.
     /// </summary>
-    public List<AudioTimelineNode> TimelineNodes { get; } = new List<AudioTimelineNode>();
+    public List<AudioTimelineNode> TimelineNodes => Timeline.Nodes;
 
-    private int _nextTimelineNodeId = 1;
+    double IMediaTimelineHost.TimelineFileDuration => Metadata?.Duration ?? 0.0;
+    double IMediaTimelineHost.TimelineStartTime => StartTime;
+    double IMediaTimelineHost.TimelineEndTime => EndTime;
+    double IMediaTimelineHost.TimelinePlayRate => PlayRate;
+    float IMediaTimelineHost.TimelinePitchCents => PitchCents;
+    bool IMediaTimelineHost.TimelineHasMetadata => Metadata != null;
+    double IMediaTimelineHost.ClampTimelineStartTime(double proposedSeconds) => ClampStartTime(proposedSeconds);
 
     /// <summary>
     /// In-memory peak envelope for UI display only.
@@ -191,16 +212,7 @@ public class AudioComponent : ICueComponent
             data.Add("Routing", Routing.GetData());
         }
 
-        if (TimelineNodes.Count > 0)
-        {
-            var nodes = new Array();
-            foreach (var node in TimelineNodes)
-            {
-                if (node == null) continue;
-                nodes.Add(node.GetData());
-            }
-            data.Add("TimelineNodes", nodes);
-        }
+        Timeline.WriteToData(data);
         // Waveform peaks are session disk-cache only (Waveforms/*.c2wf), not showfile payload.
 
         // An empty record means the file was never read; leave it out so the next load probes again.
@@ -265,33 +277,8 @@ public class AudioComponent : ICueComponent
     /// When false, any looping region yields −1.
     /// </param>
     /// <returns>Seconds, or −1 when a region loops and <paramref name="loopingRegionsAsOnePlay"/> is false.</returns>
-    public double ComputeSequenceWallClock(bool loopingRegionsAsOnePlay)
-    {
-        double fileDuration = Metadata?.Duration ?? 0.0;
-        if (fileDuration < 0)
-            fileDuration = 0;
-
-        double windowStart = ClampStartTime(StartTime);
-        double windowEnd = EndTime < 0 ? fileDuration : EndTime;
-        double windowLen = Math.Max(0.0, windowEnd - windowStart);
-
-        var playbackRegions = GetPlaybackRegions();
-        if (playbackRegions.Count == 0)
-            return windowLen / Math.Max(MinPlayRate, PlayRate);
-
-        double passWall = 0.0;
-        foreach (var span in playbackRegions)
-        {
-            if (span.Loop && !loopingRegionsAsOnePlay)
-                return -1.0;
-
-            double onePass = IntegrateTimelineWallClock(span.StartSeconds, span.EndSeconds);
-            int plays = span.Loop ? 1 : Math.Max(1, span.PlayCount);
-            passWall += onePass * plays;
-        }
-
-        return passWall;
-    }
+    public double ComputeSequenceWallClock(bool loopingRegionsAsOnePlay) =>
+        Timeline.ComputeSequenceWallClock(loopingRegionsAsOnePlay);
 
     /// <summary>
     /// Finite wall-clock of one display cycle: inner region play counts, looping regions as one play.
@@ -325,46 +312,7 @@ public class AudioComponent : ICueComponent
     /// only. The tail after the last loop-bound node plays once. Empty when the window has no length.
     /// </summary>
     /// <returns>Regions clipped to the cue in/out window, in time order.</returns>
-    public List<AudioTimelineRegion> GetPlaybackRegions()
-    {
-        var regions = new List<AudioTimelineRegion>();
-        double fileDuration = Metadata?.Duration ?? 0.0;
-        if (fileDuration < 0)
-            fileDuration = 0;
-
-        double windowStart = ClampStartTime(StartTime);
-        double windowEnd = EndTime < 0 ? fileDuration : EndTime;
-        if (windowEnd < windowStart)
-            windowEnd = windowStart;
-
-        const double eps = 1e-6;
-        double cursor = windowStart;
-        foreach (var node in GetTimelineNodesInTimeOrder())
-        {
-            if (node.ContinueRegion)
-                continue;
-            if (node.TimeSeconds <= cursor + eps)
-                continue;
-
-            double regionEnd = Math.Min(node.TimeSeconds, windowEnd);
-            if (regionEnd > cursor + eps)
-            {
-                regions.Add(AudioTimelineRegion.Create(
-                    node.Id, cursor, regionEnd, node.Loop, node.PlayCount));
-                cursor = regionEnd;
-            }
-
-            if (cursor >= windowEnd - eps)
-                break;
-        }
-
-        if (cursor < windowEnd - eps)
-        {
-            regions.Add(AudioTimelineRegion.Create(0, cursor, windowEnd));
-        }
-
-        return regions;
-    }
+    public List<AudioTimelineRegion> GetPlaybackRegions() => Timeline.GetPlaybackRegions();
 
     /// <summary>
     /// Absolute volume, play rate, and pitch at a file time (one neighbor scan).
@@ -372,7 +320,7 @@ public class AudioComponent : ICueComponent
     /// <param name="fileSeconds">Position on the audio file, in seconds.</param>
     /// <returns>Clamped mix of component values and the timeline curve.</returns>
     public TimelineAutomation EvaluateTimeline(double fileSeconds) =>
-        EvaluateTimeline(fileSeconds, playRateOverride: null, pitchCentsOverride: null);
+        Timeline.EvaluateTimeline(fileSeconds);
 
     /// <summary>
     /// Absolute volume, play rate, and pitch at a file time, with optional component-rate/pitch overrides
@@ -385,52 +333,8 @@ public class AudioComponent : ICueComponent
     public TimelineAutomation EvaluateTimeline(
         double fileSeconds,
         double? playRateOverride,
-        float? pitchCentsOverride)
-    {
-        double baseRate = playRateOverride ?? PlayRate;
-        float basePitch = pitchCentsOverride ?? PitchCents;
-
-        if (!TryGetTimelineNeighbors(fileSeconds, out var prev, out var next, out float t)
-            || (prev == null && next == null))
-        {
-            return new TimelineAutomation
-            {
-                VolumeLinear = AudioTimelineNode.DefaultVolumeLinear,
-                PlayRate = ClampPlayRate(baseRate),
-                PitchCents = ClampPitchCents(basePitch)
-            };
-        }
-
-        float volume;
-        float rateScale;
-        float pitchOffset;
-        if (prev == null)
-        {
-            volume = next.VolumeLinear;
-            rateScale = next.RateScale;
-            pitchOffset = next.PitchCents;
-        }
-        else if (next == null)
-        {
-            volume = prev.VolumeLinear;
-            rateScale = prev.RateScale;
-            pitchOffset = prev.PitchCents;
-        }
-        else
-        {
-            var mode = next.VolumeInterpolation;
-            volume = TimelineVolume.InterpolateVolumeLinear(mode, prev.VolumeLinear, next.VolumeLinear, t);
-            rateScale = TimelineVolume.InterpolateRateScale(mode, prev.RateScale, next.RateScale, t);
-            pitchOffset = TimelineVolume.InterpolatePitchCents(mode, prev.PitchCents, next.PitchCents, t);
-        }
-
-        return new TimelineAutomation
-        {
-            VolumeLinear = volume,
-            PlayRate = ClampPlayRate(baseRate * rateScale),
-            PitchCents = ClampPitchCents(basePitch + pitchOffset)
-        };
-    }
+        float? pitchCentsOverride) =>
+        Timeline.EvaluateTimeline(fileSeconds, playRateOverride, pitchCentsOverride);
 
     /// <summary>
     /// Relative linear gain at a file time, interpolated between timeline nodes in dB.
@@ -462,72 +366,8 @@ public class AudioComponent : ICueComponent
     /// <param name="startSeconds">File-time start, in seconds.</param>
     /// <param name="endSeconds">File-time end, in seconds.</param>
     /// <returns>Integrated wall-clock length. 0 when the span is empty.</returns>
-    public double IntegrateTimelineWallClock(double startSeconds, double endSeconds)
-    {
-        if (endSeconds <= startSeconds)
-            return 0.0;
-
-        var ordered = GetTimelineNodesInTimeOrder();
-        AudioTimelineNode prev = null;
-        int i = 0;
-        while (i < ordered.Count && ordered[i].TimeSeconds <= startSeconds)
-        {
-            prev = ordered[i];
-            i++;
-        }
-
-        const int steps = 8;
-        const double eps = 1e-12;
-        double wall = 0.0;
-        double cursor = startSeconds;
-        while (cursor < endSeconds - eps)
-        {
-            var next = i < ordered.Count ? ordered[i] : null;
-            double nextTime = next != null ? Math.Min(next.TimeSeconds, endSeconds) : endSeconds;
-            if (nextTime <= cursor + eps)
-            {
-                prev = next;
-                i++;
-                continue;
-            }
-
-            double span = nextTime - cursor;
-            for (int s = 0; s < steps; s++)
-            {
-                double t0 = cursor + span * s / steps;
-                double t1 = cursor + span * (s + 1) / steps;
-                double mid = 0.5 * (t0 + t1);
-                float scale;
-                if (prev == null && next == null)
-                    scale = AudioTimelineNode.DefaultRateScale;
-                else if (prev == null)
-                    scale = next.RateScale;
-                else if (next == null)
-                    scale = prev.RateScale;
-                else
-                {
-                    double pairSpan = next.TimeSeconds - prev.TimeSeconds;
-                    float t = pairSpan <= 1e-9 ? 1f : (float)((mid - prev.TimeSeconds) / pairSpan);
-                    scale = TimelineVolume.InterpolateRateScale(
-                        next.VolumeInterpolation, prev.RateScale, next.RateScale, t);
-                }
-
-                double rate = ClampPlayRate(PlayRate * scale);
-                if (rate < MinPlayRate)
-                    rate = MinPlayRate;
-                wall += (t1 - t0) / rate;
-            }
-
-            cursor = nextTime;
-            if (next != null && next.TimeSeconds <= cursor + eps)
-            {
-                prev = next;
-                i++;
-            }
-        }
-
-        return wall;
-    }
+    public double IntegrateTimelineWallClock(double startSeconds, double endSeconds) =>
+        Timeline.IntegrateTimelineWallClock(startSeconds, endSeconds);
 
     /// <summary>
     /// File time at which wall-clock from <paramref name="startSeconds"/> equals <paramref name="wallOffset"/>.
@@ -539,110 +379,23 @@ public class AudioComponent : ICueComponent
     /// File time in <paramref name="startSeconds"/>–<paramref name="endSeconds"/>.
     /// Clamped to the span ends when the offset is outside the integrated length.
     /// </returns>
-    public double FileTimeAtWallOffset(double startSeconds, double endSeconds, double wallOffset)
-    {
-        if (endSeconds <= startSeconds || wallOffset <= 0)
-            return startSeconds;
+    public double FileTimeAtWallOffset(double startSeconds, double endSeconds, double wallOffset) =>
+        Timeline.FileTimeAtWallOffset(startSeconds, endSeconds, wallOffset);
 
-        var ordered = GetTimelineNodesInTimeOrder();
-        AudioTimelineNode prev = null;
-        int i = 0;
-        while (i < ordered.Count && ordered[i].TimeSeconds <= startSeconds)
-        {
-            prev = ordered[i];
-            i++;
-        }
-
-        const int steps = 8;
-        const double eps = 1e-12;
-        double wall = 0.0;
-        double cursor = startSeconds;
-        while (cursor < endSeconds - eps)
-        {
-            var next = i < ordered.Count ? ordered[i] : null;
-            double nextTime = next != null ? Math.Min(next.TimeSeconds, endSeconds) : endSeconds;
-            if (nextTime <= cursor + eps)
-            {
-                prev = next;
-                i++;
-                continue;
-            }
-
-            double span = nextTime - cursor;
-            for (int s = 0; s < steps; s++)
-            {
-                double t0 = cursor + span * s / steps;
-                double t1 = cursor + span * (s + 1) / steps;
-                double mid = 0.5 * (t0 + t1);
-                float scale;
-                if (prev == null && next == null)
-                    scale = AudioTimelineNode.DefaultRateScale;
-                else if (prev == null)
-                    scale = next.RateScale;
-                else if (next == null)
-                    scale = prev.RateScale;
-                else
-                {
-                    double pairSpan = next.TimeSeconds - prev.TimeSeconds;
-                    float t = pairSpan <= 1e-9 ? 1f : (float)((mid - prev.TimeSeconds) / pairSpan);
-                    scale = TimelineVolume.InterpolateRateScale(
-                        next.VolumeInterpolation, prev.RateScale, next.RateScale, t);
-                }
-
-                double rate = ClampPlayRate(PlayRate * scale);
-                if (rate < MinPlayRate)
-                    rate = MinPlayRate;
-                double stepWall = (t1 - t0) / rate;
-                if (wall + stepWall >= wallOffset - eps)
-                {
-                    double frac = stepWall <= eps ? 0.0 : (wallOffset - wall) / stepWall;
-                    return t0 + Math.Clamp(frac, 0.0, 1.0) * (t1 - t0);
-                }
-
-                wall += stepWall;
-            }
-
-            cursor = nextTime;
-            if (next != null && next.TimeSeconds <= cursor + eps)
-            {
-                prev = next;
-                i++;
-            }
-        }
-
-        return endSeconds;
-    }
+    /// <summary>
+    /// Wall-clock seconds from the start of the region sequence to the first occurrence of
+    /// <paramref name="fileSeconds"/>.
+    /// </summary>
+    /// <param name="fileSeconds">Position on the audio file, in seconds.</param>
+    /// <returns>Seconds ≥ 0.</returns>
+    public double WallClockAtFileTime(double fileSeconds) =>
+        Timeline.WallClockAtFileTime(fileSeconds);
 
     /// <summary>
     /// Picks a file time for a manually added node (midpoint of the longest gap).
     /// </summary>
     /// <returns>A time in file seconds, or −1 when no metadata is available.</returns>
-    public double PickNewTimelineNodeTime()
-    {
-        double fileDuration = Metadata?.Duration ?? 0.0;
-        if (fileDuration <= 1e-6)
-            return -1;
-
-        EnsureFileEndNode();
-        double bestStart = 0;
-        double bestLen = 0;
-        double prev = 0;
-        foreach (var node in GetTimelineNodesInTimeOrder())
-        {
-            double len = node.TimeSeconds - prev;
-            if (len > bestLen)
-            {
-                bestLen = len;
-                bestStart = prev;
-            }
-            prev = node.TimeSeconds;
-        }
-
-        if (bestLen < 0.002)
-            return ClampTimelineNodeTime(fileDuration * 0.5);
-
-        return ClampTimelineNodeTime(bestStart + bestLen * 0.5);
-    }
+    public double PickNewTimelineNodeTime() => Timeline.PickNewNodeTime();
 
     public void LoadFromData(Dictionary data)
     {
@@ -662,7 +415,9 @@ public class AudioComponent : ICueComponent
             : 0f;
         PlayCount = data.ContainsKey("PlayCount") ? data["PlayCount"].AsInt32() : 1;
         PlayRate = data.ContainsKey("PlayRate") ? data["PlayRate"].AsDouble() : DefaultPlayRate;
-        KeepPitch = data.ContainsKey("KeepPitch") && data["KeepPitch"].AsBool();
+        KeepPitch = data.ContainsKey("KeepPitch")
+            ? data["KeepPitch"].AsBool()
+            : DefaultKeepPitch;
         PitchCents = data.ContainsKey("PitchCents") ? data["PitchCents"].AsSingle() : DefaultPitchCents;
         FadeInDuration = data.ContainsKey("FadeInDuration") ? data["FadeInDuration"].AsDouble() : 0.0;
         FadeInCurve = data.ContainsKey("FadeInCurve")
@@ -673,8 +428,9 @@ public class AudioComponent : ICueComponent
             ? FadeCurve.FromInt(data["FadeOutCurve"].AsInt32())
             : FadeCurveType.Linear;
         // Legacy showfiles may still embed peaks; accept into memory so open can migrate to Waveforms/.
-        // New saves omit this key — UI regenerates via MediaEngine disk cache when empty.
-        WaveformData = TryReadByteArray(data, "WaveformData");
+        // New saves and history snapshots omit this key: keep live peaks on an in-place apply.
+        if (data.ContainsKey("WaveformData"))
+            WaveformData = TryReadByteArray(data, "WaveformData");
         PatchId = data.ContainsKey("PatchId") ? data["PatchId"].AsInt32() : -1;
         // Runtime Patch reference is re-linked after load; clear here so a stale object cannot win.
         Patch = null;
@@ -720,7 +476,7 @@ public class AudioComponent : ICueComponent
             Metadata = null; 
         }
 
-        LoadTimelineNodesFromData(data);
+        Timeline.LoadFromData(data);
 
         if (Metadata != null)
             RecalculateDuration();
@@ -733,260 +489,68 @@ public class AudioComponent : ICueComponent
     /// <param name="proposedSeconds">Requested time in file seconds.</param>
     /// <param name="isFileEnd">When true, pin to the file duration.</param>
     /// <returns>Clamped time in seconds.</returns>
-    public double ClampTimelineNodeTime(double proposedSeconds, bool isFileEnd = false)
-    {
-        double fileDuration = Metadata?.Duration ?? 0.0;
-        if (fileDuration < 0.0)
-            fileDuration = 0.0;
-        if (isFileEnd)
-            return fileDuration;
-
-        double result = Math.Max(0.0, proposedSeconds);
-        double maxUser = fileDuration > 0.002 ? fileDuration - 0.001 : fileDuration;
-        if (result > maxUser)
-            result = maxUser;
-        return result;
-    }
+    public double ClampTimelineNodeTime(double proposedSeconds, bool isFileEnd = false) =>
+        Timeline.ClampNodeTime(proposedSeconds, isFileEnd);
 
     /// <summary>
     /// Timeline nodes sorted by file time (stable by id when times match).
     /// </summary>
     /// <returns>A new list in display order. Index 0 is node number 1.</returns>
-    public List<AudioTimelineNode> GetTimelineNodesInTimeOrder()
-    {
-        var ordered = new List<AudioTimelineNode>(TimelineNodes.Count);
-        foreach (var node in TimelineNodes)
-        {
-            if (node != null)
-                ordered.Add(node);
-        }
-
-        ordered.Sort(static (a, b) =>
-        {
-            int byTime = a.TimeSeconds.CompareTo(b.TimeSeconds);
-            return byTime != 0 ? byTime : a.Id.CompareTo(b.Id);
-        });
-        return ordered;
-    }
+    public List<AudioTimelineNode> GetTimelineNodesInTimeOrder() => Timeline.GetNodesInTimeOrder();
 
     /// <summary>
     /// Adds a numbered marker at the given file time.
+    /// Volume defaults to the previous node, or the start of the curve when there is none.
     /// </summary>
     /// <param name="timeSeconds">Position on the file, in seconds.</param>
+    /// <param name="volumeLinear">When set, used as the new node's relative volume.</param>
     /// <returns>The new node, or null when the cap is reached.</returns>
-    public AudioTimelineNode AddTimelineNode(double timeSeconds)
-    {
-        EnsureFileEndNode();
-        if (CountUserTimelineNodes() >= MaxTimelineNodes)
-            return null;
+    public AudioTimelineNode AddTimelineNode(double timeSeconds, float? volumeLinear = null) =>
+        Timeline.AddNode(timeSeconds, volumeLinear);
 
-        var node = AudioTimelineNode.Create(
-            _nextTimelineNodeId++,
-            ClampTimelineNodeTime(timeSeconds, isFileEnd: false));
-        TimelineNodes.Add(node);
-        return node;
-    }
+    /// <summary>
+    /// Relative volume a newly inserted node should take: the previous node's volume, or the
+    /// start of the curve (first/EOF held value) when the insert is before every existing node.
+    /// </summary>
+    /// <param name="fileSeconds">File time of the insert.</param>
+    /// <returns>Clamped linear relative gain.</returns>
+    public float GetInheritedTimelineVolume(double fileSeconds) =>
+        Timeline.GetInheritedVolume(fileSeconds);
 
     /// <summary>
     /// Removes the marker with the given id. The locked end-of-file node cannot be removed.
     /// </summary>
     /// <param name="id">Stable node id.</param>
     /// <returns>True when a node was removed.</returns>
-    public bool RemoveTimelineNode(int id)
-    {
-        var node = FindTimelineNode(id);
-        if (node == null || node.IsFileEnd)
-            return false;
-        return TimelineNodes.RemoveAll(n => n != null && n.Id == id) > 0;
-    }
+    public bool RemoveTimelineNode(int id) => Timeline.RemoveNode(id);
 
     /// <summary>
     /// Finds a marker by stable id.
     /// </summary>
     /// <param name="id">Stable node id.</param>
     /// <returns>The node, or null.</returns>
-    public AudioTimelineNode FindTimelineNode(int id)
-    {
-        return TimelineNodes.Find(n => n != null && n.Id == id);
-    }
+    public AudioTimelineNode FindTimelineNode(int id) => Timeline.FindNode(id);
 
     /// <summary>
     /// Removes every user-placed timeline marker and restores the locked end-of-file node.
     /// </summary>
-    public void ClearTimelineNodes()
-    {
-        TimelineNodes.Clear();
-        _nextTimelineNodeId = 1;
-        EnsureFileEndNode();
-    }
+    public void ClearTimelineNodes() => Timeline.ClearNodes();
 
     /// <summary>
     /// How many user-placed markers are on this component (excludes the end-of-file node).
     /// </summary>
     /// <returns>Count of movable nodes.</returns>
-    public int CountUserTimelineNodes()
-    {
-        int count = 0;
-        foreach (var node in TimelineNodes)
-        {
-            if (node != null && !node.IsFileEnd)
-                count++;
-        }
-
-        return count;
-    }
+    public int CountUserTimelineNodes() => Timeline.CountUserNodes();
 
     /// <summary>
     /// Ensures a locked node exists at the file duration. No-op until metadata is known.
     /// </summary>
-    public void EnsureFileEndNode()
-    {
-        if (Metadata == null)
-            return;
-
-        double fileDuration = Metadata.Duration;
-        if (fileDuration < 0)
-            fileDuration = 0;
-
-        AudioTimelineNode eof = null;
-        for (int i = TimelineNodes.Count - 1; i >= 0; i--)
-        {
-            var node = TimelineNodes[i];
-            if (node == null)
-            {
-                TimelineNodes.RemoveAt(i);
-                continue;
-            }
-
-            if (!node.IsFileEnd)
-                continue;
-            if (eof == null)
-                eof = node;
-            else
-                TimelineNodes.RemoveAt(i);
-        }
-
-        if (eof == null)
-        {
-            TimelineNodes.Add(AudioTimelineNode.Create(_nextTimelineNodeId++, fileDuration, isFileEnd: true));
-            return;
-        }
-
-        eof.TimeSeconds = fileDuration;
-        eof.IsFileEnd = true;
-    }
+    public void EnsureFileEndNode() => Timeline.EnsureFileEndNode();
 
     /// <summary>
     /// Clamps every marker into the current file duration and pins the end-of-file node.
     /// </summary>
-    public void ClampAllTimelineNodes()
-    {
-        EnsureFileEndNode();
-        foreach (var node in TimelineNodes)
-        {
-            if (node == null) continue;
-            node.TimeSeconds = ClampTimelineNodeTime(node.TimeSeconds, node.IsFileEnd);
-        }
-    }
-
-    /// <summary>
-    /// Restores timeline markers from showfile / history data.
-    /// </summary>
-    /// <param name="data">Component dictionary.</param>
-    private void LoadTimelineNodesFromData(Dictionary data)
-    {
-        TimelineNodes.Clear();
-        _nextTimelineNodeId = 1;
-        if (data == null || !data.ContainsKey("TimelineNodes"))
-            return;
-        if (data["TimelineNodes"].VariantType != Variant.Type.Array)
-            return;
-
-        var arr = data["TimelineNodes"].AsGodotArray();
-        TimelineVolumeInterpolation? legacyInterp = data.ContainsKey("TimelineVolumeInterpolation")
-            ? TimelineVolume.FromInt(data["TimelineVolumeInterpolation"].AsInt32())
-            : null;
-        int maxId = 0;
-        int userCount = 0;
-        foreach (var item in arr)
-        {
-            if (item.VariantType != Variant.Type.Dictionary)
-                continue;
-            var dict = item.AsGodotDictionary();
-            var node = AudioTimelineNode.FromData(dict);
-            if (node == null)
-                continue;
-            node.TimeSeconds = Math.Max(0.0, node.TimeSeconds);
-            if (!dict.ContainsKey("VolumeInterpolation"))
-            {
-                node.VolumeInterpolation = legacyInterp ?? TimelineVolumeInterpolation.Snap;
-            }
-
-            if (!node.IsFileEnd)
-            {
-                if (userCount >= MaxTimelineNodes)
-                    continue;
-                userCount++;
-            }
-
-            TimelineNodes.Add(node);
-            if (node.Id > maxId)
-                maxId = node.Id;
-        }
-
-        _nextTimelineNodeId = maxId + 1;
-        if (_nextTimelineNodeId < 1)
-            _nextTimelineNodeId = 1;
-        ClampAllTimelineNodes();
-    }
-
-    /// <summary>
-    /// Finds the previous and next timeline nodes around a file time, and the mix t in 0–1.
-    /// </summary>
-    /// <param name="fileSeconds">Position on the audio file, in seconds.</param>
-    /// <param name="prev">Nearest node strictly before the time, or null.</param>
-    /// <param name="next">Nearest node at or after the time, or null.</param>
-    /// <param name="t">Progress from prev to next; 1 when the span is empty.</param>
-    /// <returns>False when there are no nodes.</returns>
-    private bool TryGetTimelineNeighbors(
-        double fileSeconds,
-        out AudioTimelineNode prev,
-        out AudioTimelineNode next,
-        out float t)
-    {
-        prev = null;
-        next = null;
-        t = 1f;
-        bool any = false;
-        foreach (var node in TimelineNodes)
-        {
-            if (node == null)
-                continue;
-            any = true;
-            if (node.TimeSeconds < fileSeconds)
-            {
-                if (prev == null
-                    || node.TimeSeconds > prev.TimeSeconds
-                    || (node.TimeSeconds == prev.TimeSeconds && node.Id > prev.Id))
-                    prev = node;
-            }
-            else if (next == null
-                     || node.TimeSeconds < next.TimeSeconds
-                     || (node.TimeSeconds == next.TimeSeconds && node.Id < next.Id))
-            {
-                next = node;
-            }
-        }
-
-        if (!any)
-            return false;
-        if (prev == null || next == null)
-            return true;
-
-        double span = next.TimeSeconds - prev.TimeSeconds;
-        t = span <= 1e-9 ? 1f : (float)((fileSeconds - prev.TimeSeconds) / span);
-        return true;
-    }
+    public void ClampAllTimelineNodes() => Timeline.ClampAllNodes();
 
     /// <summary>
     /// Reads a byte[] field that may arrive as raw bytes, PackedByteArray, or a JSON number array.

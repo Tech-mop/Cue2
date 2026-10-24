@@ -4,8 +4,8 @@
 namespace Cue2.Domain.Cues;
 
 /// <summary>
-/// How relative volume, play rate, and pitch travel between consecutive audio timeline nodes.
-/// Volume interpolates in dB, rate in log scale, pitch in cents.
+/// How relative volume, play rate, pitch, and opacity travel between consecutive audio timeline nodes.
+/// Volume interpolates in dB, rate in log scale, pitch in cents, opacity in linear 0–1.
 /// </summary>
 public enum TimelineVolumeInterpolation
 {

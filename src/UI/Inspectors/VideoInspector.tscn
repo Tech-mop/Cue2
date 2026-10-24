@@ -282,6 +282,24 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "The number of times the audio loops then stops."
 
+[node name="RateRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RateLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+layout_mode = 2
+tooltip_text = "Playback speed. 1 is original, 0.5 is half speed, 2 is double speed."
+mouse_filter = 1
+text = "Rate:"
+
+[node name="RateInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+tooltip_text = "Playback speed. 1 is original, 0.5 is half speed, 2 is double speed. Shortens the cue."
+text = "1"
+alignment = 1
+
 [node name="FadeRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
 layout_mode = 2
 
@@ -363,6 +381,87 @@ layout_mode = 2
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 250)
 layout_mode = 2
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=287937577]
+layout_mode = 2
+
+[node name="TimelineCollapseButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1948976469]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+focus_mode = 0
+theme_type_variation = &"AtlasIcons"
+theme_override_constants/icon_max_width = 12
+icon_alignment = 1
+expand_icon = true
+
+[node name="TimelineLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=1769646072]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Timeline"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer2" unique_id=800152319]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_type_variation = &"HSepLight"
+
+[node name="TimelineAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1152492357]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 0)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian" unique_id=1653573966]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+
+[node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer" unique_id=865157672]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxEmpty_wave")
+
+[node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer/WaveformPanel" unique_id=776917934]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StartDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer/WaveformPanel/Control" unique_id=1255063920]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(4, 0)
+layout_mode = 0
+offset_left = 120.0
+offset_right = 128.0
+offset_bottom = 80.0
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxLine_1aqs2")
+theme_override_styles/pressed = SubResource("StyleBoxLine_cl0a5")
+theme_override_styles/hover = SubResource("StyleBoxLine_4q1em")
+action_mode = 0
+keep_pressed_outside = true
+
+[node name="EndDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer/WaveformPanel/Control" unique_id=1454644269]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(4, 0)
+layout_mode = 0
+offset_left = 120.0
+offset_right = 128.0
+offset_bottom = 80.0
+size_flags_horizontal = 4
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxLine_0wqgo")
+theme_override_styles/pressed = SubResource("StyleBoxLine_6x4fe")
+theme_override_styles/hover = SubResource("StyleBoxLine_o3q30")
+action_mode = 0
+keep_pressed_outside = true
 
 [node name="AudioDropLine" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=396814788]
 layout_mode = 2
@@ -462,6 +561,38 @@ tooltip_text = "Pan: C, L/R, L50, R25, or −100…100"
 placeholder_text = "C"
 alignment = 1
 
+[node name="PitchRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="KeepPitchCheck" type="CheckBox" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/PitchRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Hold musical pitch when rate changes. Rate still shortens or lengthens the cue."
+focus_mode = 0
+button_pressed = true
+text = "Keep Pitch"
+
+[node name="PitchLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/PitchRow"]
+layout_mode = 2
+tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone."
+mouse_filter = 1
+text = "Pitch:"
+
+[node name="PitchInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/PitchRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone. Independent of rate."
+text = "0"
+alignment = 1
+
+[node name="PitchCentsLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/PitchRow"]
+layout_mode = 2
+tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone."
+mouse_filter = 1
+text = "¢"
+
 [node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer" unique_id=1195066835]
 layout_mode = 2
 
@@ -502,83 +633,3 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer" unique_id=287937577]
-layout_mode = 2
-
-[node name="WaveformCollapseButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/HBoxContainer2" unique_id=1948976469]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(24, 24)
-layout_mode = 2
-size_flags_horizontal = 0
-size_flags_vertical = 0
-focus_mode = 0
-theme_type_variation = &"AtlasIcons"
-theme_override_constants/icon_max_width = 12
-icon_alignment = 1
-expand_icon = true
-
-[node name="WaveformLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/HBoxContainer2" unique_id=1769646072]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(70, 0)
-layout_mode = 2
-theme_override_font_sizes/font_size = 10
-text = "Waveform"
-
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/HBoxContainer2" unique_id=800152319]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-theme_type_variation = &"HSepLight"
-
-[node name="WaveformAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer" unique_id=1152492357]
-unique_name_in_owner = true
-clip_contents = true
-custom_minimum_size = Vector2(0, 0)
-layout_mode = 2
-
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/WaveformAccordian" unique_id=1653573966]
-layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_right = 20
-
-[node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/WaveformAccordian/MarginContainer" unique_id=865157672]
-unique_name_in_owner = true
-clip_contents = true
-custom_minimum_size = Vector2(0, 120)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_styles/panel = SubResource("StyleBoxEmpty_wave")
-
-[node name="Control" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/WaveformAccordian/MarginContainer/WaveformPanel" unique_id=776917934]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="StartDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=1255063920]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(4, 0)
-layout_mode = 0
-offset_left = 120.0
-offset_right = 128.0
-offset_bottom = 80.0
-size_flags_horizontal = 4
-focus_mode = 0
-theme_override_styles/normal = SubResource("StyleBoxLine_1aqs2")
-theme_override_styles/pressed = SubResource("StyleBoxLine_cl0a5")
-theme_override_styles/hover = SubResource("StyleBoxLine_4q1em")
-action_mode = 0
-keep_pressed_outside = true
-
-[node name="EndDragHandle" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/AudioAccordian/VBoxContainer/WaveformAccordian/MarginContainer/WaveformPanel/Control" unique_id=1454644269]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(4, 0)
-layout_mode = 0
-offset_left = 120.0
-offset_right = 128.0
-offset_bottom = 80.0
-size_flags_horizontal = 4
-focus_mode = 0
-theme_override_styles/normal = SubResource("StyleBoxLine_0wqgo")
-theme_override_styles/pressed = SubResource("StyleBoxLine_6x4fe")
-theme_override_styles/hover = SubResource("StyleBoxLine_o3q30")
-action_mode = 0
-keep_pressed_outside = true

@@ -106,15 +106,27 @@ public partial class ActiveAudioPlayback : GodotObject, IAudioPlayback, ICompone
 
     /// <summary>Cancels in-flight seek+prefetch workers when a newer seek supersedes them.</summary>
     private CancellationTokenSource _seekCts;
+    private Task _seekTask;
     private volatile bool _seekInProgress;
     /// <summary>Target media time for the in-flight seek (UI/position hold).</summary>
     private long _seekTargetUs;
+    /// <summary>Latest live-scrub target; applied when the current seek worker finishes.</summary>
+    private long _queuedSeekUs;
+    private bool _seekQueued;
+    /// <summary>Timestamp the running seek worker was started with (compare before cancelling).</summary>
+    private long _inFlightSeekUs;
+    /// <summary>Position park after a seek (microseconds), or −1 when live.</summary>
+    private long _clockHoldUs = -1;
+    /// <summary>Do not cancel a running worker when the new target is within this of its start time.</summary>
+    private const long SeekSameTargetEpsilonUs = 2_000;
+    /// <summary>Resume play after the coalesced seek chain if we were playing when it started.</summary>
+    private bool _resumeAfterSeek;
 
     /// <summary>
-    /// True while an async decoder seek is in flight. Progress UI should hold the scrub target
-    /// and not sample the live decoder position until this clears.
+    /// True while an async decoder seek is in flight, or while position is parked on the
+    /// seek target. Progress UI should not sample the live decoder until this clears.
     /// </summary>
-    public bool IsDecoderSeeking => _seekInProgress;
+    public bool IsDecoderSeeking => _seekInProgress || _clockHoldUs >= 0;
 
     private long _startTimeUs;
     private long _endTimeUs;

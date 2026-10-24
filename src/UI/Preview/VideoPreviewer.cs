@@ -38,6 +38,16 @@ public partial class VideoPreviewer : Control
     private bool _updatingFromDecoder;
     private readonly Stopwatch _clock = new Stopwatch();
     private long _mediaOriginUs;
+    private double _playRate = 1.0;
+
+    /// <summary>
+    /// Picture playback speed for this preview (1 is original). Inspector updates this with the cue.
+    /// </summary>
+    public double PlayRate
+    {
+        get => _playRate;
+        set => _playRate = AudioComponent.ClampPlayRate(value);
+    }
 
     private Label _currentTimeLabel;
     private Button _playPauseButton;
@@ -329,7 +339,10 @@ public partial class VideoPreviewer : Control
         if (_seekInProgress)
             return;
 
-        long masterUs = _mediaOriginUs + _clock.ElapsedMilliseconds * 1000;
+        long elapsedUs = _clock.Elapsed.Ticks / 10;
+        if (Math.Abs(_playRate - 1.0) > 1e-9)
+            elapsedUs = (long)(elapsedUs * _playRate);
+        long masterUs = _mediaOriginUs + elapsedUs;
         UpdateTimeLabel(masterUs / 1_000_000.0);
 
         if (_decoder.Info != null && _decoder.Info.DurationUs > 0 && masterUs >= _decoder.Info.DurationUs)

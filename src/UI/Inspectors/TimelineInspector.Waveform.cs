@@ -197,21 +197,14 @@ public partial class TimelineInspector
             }
 
             audio.EnsureFileEndNode();
-            slices = BuildAudioWaveSlices(audio, fileDur);
-            bool regionLoop = false;
-            if (slices != null)
-            {
-                foreach (var slice in slices)
-                {
-                    if (slice.Loop)
-                    {
-                        regionLoop = true;
-                        break;
-                    }
-                }
-            }
-
-            playCount = audio.Loop || regionLoop ? 1 : Math.Max(1, audio.PlayCount);
+            slices = BuildMediaWaveSlices(
+                audio.GetPlaybackRegions(),
+                audio.IntegrateTimelineWallClock,
+                fileDur);
+            bool regionLoop = SlicesHaveLoop(slices);
+            playCount = audio.Loop || regionLoop || audio.TotalDuration < 0
+                ? 1
+                : Math.Max(1, audio.PlayCount);
             return true;
         }
 
@@ -223,7 +216,7 @@ public partial class TimelineInspector
 
             double fileDur = video.Metadata?.Duration ?? 0;
             if (fileDur <= 1e-9 && video.Duration > 0)
-                fileDur = video.StartTime + video.Duration;
+                fileDur = video.StartTime + video.Duration * video.EffectivePlayRate;
             if (fileDur > 1e-9 && !video.IsImage)
             {
                 startNorm = (float)Math.Clamp(video.StartTime / fileDur, 0.0, 1.0);
@@ -231,7 +224,16 @@ public partial class TimelineInspector
                     ? 1f
                     : (float)Math.Clamp(video.EndTime / fileDur, startNorm + 1e-6, 1.0);
             }
-            playCount = video.Loop ? 1 : Math.Max(1, video.PlayCount);
+
+            video.EnsureFileEndNode();
+            slices = BuildMediaWaveSlices(
+                video.GetPlaybackRegions(),
+                video.IntegrateTimelineWallClock,
+                fileDur);
+            bool regionLoop = SlicesHaveLoop(slices);
+            playCount = video.Loop || regionLoop || video.TotalDuration < 0
+                ? 1
+                : Math.Max(1, video.PlayCount);
             return true;
         }
 
@@ -239,22 +241,21 @@ public partial class TimelineInspector
     }
 
     /// <summary>
-    /// Builds cue-bar tiles for audio timeline regions: each slice is the file span,
+    /// Builds cue-bar tiles for media timeline regions: each slice is the file span,
     /// repeated by region play count (looping regions as one cycle with Loop set).
     /// </summary>
-    private static List<CueBarWaveSlice> BuildAudioWaveSlices(AudioComponent audio, double fileDur)
+    private static List<CueBarWaveSlice> BuildMediaWaveSlices(
+        List<AudioTimelineRegion> regions,
+        Func<double, double, double> integrateWall,
+        double fileDur)
     {
-        if (audio == null)
-            return null;
-
-        var regions = audio.GetPlaybackRegions();
-        if (regions == null || regions.Count == 0)
+        if (regions == null || regions.Count == 0 || integrateWall == null)
             return null;
 
         var slices = new List<CueBarWaveSlice>(regions.Count);
         foreach (var region in regions)
         {
-            double wall = audio.IntegrateTimelineWallClock(region.StartSeconds, region.EndSeconds);
+            double wall = integrateWall(region.StartSeconds, region.EndSeconds);
             if (wall <= 1e-12)
                 continue;
 
@@ -281,6 +282,19 @@ public partial class TimelineInspector
                 return 0f;
             return (float)Math.Clamp(seconds / fileDur, 0.0, 1.0);
         }
+    }
+
+    /// <summary>True when any slice is a looping region.</summary>
+    private static bool SlicesHaveLoop(List<CueBarWaveSlice> slices)
+    {
+        if (slices == null)
+            return false;
+        foreach (var slice in slices)
+        {
+            if (slice.Loop)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Cue2.Services;
@@ -27,8 +28,21 @@ public enum VideoDisplayMode
 /// Video or still-image media component attached to a cue.
 /// Images reuse the same playback/inspector path as video; in/out points are replaced by a user duration.
 /// </summary>
-public class VideoComponent : ICueComponent
+public class VideoComponent : ICueComponent, IMediaTimelineHost
 {
+    /// <summary>
+    /// Shared node / region / rate-curve engine for this component.
+    /// </summary>
+    public MediaTimeline Timeline { get; }
+
+    /// <summary>
+    /// Creates a video component with an empty media timeline.
+    /// </summary>
+    public VideoComponent()
+    {
+        Timeline = new MediaTimeline(this);
+    }
+
     public string Type => "Video";
     public string VideoFile { get; set; }
 
@@ -208,18 +222,32 @@ public class VideoComponent : ICueComponent
     }
 
     /// <summary>
-    /// Segment length in seconds.
-    /// Video: length between start and end time.
+    /// Wall-clock of one pass through the timeline regions (rate curve × each region’s play count).
     /// Image: user-set hold time; <c>0</c> means stay active until stopped.
     /// </summary>
+    /// <value>−1 when a region loops. Component <see cref="PlayCount"/> is applied in <see cref="TotalDuration"/>.</value>
     public double Duration { get; set; } = 0.0;
 
     /// <summary>
-    /// Total play length including play count.
-    /// Video: ((EndTime-StartTime) * PlayCount); Image: Duration * PlayCount when Duration &gt; 0.
+    /// Wall-clock the video plays, including component play count (Duration × play count).
+    /// Component play count wraps the whole region sequence, including inner loop slices.
+    /// Images: Duration × PlayCount when Duration &gt; 0.
     /// </summary>
-    /// <value>Returns -1 if looping, or if image duration is 0 (until stopped).</value>
+    /// <value>−1 when the component or any region loops, or if image duration is 0 (until stopped).</value>
     public double TotalDuration { get; set; } = 0.0;
+
+    /// <summary>
+    /// Numbered markers on the file timeline (file seconds). Display order is by time.
+    /// </summary>
+    public List<AudioTimelineNode> TimelineNodes => Timeline.Nodes;
+
+    double IMediaTimelineHost.TimelineFileDuration => Metadata?.Duration ?? 0.0;
+    double IMediaTimelineHost.TimelineStartTime => StartTime;
+    double IMediaTimelineHost.TimelineEndTime => EndTime;
+    double IMediaTimelineHost.TimelinePlayRate => EffectivePlayRate;
+    float IMediaTimelineHost.TimelinePitchCents => PitchCents;
+    bool IMediaTimelineHost.TimelineHasMetadata => Metadata != null && !IsImage;
+    double IMediaTimelineHost.ClampTimelineStartTime(double proposedSeconds) => ClampStartTime(proposedSeconds);
 
     /// <summary>
     /// Returns true when <paramref name="path"/> matches a known still-image extension.
@@ -247,6 +275,41 @@ public class VideoComponent : ICueComponent
     public double Volume { get; set; } = 1.0f;
     public bool Loop { get; set; } = false;
     public int PlayCount { get; set; } = 1;
+
+    /// <summary>
+    /// Playback speed multiplier for the picture (and embedded audio). 1 is original.
+    /// Shortens <see cref="Duration"/> and <see cref="TotalDuration"/> by the same factor.
+    /// Still images ignore this and always use 1.
+    /// </summary>
+    public double PlayRate
+    {
+        get => _playRate;
+        set => _playRate = AudioComponent.ClampPlayRate(value);
+    }
+    private double _playRate = AudioComponent.DefaultPlayRate;
+
+    /// <summary>
+    /// When true, time-stretch embedded audio so musical pitch stays put as <see cref="PlayRate"/>
+    /// changes. Extra <see cref="PitchCents"/> still apply. Picture speed is unchanged.
+    /// </summary>
+    public bool KeepPitch { get; set; } = AudioComponent.DefaultKeepPitch;
+
+    /// <summary>
+    /// Extra embedded-audio pitch shift in cents (100 cents = 1 semitone).
+    /// Without <see cref="KeepPitch"/>, rate also shifts pitch (vinyl-style).
+    /// </summary>
+    public float PitchCents
+    {
+        get => _pitchCents;
+        set => _pitchCents = AudioComponent.ClampPitchCents(value);
+    }
+    private float _pitchCents = AudioComponent.DefaultPitchCents;
+
+    /// <summary>
+    /// Play rate used for wall-clock duration and presentation. Images are always 1.
+    /// </summary>
+    public double EffectivePlayRate =>
+        IsImage ? AudioComponent.DefaultPlayRate : AudioComponent.ClampPlayRate(PlayRate);
 
     /// <summary>
     /// Legacy explicit pixel width. Kept for showfile compatibility; layout uses
@@ -382,6 +445,9 @@ public class VideoComponent : ICueComponent
         data.Add("Loop", Loop);
         data.Add("Volume", Volume);
         data.Add("PlayCount", PlayCount);
+        data.Add("PlayRate", PlayRate);
+        data.Add("KeepPitch", KeepPitch);
+        data.Add("PitchCents", PitchCents);
         data.Add("FadeInDuration", FadeInDuration);
         data.Add("FadeInCurve", (int)FadeInCurve);
         data.Add("FadeOutDuration", FadeOutDuration);
@@ -402,6 +468,7 @@ public class VideoComponent : ICueComponent
         }
         data.Add("AudioVolume", AudioVolume);
         data.Add("Pan", Pan);
+        Timeline.WriteToData(data);
         // Waveform peaks are session disk-cache only (Waveforms/*.c2wf), not showfile payload.
 
         if (Metadata != null)
@@ -464,6 +531,13 @@ public class VideoComponent : ICueComponent
         Loop = data.ContainsKey("Loop") ? data["Loop"].AsBool() : false;
         Volume = data.ContainsKey("Volume") ? data["Volume"].AsSingle() : 1.0f;
         PlayCount = data.ContainsKey("PlayCount") ? data["PlayCount"].AsInt32() : 1;
+        PlayRate = data.ContainsKey("PlayRate") ? data["PlayRate"].AsDouble() : AudioComponent.DefaultPlayRate;
+        KeepPitch = data.ContainsKey("KeepPitch")
+            ? data["KeepPitch"].AsBool()
+            : AudioComponent.DefaultKeepPitch;
+        PitchCents = data.ContainsKey("PitchCents")
+            ? data["PitchCents"].AsSingle()
+            : AudioComponent.DefaultPitchCents;
         FadeInDuration = data.ContainsKey("FadeInDuration") ? data["FadeInDuration"].AsDouble() : 0.0;
         FadeInCurve = data.ContainsKey("FadeInCurve")
             ? FadeCurve.FromInt(data["FadeInCurve"].AsInt32())
@@ -518,6 +592,9 @@ public class VideoComponent : ICueComponent
             GD.Print("VideoComponent:LoadFromData - No metadata in save data; will extract on next load.");
             Metadata = null;
         }
+
+        Timeline.LoadFromData(data);
+        RecalculateDuration();
     }
 
     private static System.Collections.Generic.List<SubtitleTrackInfo> LoadSubtitleTracksFromMeta(Dictionary metaDict)
@@ -606,7 +683,7 @@ public class VideoComponent : ICueComponent
     }
 
     /// <summary>
-    /// Recomputes <see cref="Duration"/> / <see cref="TotalDuration"/> from in/out points (video)
+    /// Recomputes <see cref="Duration"/> / <see cref="TotalDuration"/> from timeline regions (video)
     /// or from the user-set hold duration (image).
     /// </summary>
     /// <returns>The segment <see cref="Duration"/> (0 for image until-stopped).</returns>
@@ -631,16 +708,183 @@ public class VideoComponent : ICueComponent
             return Duration;
         }
 
-        double fileDuration = Metadata.Duration;
-        if (fileDuration < 0) fileDuration = 0;
-
         // Keep start within file bounds so duration/playback cannot go invalid.
         StartTime = ClampStartTime(StartTime);
+        Timeline.EnsureFileEndNode();
 
-        Duration = EndTime < 0
-            ? Math.Max(0, fileDuration - StartTime)
-            : Math.Max(0, EndTime - StartTime);
-        TotalDuration = Loop ? -1.0 : Duration * PlayCount;
+        Duration = Timeline.ComputeSequenceWallClock(loopingRegionsAsOnePlay: false);
+        TotalDuration = Loop || Duration < 0
+            ? -1.0
+            : Duration * PlayCount;
         return Duration;
     }
+
+    /// <summary>
+    /// Finite wall-clock of one display cycle: inner region play counts, looping regions as one play.
+    /// Used by the timeline inspector and looping progress bars.
+    /// </summary>
+    /// <returns>Seconds ≥ 0. 0 when metadata is missing or this is an image.</returns>
+    public double GetDisplayCycleSeconds()
+    {
+        if (IsImage || Metadata == null)
+            return Math.Max(0.0, Duration);
+        Timeline.EnsureFileEndNode();
+        return Math.Max(0.0, Timeline.ComputeSequenceWallClock(loopingRegionsAsOnePlay: true));
+    }
+
+    /// <summary>
+    /// Progress / seek span for the active-cue bar.
+    /// Finite cues use <see cref="TotalDuration"/> (component play count wraps the region sequence).
+    /// Looping cues (component or region) use one <see cref="GetDisplayCycleSeconds"/> cycle.
+    /// </summary>
+    /// <returns>Seconds ≥ 0.</returns>
+    public double GetProgressSpanSeconds()
+    {
+        if (IsImage)
+        {
+            if (Loop || Duration <= 0 || TotalDuration < 0)
+                return Math.Max(0.0, Duration);
+            return Math.Max(0.0, TotalDuration);
+        }
+
+        if (Loop || TotalDuration < 0)
+            return GetDisplayCycleSeconds();
+        return Math.Max(0.0, TotalDuration);
+    }
+
+    /// <summary>
+    /// Wall-clock of one pass through <see cref="GetPlaybackRegions"/> at the live rate curve.
+    /// </summary>
+    /// <param name="loopingRegionsAsOnePlay">When true, a looping region counts as one play.</param>
+    /// <returns>Seconds, or −1 when a region loops and <paramref name="loopingRegionsAsOnePlay"/> is false.</returns>
+    public double ComputeSequenceWallClock(bool loopingRegionsAsOnePlay) =>
+        Timeline.ComputeSequenceWallClock(loopingRegionsAsOnePlay);
+
+    /// <summary>
+    /// Playable spans for timeline loop bounds.
+    /// </summary>
+    /// <returns>Regions clipped to the cue in/out window, in time order.</returns>
+    public List<AudioTimelineRegion> GetPlaybackRegions() => Timeline.GetPlaybackRegions();
+
+    /// <summary>
+    /// Absolute play rate and pitch, plus relative volume and opacity, at a file time.
+    /// </summary>
+    /// <param name="fileSeconds">Position on the file, in seconds.</param>
+    /// <returns>Clamped mix of component values and the timeline curve.</returns>
+    public TimelineAutomation EvaluateTimeline(double fileSeconds) =>
+        Timeline.EvaluateTimeline(fileSeconds);
+
+    /// <summary>
+    /// Absolute play rate and pitch, plus relative volume and opacity, at a file time, with optional component-rate/pitch overrides.
+    /// </summary>
+    /// <param name="fileSeconds">Position on the file, in seconds.</param>
+    /// <param name="playRateOverride">When set, used instead of <see cref="PlayRate"/> as the base rate.</param>
+    /// <param name="pitchCentsOverride">When set, used instead of <see cref="PitchCents"/> as the base pitch.</param>
+    /// <returns>Clamped mix of base values and the timeline curve.</returns>
+    public TimelineAutomation EvaluateTimeline(
+        double fileSeconds,
+        double? playRateOverride,
+        float? pitchCentsOverride) =>
+        Timeline.EvaluateTimeline(fileSeconds, playRateOverride, pitchCentsOverride);
+
+    /// <summary>
+    /// Wall-clock seconds to play a file-time span at the live rate curve.
+    /// </summary>
+    /// <param name="startSeconds">File-time start, in seconds.</param>
+    /// <param name="endSeconds">File-time end, in seconds.</param>
+    /// <returns>Integrated wall-clock length. 0 when the span is empty.</returns>
+    public double IntegrateTimelineWallClock(double startSeconds, double endSeconds) =>
+        Timeline.IntegrateTimelineWallClock(startSeconds, endSeconds);
+
+    /// <summary>
+    /// File time at which wall-clock from <paramref name="startSeconds"/> equals <paramref name="wallOffset"/>.
+    /// </summary>
+    /// <param name="startSeconds">File-time start, in seconds.</param>
+    /// <param name="endSeconds">File-time end, in seconds.</param>
+    /// <param name="wallOffset">Desired wall-clock offset from the start of the span.</param>
+    /// <returns>File time in the span, clamped to the ends.</returns>
+    public double FileTimeAtWallOffset(double startSeconds, double endSeconds, double wallOffset) =>
+        Timeline.FileTimeAtWallOffset(startSeconds, endSeconds, wallOffset);
+
+    /// <summary>
+    /// Wall-clock seconds from the start of the region sequence to the first occurrence of
+    /// <paramref name="fileSeconds"/>.
+    /// </summary>
+    /// <param name="fileSeconds">Position on the video file, in seconds.</param>
+    /// <returns>Seconds ≥ 0.</returns>
+    public double WallClockAtFileTime(double fileSeconds) =>
+        Timeline.WallClockAtFileTime(fileSeconds);
+
+    /// <summary>
+    /// Picks a file time for a manually added node (midpoint of the longest gap).
+    /// </summary>
+    /// <returns>A time in file seconds, or −1 when no metadata is available.</returns>
+    public double PickNewTimelineNodeTime() => Timeline.PickNewNodeTime();
+
+    /// <summary>
+    /// Clamps a timeline node into the file duration.
+    /// </summary>
+    /// <param name="proposedSeconds">Requested time in file seconds.</param>
+    /// <param name="isFileEnd">When true, pin to the file duration.</param>
+    /// <returns>Clamped time in seconds.</returns>
+    public double ClampTimelineNodeTime(double proposedSeconds, bool isFileEnd = false) =>
+        Timeline.ClampNodeTime(proposedSeconds, isFileEnd);
+
+    /// <summary>
+    /// Timeline nodes sorted by file time (stable by id when times match).
+    /// </summary>
+    /// <returns>A new list in display order. Index 0 is node number 1.</returns>
+    public List<AudioTimelineNode> GetTimelineNodesInTimeOrder() => Timeline.GetNodesInTimeOrder();
+
+    /// <summary>
+    /// Adds a numbered marker at the given file time.
+    /// </summary>
+    /// <param name="timeSeconds">Position on the file, in seconds.</param>
+    /// <param name="volumeLinear">When set, used as the new node's relative volume.</param>
+    /// <returns>The new node, or null when the cap is reached.</returns>
+    public AudioTimelineNode AddTimelineNode(double timeSeconds, float? volumeLinear = null) =>
+        Timeline.AddNode(timeSeconds, volumeLinear);
+
+    /// <summary>
+    /// Relative volume a newly inserted node should take.
+    /// </summary>
+    /// <param name="fileSeconds">File time of the insert.</param>
+    /// <returns>Clamped linear relative gain.</returns>
+    public float GetInheritedTimelineVolume(double fileSeconds) =>
+        Timeline.GetInheritedVolume(fileSeconds);
+
+    /// <summary>
+    /// Removes the marker with the given id. The locked end-of-file node cannot be removed.
+    /// </summary>
+    /// <param name="id">Stable node id.</param>
+    /// <returns>True when a node was removed.</returns>
+    public bool RemoveTimelineNode(int id) => Timeline.RemoveNode(id);
+
+    /// <summary>
+    /// Finds a marker by stable id.
+    /// </summary>
+    /// <param name="id">Stable node id.</param>
+    /// <returns>The node, or null.</returns>
+    public AudioTimelineNode FindTimelineNode(int id) => Timeline.FindNode(id);
+
+    /// <summary>
+    /// Removes every user-placed timeline marker and restores the locked end-of-file node.
+    /// </summary>
+    public void ClearTimelineNodes() => Timeline.ClearNodes();
+
+    /// <summary>
+    /// How many user-placed markers are on this component (excludes the end-of-file node).
+    /// </summary>
+    /// <returns>Count of movable nodes.</returns>
+    public int CountUserTimelineNodes() => Timeline.CountUserNodes();
+
+    /// <summary>
+    /// Ensures a locked node exists at the file duration. No-op until metadata is known or for images.
+    /// </summary>
+    public void EnsureFileEndNode() => Timeline.EnsureFileEndNode();
+
+    /// <summary>
+    /// Clamps every marker into the current file duration and pins the end-of-file node.
+    /// </summary>
+    public void ClampAllTimelineNodes() => Timeline.ClampAllNodes();
 }

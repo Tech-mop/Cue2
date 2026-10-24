@@ -285,7 +285,8 @@ public partial class ActiveAudioPlayback
             {
                 VolumeLinear = AudioTimelineNode.DefaultVolumeLinear,
                 PlayRate = AudioComponent.DefaultPlayRate,
-                PitchCents = AudioComponent.DefaultPitchCents
+                PitchCents = AudioComponent.DefaultPitchCents,
+                OpacityScale = AudioTimelineNode.DefaultOpacityScale
             };
         }
 
@@ -307,10 +308,14 @@ public partial class ActiveAudioPlayback
 
     /// <summary>
     /// Estimated audible position: decoder position minus average SDL queue latency.
-    /// While an async seek is in flight, returns the seek target so progress UI does not snap back.
+    /// While an async seek is in flight or the clock is parked on the seek target, returns
+    /// that target so progress UI does not snap back.
     /// </summary>
     private long GetPlaybackPositionUs()
     {
+        long clockHoldUs = _clockHoldUs;
+        if (clockHoldUs >= 0)
+            return clockHoldUs;
         if (_seekInProgress)
             return _seekTargetUs;
         if (Decoder == null) return _startTimeUs;
@@ -345,73 +350,42 @@ public partial class ActiveAudioPlayback
     {
         try
         {
-            bool wasPaused;
-            lock (_lock)
-            {
-                wasPaused = IsPaused;
-                _fillSuspended = true;
-                // Hold paused until worker finishes when we need to resume after.
-                if (!wasPaused && !IsStopped)
-                    IsPaused = true;
-            }
-
-            CancelSeekWorker(releaseFillHold: false);
-
-            RefreshAudioTuning();
-
-            _streamBindings.ClearAll();
-
             long clamped = Math.Max(_startTimeUs, timestampUs);
             if (_endTimeUs < long.MaxValue)
                 clamped = Math.Min(clamped, _endTimeUs);
-            if (syncRegion)
+
+            lock (_lock)
             {
-                lock (_lock)
+                _fillSuspended = true;
+                bool chainBusy = _seekInProgress || _seekTask != null;
+                if (!chainBusy)
+                    _resumeAfterSeek = !IsPaused && !IsStopped;
+                if (!IsPaused && !IsStopped)
+                    IsPaused = true;
+                if (syncRegion)
                     SyncRegionForPositionUnlocked(clamped);
             }
 
             _framesDelivered = 0;
             _pausedAtUs = clamped;
             _seekTargetUs = clamped;
-            _ratePitch.Reset();
-
-            bool resumeAfter = !wasPaused && !IsStopped;
-            var decoder = Decoder;
-            int prefetchMs = Math.Max(50, _audioTuning.PrefetchMs / 2);
-            var cts = new CancellationTokenSource();
-            _seekCts = cts;
+            _clockHoldUs = clamped;
             _seekInProgress = true;
 
-            Task.Run(() =>
-            {
-                try
-                {
-                    cts.Token.ThrowIfCancellationRequested();
-                    decoder?.Seek(clamped);
-                    cts.Token.ThrowIfCancellationRequested();
-                    decoder?.Prefetch(prefetchMs);
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    GD.PrintErr($"ActiveAudioPlayback:SeekWorker - {ex.Message}");
-                }
-                finally
-                {
-                    if (!cts.IsCancellationRequested)
-                    {
-                        long us = clamped;
-                        bool resume = resumeAfter;
-                        // GodotObject: Callable.From needs a live instance; complete via Task continuation
-                        // that only touches managed state, then schedule main-thread prime if needed.
-                        FinishSeekWorker(cts, us, resume);
-                    }
-                }
-            }, cts.Token);
+            _queuedSeekUs = clamped;
+            _seekQueued = true;
 
+            // A worker is running or its completion is still queued on the main thread:
+            // that completion starts the latest queued target.
+            if (_seekTask != null)
+            {
+                if (Math.Abs(clamped - _inFlightSeekUs) <= SeekSameTargetEpsilonUs)
+                    return;
+                try { _seekCts?.Cancel(); } catch { /* ignore */ }
+                return;
+            }
+
+            StartSeekWorker();
             GD.Print($"ActiveAudioPlayback:Seek - Queued seek to {clamped} us");
         }
         catch (Exception ex)
@@ -419,29 +393,119 @@ public partial class ActiveAudioPlayback
             GD.PrintErr($"ActiveAudioPlayback:Seek - {ex.Message}");
             lock (_lock) _fillSuspended = false;
             _seekInProgress = false;
+            _clockHoldUs = -1;
         }
     }
 
-    /// <summary>
-    /// Completes an async seek: re-prime streams when resuming play, release fill hold.
-    /// Safe to call from a worker — SDL prime and state updates are lock-guarded / fill-thread compatible.
-    /// </summary>
-    private void FinishSeekWorker(CancellationTokenSource cts, long clampedUs, bool resumeAfter)
+    /// <summary>Starts a decoder seek to the latest queued target. Main thread only.</summary>
+    private void StartSeekWorker()
     {
-        if (cts == null || cts.IsCancellationRequested)
-            return;
-        if (!ReferenceEquals(_seekCts, cts))
-            return;
         if (IsStopped)
         {
-            lock (_lock) _fillSuspended = false;
+            _seekQueued = false;
             _seekInProgress = false;
+            _clockHoldUs = -1;
+            lock (_lock)
+                _fillSuspended = false;
             return;
         }
 
+        long clamped = _queuedSeekUs;
+        _seekQueued = false;
+        _seekTargetUs = clamped;
+        _inFlightSeekUs = clamped;
+        _clockHoldUs = clamped;
+        _seekInProgress = true;
+        _pausedAtUs = clamped;
+
+        RefreshAudioTuning();
+        _streamBindings.ClearAll();
+        _ratePitch.Reset();
+
+        var decoder = Decoder;
+        int prefetchMs = Math.Max(50, _audioTuning.PrefetchMs / 2);
+        var cts = new CancellationTokenSource();
+        _seekCts = cts;
+
+        _seekTask = Task.Run(() =>
+        {
+            bool completed = false;
+            try
+            {
+                if (IsSeekTokenCancelled(cts))
+                    return;
+                decoder?.Seek(clamped);
+                if (IsSeekTokenCancelled(cts))
+                    return;
+                decoder?.Prefetch(prefetchMs);
+                completed = true;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"ActiveAudioPlayback:SeekWorker - {ex.Message}");
+            }
+            finally
+            {
+                // Complete on the main thread so the queue, the resume decision and the next
+                // worker start never race the UI thread.
+                long us = clamped;
+                bool ok = completed;
+                try
+                {
+                    Callable.From(() => FinishSeekWorker(cts, us, ok)).CallDeferred();
+                }
+                catch (Exception ex)
+                {
+                    GD.PrintErr($"ActiveAudioPlayback:SeekWorker - Could not queue completion: {ex.Message}");
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// Main-thread completion of an async seek: either start the latest queued live-scrub
+    /// target, or re-prime and release the fill hold.
+    /// A cancelled worker always restarts when a target is still queued, even if the
+    /// queued time equals this worker's time.
+    /// </summary>
+    private void FinishSeekWorker(CancellationTokenSource cts, long clampedUs, bool completed)
+    {
+        if (ReferenceEquals(_seekCts, cts))
+            _seekCts = null;
+        try { cts?.Dispose(); } catch { /* ignore */ }
+
+        if (IsStopped)
+        {
+            _seekQueued = false;
+            _seekTask = null;
+            lock (_lock) _fillSuspended = false;
+            _seekInProgress = false;
+            _clockHoldUs = -1;
+            return;
+        }
+
+        if (_seekQueued && (!completed || _queuedSeekUs != clampedUs))
+        {
+            StartSeekWorker();
+            return;
+        }
+
+        _seekQueued = false;
+        _seekTask = null;
+        _clockHoldUs = -1;
+        bool resumeAfter = _resumeAfterSeek && !IsSeeking && !IsStopped;
+
         try
         {
-            if (resumeAfter && !IsStopped)
+            if (resumeAfter)
             {
                 ArmDeclickRamp();
                 PrefillStreams();
@@ -463,7 +527,6 @@ public partial class ActiveAudioPlayback
                 }
                 else if (!resumeAfter)
                 {
-                    // Stay parked at seek target while paused (scrub while paused).
                     _pausedAtUs = clampedUs;
                 }
             }
@@ -474,14 +537,30 @@ public partial class ActiveAudioPlayback
     /// <summary>Cancels any in-flight seek worker without waiting for completion.</summary>
     private void CancelSeekWorker(bool releaseFillHold = true)
     {
+        _seekQueued = false;
         try { _seekCts?.Cancel(); } catch { /* ignore */ }
-        try { _seekCts?.Dispose(); } catch { /* ignore */ }
-        _seekCts = null;
-        _seekInProgress = false;
+        // Do not Dispose here: the worker may still read the token. FinishSeekWorker disposes.
         if (releaseFillHold)
         {
+            _seekInProgress = false;
+            _clockHoldUs = -1;
             lock (_lock)
                 _fillSuspended = false;
+        }
+    }
+
+    /// <summary>True when the seek token is cancelled or already disposed.</summary>
+    private static bool IsSeekTokenCancelled(CancellationTokenSource cts)
+    {
+        if (cts == null)
+            return true;
+        try
+        {
+            return cts.IsCancellationRequested;
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
         }
     }
 }

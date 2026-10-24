@@ -319,6 +319,7 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Hold musical pitch when rate changes. Rate still shortens or lengthens the cue."
 focus_mode = 0
+button_pressed = true
 text = "Keep Pitch"
 
 [node name="PitchLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]

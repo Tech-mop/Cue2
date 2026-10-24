@@ -584,7 +584,7 @@ public partial class TimelineInspector
         var video = cue.GetVideoComponent();
         if (video != null)
         {
-            if (video.Loop)
+            if (video.Loop || video.TotalDuration < 0)
                 return true;
             // Still image held until stopped is infinite on this cue.
             if (video.IsImage && video.Duration <= 0)
@@ -711,8 +711,14 @@ public partial class TimelineInspector
         }
 
         var video = cue.GetVideoComponent();
-        if (video != null && video.Duration > 0)
-            cycle = Math.Max(cycle, video.Duration);
+        if (video != null)
+        {
+            double videoCycle = video.Duration > 0
+                ? video.Duration
+                : video.GetDisplayCycleSeconds();
+            if (videoCycle > 0)
+                cycle = Math.Max(cycle, videoCycle);
+        }
 
         var text = cue.GetTextComponent();
         if (text != null && text.Duration > 0)

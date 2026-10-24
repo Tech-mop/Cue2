@@ -75,6 +75,10 @@ public partial class VideoInspector : Control
 	private Control _loopPlayCountRow;
 	private CheckBox _loopInput;
 	private LineEdit _playCountInput;
+	private Control _rateRow;
+	private LineEdit _rateInput;
+	private CheckBox _keepPitchCheck;
+	private LineEdit _pitchInput;
 	private LineEdit _fadeInInput;
 	private OptionButton _fadeInCurveOption;
 	private LineEdit _fadeOutInput;
@@ -123,8 +127,10 @@ public partial class VideoInspector : Control
 	private int _routingMatrixBuildGeneration;
     
 	// Waveform
-	private Button _waveformCollapseButton;
-	private VBoxContainer _waveformAccordian;
+	private Button _timelineCollapseButton;
+	private Control _timelineHeader;
+	private VBoxContainer _timelineAccordian;
+	private InspectorTimeline _inspectorTimeline;
 	private PanelContainer _waveformPanel;
 	private WaveformDisplay _waveformDisplay;
 	private WaveformPeaks _cachedPeaks;
@@ -182,6 +188,18 @@ public partial class VideoInspector : Control
 		_loopInput.Toggled += OnLoopToggled;
 		_playCountInput.TextSubmitted += OnPlayCountSubmitted;
 		_playCountInput.FocusExited += () => OnPlayCountSubmitted(_playCountInput.Text);
+		if (_rateInput != null)
+		{
+			_rateInput.TextSubmitted += OnRateSubmitted;
+			_rateInput.FocusExited += () => OnRateSubmitted(_rateInput.Text);
+		}
+		if (_keepPitchCheck != null)
+			_keepPitchCheck.Toggled += OnKeepPitchToggled;
+		if (_pitchInput != null)
+		{
+			_pitchInput.TextSubmitted += OnPitchSubmitted;
+			_pitchInput.FocusExited += () => OnPitchSubmitted(_pitchInput.Text);
+		}
 		if (_fadeInInput != null)
 		{
 			_fadeInInput.TextSubmitted += text => OnFadeSubmitted(text, isIn: true);
@@ -231,12 +249,12 @@ public partial class VideoInspector : Control
 		_previewContainer.Visible = false;
 		_audioAccordian.Visible = false;
 		_routingAccordian.Visible = false;
-		_waveformAccordian.Visible = false;
+		_timelineAccordian.Visible = false;
 		
 		_previewCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
 		_audioCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
 		_routingCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
-		_waveformCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
+		_timelineCollapseButton.Icon = GetThemeIcon("Right", "AtlasIcons");
 		
 		// Connect Ui input methods.
 		_selectFileButton.Pressed += OpenFileDialog;
@@ -247,7 +265,7 @@ public partial class VideoInspector : Control
 		_previewCollapseButton.Pressed += () => ToggleAccordian(_previewContainer, _previewCollapseButton);
 		_audioCollapseButton.Pressed += () => ToggleAccordian(_audioAccordian, _audioCollapseButton);
 		_routingCollapseButton.Pressed += () => ToggleAccordian(_routingAccordian, _routingCollapseButton);
-		_waveformCollapseButton.Pressed += () => ToggleAccordian(_waveformAccordian, _waveformCollapseButton);
+		_timelineCollapseButton.Pressed += () => ToggleAccordian(_timelineAccordian, _timelineCollapseButton);
 		_previewCollapseButton.Pressed += PreviewToggled;
 	
 		UiLocalizer.LocalizeTree(this);
@@ -268,7 +286,7 @@ public partial class VideoInspector : Control
 	/// <inheritdoc />
 	public override void _Process(double delta)
 	{
-		UpdateWaveformPlayhead();
+		_inspectorTimeline?.TickPlayhead();
 	}
 
 	/// <inheritdoc />
@@ -306,6 +324,7 @@ public partial class VideoInspector : Control
 
 		if (_waveformZoom != null)
 			_waveformZoom.ViewChanged -= OnWaveformViewChanged;
+		_inspectorTimeline?.Detach();
 
 		if (_fileUrl != null && GodotObject.IsInstanceValid(_fileUrl))
 			InspectorMediaUrlStyle.Apply(_fileUrl, null, false);
@@ -341,6 +360,10 @@ public partial class VideoInspector : Control
 		_loopInput = GetNode<CheckBox>("%LoopInput");
 		_playCountInput  = GetNode<LineEdit>("%PlayCountInput");
 		_loopPlayCountRow = _loopInput?.GetParent() as Control;
+		_rateRow = GetNodeOrNull<Control>("%RateRow");
+		_rateInput = GetNodeOrNull<LineEdit>("%RateInput");
+		_keepPitchCheck = GetNodeOrNull<CheckBox>("%KeepPitchCheck");
+		_pitchInput = GetNodeOrNull<LineEdit>("%PitchInput");
 		_fadeInInput = GetNodeOrNull<LineEdit>("%FadeInInput");
 		_fadeInCurveOption = GetNodeOrNull<OptionButton>("%FadeInCurveOption");
 		_fadeOutInput = GetNodeOrNull<LineEdit>("%FadeOutInput");
@@ -370,8 +393,9 @@ public partial class VideoInspector : Control
 		_routingAccordian =  GetNode<VBoxContainer>("%RoutingAccordian");
 		_routingMatrixGrid = GetNode<GridContainer>("%RoutingMatrixGrid");
 		_routingContainer = GetNode<VBoxContainer>("%RoutingContainer");
-		_waveformCollapseButton  = GetNode<Button>("%WaveformCollapseButton");
-		_waveformAccordian =   GetNode<VBoxContainer>("%WaveformAccordian");
+		_timelineCollapseButton  = GetNode<Button>("%TimelineCollapseButton");
+		_timelineAccordian =   GetNode<VBoxContainer>("%TimelineAccordian");
+		_timelineHeader = _timelineCollapseButton?.GetParent() as Control;
 		_volumeInput = GetNode<LineEdit>("%VolumeInput");
 		_panLabel = GetNodeOrNull<Label>("%PanLabel");
 		_panSlider = GetNodeOrNull<HSlider>("%PanSlider");
@@ -483,7 +507,7 @@ public partial class VideoInspector : Control
 		_waveformDisplay = new WaveformDisplay();
 		_waveformPanel.AddChild(_waveformDisplay);
 		_waveformPanel.MoveChild(_waveformDisplay, 0);
-		_waveformPanel.Resized += () => { if (_waveformAccordian.Visible) _ = DrawWaveform(); };
+		_waveformPanel.Resized += () => { if (_timelineAccordian.Visible) _ = DrawWaveform(); };
 
 		_startDragHandle = GetNode<Button>("%StartDragHandle");
 		_endDragHandle = GetNode<Button>("%EndDragHandle");
@@ -500,9 +524,32 @@ public partial class VideoInspector : Control
 		_fadeOutHandle.GuiInput += OnFadeOutHandleInput;
 
 		_waveformZoom = new WaveformZoomBar();
-		_waveformAccordian.AddChild(_waveformZoom);
+		_timelineAccordian.AddChild(_waveformZoom);
 		_waveformZoom.Attach(_waveformDisplay, _waveformPanel);
 		_waveformZoom.ViewChanged += OnWaveformViewChanged;
+		_inspectorTimeline = new InspectorTimeline();
+		AddChild(_inspectorTimeline);
+		_inspectorTimeline.RecordHistory = RecordVideoHistory;
+		_inspectorTimeline.CoalesceKey = VideoCoalesceKey;
+		_inspectorTimeline.EndCoalesce = key =>
+			InspectorMultiEditSupport.EndCoalesce(_globalData, UseMultiHistory(), key, key);
+		_inspectorTimeline.DurationChanged = SyncDuration;
+		_inspectorTimeline.IsBusy = () =>
+			_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true;
+		_inspectorTimeline.Log = (msg, level) =>
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, level);
+		_inspectorTimeline.GetFileDuration = () => _focusedVideoComponent?.Metadata?.Duration ?? 0;
+		_inspectorTimeline.GetFocusedCue = () => _focusedCue;
+		_inspectorTimeline.GetGlobalData = () => _globalData;
+		_inspectorTimeline.GetGlobalSignals = () => _globalSignals;
+		_inspectorTimeline.SeekAudioOnScrub = false;
+		_inspectorTimeline.SeekVideoOnScrub = true;
+		_inspectorTimeline.Attach(
+			_timelineAccordian,
+			_waveformPanel,
+			_waveformDisplay,
+			_waveformZoom,
+			_startDragHandle?.GetParent() as Control);
 	}
 
 	private void OnWaveformViewChanged()
@@ -542,6 +589,7 @@ public partial class VideoInspector : Control
 		WaveformDisplay.StyleHandle(_endDragHandle, isStart: false);
 		WaveformDisplay.StyleFadeHandle(_fadeInHandle, isFadeIn: true);
 		WaveformDisplay.StyleFadeHandle(_fadeOutHandle, isFadeIn: false);
+		_inspectorTimeline?.Localize();
 		PopulateFadeCurveOptions();
 		if (_focusedCue == null)
 			ShowNoSelection();

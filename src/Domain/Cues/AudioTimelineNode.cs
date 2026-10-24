@@ -9,11 +9,11 @@ using Cue2.Media.Audio;
 namespace Cue2.Domain.Cues;
 
 /// <summary>
-/// A numbered marker on an audio file timeline, stored in file seconds.
+/// A numbered marker on a media file timeline (audio or video), stored in file seconds.
 /// Display numbers are 1-based after sorting by <see cref="TimeSeconds"/>.
 /// Loop and play count apply to the region <b>before</b> this node when
 /// <see cref="ContinueRegion"/> is false (from the previous non-continue node, or the in-point).
-/// Volume, rate, and pitch are relative to the component and interpolate into this node.
+/// Volume, rate, pitch, and (for video) opacity are relative to the component and interpolate into this node.
 /// </summary>
 public class AudioTimelineNode
 {
@@ -26,13 +26,16 @@ public class AudioTimelineNode
     /// <summary>Default relative pitch offset in cents (0 = no change vs the component).</summary>
     public const float DefaultPitchCents = 0f;
 
+    /// <summary>Default relative opacity scale (1 = 100% of the component opacity).</summary>
+    public const float DefaultOpacityScale = 1f;
+
     /// <summary>Default plays of the region before this node.</summary>
     public const int DefaultPlayCount = 1;
 
     /// <summary>
     /// Stable identity across reorder, drag, and undo.
     /// </summary>
-    /// <value>Positive integer unique on the parent <see cref="AudioComponent"/>.</value>
+    /// <value>Positive integer unique on the parent media component.</value>
     public int Id { get; set; }
 
     /// <summary>
@@ -48,7 +51,7 @@ public class AudioTimelineNode
 
     /// <summary>
     /// When true, playback continues through this node without using it as a loop bound
-    /// (volume, rate, and pitch only). Loop and play count are hidden in the inspector. Default true.
+    /// (volume, rate, pitch, and opacity only). Loop and play count are hidden in the inspector. Default true.
     /// </summary>
     public bool ContinueRegion { get; set; } = true;
 
@@ -107,8 +110,20 @@ public class AudioTimelineNode
     private float _pitchCents = DefaultPitchCents;
 
     /// <summary>
-    /// How volume, rate, and pitch travel from the previous node to this one.
-    /// Volume interpolates in dB, rate in log scale, pitch in cents.
+    /// Opacity scale at this node, multiplied with the component opacity (video only).
+    /// 1 is 100% of the component (no change).
+    /// </summary>
+    /// <value>Clamped to 0…1.</value>
+    public float OpacityScale
+    {
+        get => _opacityScale;
+        set => _opacityScale = ClampOpacityScale(value);
+    }
+    private float _opacityScale = DefaultOpacityScale;
+
+    /// <summary>
+    /// How volume, rate, pitch, and opacity travel from the previous node to this one.
+    /// Volume interpolates in dB, rate in log scale, pitch in cents, opacity in linear 0–1.
     /// The span before the first node stays at that node's values.
     /// </summary>
     public TimelineVolumeInterpolation VolumeInterpolation { get; set; } =
@@ -134,6 +149,7 @@ public class AudioTimelineNode
             VolumeLinear = DefaultVolumeLinear,
             RateScale = DefaultRateScale,
             PitchCents = DefaultPitchCents,
+            OpacityScale = DefaultOpacityScale,
             VolumeInterpolation = TimelineVolumeInterpolation.Linear
         };
     }
@@ -148,6 +164,22 @@ public class AudioTimelineNode
         if (float.IsNaN(linear) || float.IsInfinity(linear))
             return DefaultVolumeLinear;
         return AudioMixMatrix.ClampComponentGainLinear(linear);
+    }
+
+    /// <summary>
+    /// Clamps a relative opacity scale into 0…1.
+    /// </summary>
+    /// <param name="scale">Requested relative opacity.</param>
+    /// <returns>Clamped scale (1 = 100% of the component).</returns>
+    public static float ClampOpacityScale(float scale)
+    {
+        if (float.IsNaN(scale) || float.IsInfinity(scale))
+            return DefaultOpacityScale;
+        if (scale < 0f)
+            return 0f;
+        if (scale > 1f)
+            return 1f;
+        return scale;
     }
 
     /// <summary>
@@ -167,6 +199,7 @@ public class AudioTimelineNode
             { "VolumeLinear", VolumeLinear },
             { "RateScale", RateScale },
             { "PitchCents", PitchCents },
+            { "OpacityScale", OpacityScale },
             { "VolumeInterpolation", (int)VolumeInterpolation }
         };
     }
@@ -204,6 +237,9 @@ public class AudioTimelineNode
             PitchCents = data.ContainsKey("PitchCents")
                 ? data["PitchCents"].AsSingle()
                 : DefaultPitchCents,
+            OpacityScale = data.ContainsKey("OpacityScale")
+                ? data["OpacityScale"].AsSingle()
+                : DefaultOpacityScale,
             VolumeInterpolation = data.ContainsKey("VolumeInterpolation")
                 ? TimelineVolume.FromInt(data["VolumeInterpolation"].AsInt32())
                 : TimelineVolumeInterpolation.Linear

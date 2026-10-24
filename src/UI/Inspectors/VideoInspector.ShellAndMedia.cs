@@ -187,6 +187,7 @@ public partial class VideoInspector
 		_focusedVideoComponent = _focusedCue.Components.OfType<VideoComponent>().First();
 		// Keep IsImage in sync with path (covers older saves / renames).
 		_focusedVideoComponent.RefreshIsImageFromPath();
+		BindInspectorTimeline();
 		if (_deleteVideoComponentButton != null)
 			_deleteVideoComponentButton.Visible = true;
 		var file = _focusedVideoComponent.VideoFile;
@@ -270,6 +271,7 @@ public partial class VideoInspector
 	/// </summary>
 	private void ShowNoSelection()
 	{
+		BindInspectorTimeline();
 		if (_deleteVideoComponentButton != null)
 			_deleteVideoComponentButton.Visible = false;
 		if (_inspectorContent != null)
@@ -299,6 +301,8 @@ public partial class VideoInspector
 			_focusedCue = _videoTargets[^1].Cue;
 			_focusedVideoComponent = _videoTargets[^1].Component;
 		}
+
+		BindInspectorTimeline();
 
 		int selected = InspectorMultiEditSupport.GetSelectedCues().Count;
 		if (_videoTargets.Count == 0)
@@ -820,6 +824,19 @@ public partial class VideoInspector
 		if (sharedWaveform != null && sharedWaveform.Length > 0 && comp.HasAudio && comp.UseAudio)
 			comp.WaveformData = sharedWaveform;
 
+		if (isImage)
+		{
+			comp.ClearTimelineNodes();
+		}
+		else if (resetInOutPoints || isNewComponent)
+		{
+			comp.ClearTimelineNodes();
+		}
+		else
+		{
+			comp.ClampAllTimelineNodes();
+		}
+
 		comp.RecalculateDuration();
 	}
 	
@@ -833,7 +850,7 @@ public partial class VideoInspector
 		if (_focusedVideoComponent == null)
 			return;
 
-		// Still images never use the embedded-audio / waveform path.
+		// Still images never use the embedded-audio / file-timeline path.
 		if (_focusedVideoComponent.IsImage)
 		{
 			_audioCollapseButton.Visible = false;
@@ -841,12 +858,18 @@ public partial class VideoInspector
 			_useAudioLabel.Text = UiLocalizer.T("No audio (still image)");
 			_audioAccordian.Visible = false;
 			_audioCollapseButton.ButtonPressed = false;
-			_waveformAccordian.Visible = false;
-			_waveformCollapseButton.ButtonPressed = false;
+			if (_timelineHeader != null)
+				_timelineHeader.Visible = false;
+			_timelineAccordian.Visible = false;
+			_timelineCollapseButton.ButtonPressed = false;
 			_routingAccordian.Visible = false;
 			_routingCollapseButton.ButtonPressed = false;
+			BindInspectorTimeline();
 			return;
 		}
+
+		if (_timelineHeader != null)
+			_timelineHeader.Visible = true;
 
 		if (_focusedVideoComponent.HasAudio)
 		{
@@ -887,13 +910,6 @@ public partial class VideoInspector
 						_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"VideoInspector:RefreshAudioUiState - Error generating waveform: {ex.Message}", 2);
 					}
 				}
-				
-				await DrawWaveform();
-			}
-			else
-			{
-				_waveformAccordian.Visible = false;
-				_waveformCollapseButton.ButtonPressed = false;
 			}
 		}
 		else
@@ -903,11 +919,15 @@ public partial class VideoInspector
 			_useAudioLabel.Text = UiLocalizer.T("No audio in file");
 			_audioAccordian.Visible = false;
 			_audioCollapseButton.ButtonPressed = false;
-			_waveformAccordian.Visible = false;
-			_waveformCollapseButton.ButtonPressed = false;
 			_routingAccordian.Visible = false;
 			_routingCollapseButton.ButtonPressed = false;
 		}
+
+		BindInspectorTimeline();
+		if (_timelineAccordian != null && _timelineAccordian.Visible)
+			await DrawWaveform();
+		else
+			RedrawWaveformView();
 
 		UpdatePanUiVisibilityAndValues();
 	}
@@ -961,11 +981,13 @@ public partial class VideoInspector
 				_endTimeInput.Text = UiUtilities.FormatTime(_focusedVideoComponent.EndTime);
 			}
 			_durationValue.Text = UiUtilities.FormatTime(_focusedVideoComponent.Duration);
-			_durationValue.TooltipText = UiLocalizer.T("m:s:ms (derived from start/end)");
+			_durationValue.TooltipText = UiLocalizer.T("m:s:ms (from start/end at play rate)");
 			_fileDurationValue.Text = UiUtilities.FormatTime(metaDur);
 			_loopInput.SetPressedNoSignal(_focusedVideoComponent.Loop);
 			_playCountInput.Text = _focusedVideoComponent.PlayCount.ToString();
 		}
+
+		SyncRatePitchUi(GetVideoTargets());
 
 		// Fades apply to both video and still images.
 		if (_fadeInInput != null)

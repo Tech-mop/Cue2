@@ -185,18 +185,56 @@ public partial class ActiveVideoPlayback
                 int maxFrames = _audioSrcBuffer.Length / SourceChannels;
                 int framesToRead = Math.Min(maxNeedFrames, maxFrames);
 
-                // Don't fill audio past video end region
+                // Respect current timeline-region end (or the cue out point when there are no nodes).
                 long pos = audioDecoder.PositionUs;
-                if (pos >= _endTimeUs)
+                long regionEndUs;
+                bool fadingOut;
+                lock (_lock)
                 {
+                    regionEndUs = _regionEndUs;
+                    fadingOut = _isFadingOut;
+                }
+
+                if (pos >= regionEndUs)
+                {
+                    if (fadingOut)
+                    {
+                        Thread.Sleep(AudioFillSleepMs);
+                        continue;
+                    }
+                    QueueRegionBoundary();
                     Thread.Sleep(AudioFillSleepMs);
                     continue;
                 }
 
-                int frames = audioDecoder.Read(_audioSrcBuffer.AsSpan(), framesToRead, token);
+                var timeline = CurrentTimeline();
+                if (regionEndUs < long.MaxValue && SourceSampleRate > 0)
+                {
+                    long remainingUs = regionEndUs - pos;
+                    int remainingSource = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
+                    int remainingOut = (int)Math.Max(0, remainingSource / Math.Max(AudioComponent.MinPlayRate, timeline.PlayRate));
+                    framesToRead = Math.Min(framesToRead, Math.Max(1, remainingOut));
+                }
+
+                int frames = ReadEmbeddedAudioFrames(audioDecoder, framesToRead, timeline, token);
                 if (frames <= 0)
                 {
-                    Thread.Sleep(AudioFillSleepMs);
+                    if (audioDecoder.EndOfStream || audioDecoder.PositionUs >= regionEndUs)
+                    {
+                        if (fadingOut)
+                        {
+                            Thread.Sleep(AudioFillSleepMs);
+                        }
+                        else
+                        {
+                            QueueRegionBoundary();
+                            Thread.Sleep(AudioFillSleepMs);
+                        }
+                    }
+                    else
+                    {
+                        Thread.Sleep(AudioFillSleepMs);
+                    }
                     continue;
                 }
 
@@ -207,7 +245,7 @@ public partial class ActiveVideoPlayback
                         continue;
                 }
 
-                PushMixedAudioFrames(frames, audioDecoder);
+                PushMixedAudioFrames(frames, audioDecoder, timeline.VolumeLinear);
             }
         }
         catch (OperationCanceledException) { }
@@ -301,17 +339,56 @@ public partial class ActiveVideoPlayback
             if (maxNeedFrames == 0)
                 break;
 
-            if (_audioDecoder.PositionUs >= _endTimeUs)
+            long regionEndUs;
+            lock (_lock) regionEndUs = _regionEndUs;
+            if (_audioDecoder.PositionUs >= regionEndUs)
                 break;
 
             int maxFrames = _audioSrcBuffer.Length / SourceChannels;
             int framesToRead = Math.Min(maxNeedFrames, maxFrames);
-            int frames = _audioDecoder.Read(_audioSrcBuffer.AsSpan(), framesToRead);
+            var timeline = CurrentTimeline();
+            if (regionEndUs < long.MaxValue && SourceSampleRate > 0)
+            {
+                long remainingUs = regionEndUs - _audioDecoder.PositionUs;
+                int remainingSource = (int)Math.Max(0, remainingUs * SourceSampleRate / 1_000_000L);
+                int remainingOut = (int)Math.Max(0, remainingSource / Math.Max(AudioComponent.MinPlayRate, timeline.PlayRate));
+                framesToRead = Math.Min(framesToRead, Math.Max(1, remainingOut));
+            }
+            int frames = ReadEmbeddedAudioFrames(_audioDecoder, framesToRead, timeline);
             if (frames <= 0)
                 break;
 
-            PushMixedAudioFrames(frames, _audioDecoder);
+            PushMixedAudioFrames(frames, _audioDecoder, timeline.VolumeLinear);
         }
+    }
+
+    /// <summary>
+    /// Decodes embedded audio through the rate/pitch processor into <see cref="_audioSrcBuffer"/>.
+    /// </summary>
+    /// <param name="decoder">Open embedded-audio decoder.</param>
+    /// <param name="framesToRead">Requested output frames (device time).</param>
+    /// <param name="timeline">Live volume / rate / pitch at the decoder position.</param>
+    /// <param name="token">Fill-loop cancellation.</param>
+    /// <returns>Processed frames written, or 0 at source end.</returns>
+    private int ReadEmbeddedAudioFrames(
+        AudioSourceDecoder decoder,
+        int framesToRead,
+        TimelineAutomation timeline,
+        CancellationToken token = default)
+    {
+        if (decoder == null || framesToRead <= 0 || _audioSrcBuffer == null)
+            return 0;
+        if (SourceChannels > 0 && SourceSampleRate > 0)
+            _ratePitch.Configure(SourceChannels, SourceSampleRate);
+
+        return _ratePitch.Process(
+            decoder,
+            _audioSrcBuffer.AsSpan(),
+            framesToRead,
+            timeline.PlayRate,
+            _videoComponent.KeepPitch,
+            timeline.PitchCents,
+            token);
     }
 
     /// <summary>
@@ -320,7 +397,7 @@ public partial class ActiveVideoPlayback
     /// reads that value with the SDL queue as one pair, so it never sees the decoder already
     /// advanced while the PCM is not queued yet (which made it jump ahead by a whole chunk).
     /// </summary>
-    private void PushMixedAudioFrames(int frames, AudioSourceDecoder decoder)
+    private void PushMixedAudioFrames(int frames, AudioSourceDecoder decoder, float timelineVolumeLinear)
     {
         var bindings = _streamBindings.Snapshot;
         if (bindings.Length == 0 || _isExiting) return;
@@ -333,13 +410,12 @@ public partial class ActiveVideoPlayback
         {
             // Cue fade envelope × session master (volume + runtime mute from AudioDevices).
             masterVol = _volume * (_audioDevices?.GetEffectiveSessionMasterLinear() ?? 1f);
-            // Prefer runtime control-fade override, else component audio level.
-            if (_runtimeLevelLinear.HasValue)
-                componentVol = _runtimeLevelLinear.Value;
-            else if (_videoComponent.UseAudio)
-                componentVol = AudioMixMatrix.ClampComponentGainLinear(_videoComponent.AudioVolume);
-            else
-                componentVol = AudioMixMatrix.ClampComponentGainLinear((float)_videoComponent.Volume);
+            // Prefer runtime control-fade override, else component audio level × timeline curve.
+            float baseVol = _runtimeLevelLinear
+                ?? (_videoComponent.UseAudio
+                    ? AudioMixMatrix.ClampComponentGainLinear(_videoComponent.AudioVolume)
+                    : AudioMixMatrix.ClampComponentGainLinear((float)_videoComponent.Volume));
+            componentVol = AudioMixMatrix.ClampComponentGainLinear(baseVol * timelineVolumeLinear);
             // Stereo pan only; mono / multi-channel ignore (Mix applies identity).
             pan = SourceChannels == 2
                 ? (_runtimePan ?? Mathf.Clamp(_videoComponent.Pan, -1f, 1f))

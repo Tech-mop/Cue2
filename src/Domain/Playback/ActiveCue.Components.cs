@@ -616,9 +616,7 @@ public partial class ActiveCue
             // Progress bar seeking (span includes playcount when not looping)
             var progressBar = componentPanel.GetNode<ProgressBar>(ComponentProgressPath);
             double pendingContentSeekSec = 0;
-            double videoSeekSpan = videoComponent.Loop || videoComponent.TotalDuration < 0
-                ? (videoComponent.Duration > 0 ? videoComponent.Duration : Math.Max(0, registeredPlayback.GetDuration()))
-                : Math.Max(0, videoComponent.TotalDuration);
+            double videoSeekSpan = videoComponent.GetProgressSpanSeconds();
             progressBar.GuiInput += (@event) =>
             {
                 if (!_activeVideoComponents.TryGetValue(componentPanel, out var seekPb) || seekPb == null)
@@ -1605,9 +1603,7 @@ public partial class ActiveCue
         }
         else
         {
-            double progressSpan = videoComponent.Loop || videoComponent.TotalDuration < 0
-                ? (videoComponent.Duration > 0 ? videoComponent.Duration : videoPlayback.GetDuration())
-                : videoComponent.TotalDuration;
+            double progressSpan = videoComponent.GetProgressSpanSeconds();
             progressPercentage = progressSpan > 1e-9
                 ? (float)(contentElapsed / progressSpan * 100.0)
                 : 0f;

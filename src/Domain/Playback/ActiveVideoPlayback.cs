@@ -176,6 +176,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private Task _audioFillTask;
     private float[] _audioSrcBuffer;
     private float[] _audioMixBuffer;
+    private readonly AudioRatePitchProcessor _ratePitch = new();
 
     /// <summary>Post-start/seek de-click ramp (shared output stage, see AudioOutputMix).</summary>
     private DeclickRamp _declick;
@@ -202,12 +203,27 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private volatile bool _seekInProgress;
     /// <summary>Target media time for the in-flight seek (UI/master clock hold).</summary>
     private long _seekTargetUs;
+    /// <summary>Latest live-scrub target; applied when the current seek worker finishes.</summary>
+    private long _queuedSeekUs;
+    private bool _seekQueued;
+    /// <summary>Timestamp the running seek worker was started with (compare before cancelling).</summary>
+    private long _inFlightSeekUs;
+    /// <summary>
+    /// Master-clock park after a seek (microseconds), or −1 when live. Stays set until a
+    /// post-seek frame near this PTS is presented so leftover ring pictures cannot snap back.
+    /// </summary>
+    private long _clockHoldUs = -1;
+    /// <summary>Do not cancel a running worker when the new target is within this of its start time.</summary>
+    private const long SeekSameTargetEpsilonUs = 2_000;
+    /// <summary>Ring frames earlier than hold − this are treated as pre-seek leftovers.</summary>
+    private const long ClockHoldStaleFrameUs = 50_000;
 
     /// <summary>
-    /// True while an async decoder seek is in flight. Progress UI should hold the scrub target
-    /// and not sample the live master clock until this clears.
+    /// True while an async decoder seek is in flight, or while the master clock is parked
+    /// on the seek target waiting for a post-seek frame. Progress UI should not sample the
+    /// live master clock until this clears.
     /// </summary>
-    public bool IsDecoderSeeking => _seekInProgress;
+    public bool IsDecoderSeeking => _seekInProgress || _clockHoldUs >= 0;
 
     private Dictionary<Control, TextureRect> _targetLayers = new();
 
@@ -252,6 +268,15 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private long _startTimeUs;
     private long _endTimeUs;
     private bool _useCustomEnd;
+    private List<AudioTimelineRegion> _regions = new();
+    /// <summary>Cached wall-clock of one play of each region (rate curve).</summary>
+    private double[] _regionWallSeconds = Array.Empty<double>();
+    private int _regionIndex;
+    private int _regionPlayIndex = 1;
+    private long _regionStartUs;
+    private long _regionEndUs;
+    /// <summary>True while a deferred <see cref="HandleRegionBoundary"/> is already queued.</summary>
+    private volatile bool _regionBoundaryQueued;
     public int EffectivePlayCount;
     private int _currentPlayCount = 1;
     private long _pausedAtUs;
@@ -367,6 +392,9 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 _startTimeUs = 0;
             }
         }
+
+        RebuildPlaybackRegions();
+        ApplyRegionUnlocked(0);
     }
 
     /// <summary>
@@ -485,6 +513,15 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             if (!_videoComponent.IsImage && !_useCustomEnd && _videoDecoder.Info.DurationUs > 0)
                 _endTimeUs = _videoDecoder.Info.DurationUs;
 
+            if (!_videoComponent.IsImage)
+            {
+                lock (_lock)
+                {
+                    RebuildPlaybackRegions();
+                    ApplyRegionUnlocked(0);
+                }
+            }
+
             int w = _videoDecoder.Info.Width;
             int h = _videoDecoder.Info.Height;
             _presentPlanar = _videoDecoder.OutputsPlanar420;
@@ -532,6 +569,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 int maxFrames = Math.Max(SourceSampleRate / 10, 1024);
                 _audioSrcBuffer = new float[maxFrames * SourceChannels];
                 _audioMixBuffer = new float[maxFrames * 16];
+                _ratePitch.Configure(SourceChannels, SourceSampleRate);
+                _ratePitch.Reset();
             }
             double texturesMs = DecoderOpenTimes.Since(stageStart);
 
@@ -911,7 +950,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         {
             opacity = _runtimeOpacity ?? Mathf.Clamp(_videoComponent?.Opacity ?? 1f, 0f, 1f);
         }
-        opacity = Mathf.Clamp(opacity, 0f, 1f);
+        opacity = Mathf.Clamp(opacity * TimelineOpacityScale(), 0f, 1f);
         float fade = _fadeAlpha;
         if (!force && opacity == _appliedOpacity && fade == _appliedFadeAlpha)
             return;
@@ -1076,8 +1115,11 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private long GetMasterClockUs(out bool fromAudio)
     {
         fromAudio = false;
-        // Hold at seek target while the worker discards/prefetches so progress bars do not
-        // snap back to the pre-seek audio/wall position.
+        // Hold at the click/scrub target until a post-seek frame is presented, and while
+        // the worker still owns the decoder, so progress bars do not snap to the old clock.
+        long clockHoldUs = _clockHoldUs;
+        if (clockHoldUs >= 0)
+            return clockHoldUs;
         if (_seekInProgress)
             return _seekTargetUs;
 
@@ -1144,11 +1186,14 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             return master;
         }
 
-        if (!_wallClock.IsRunning)
-            return _wallMediaOriginUs;
-        // Microsecond resolution (TimeSpan ticks are 100 ns), not whole milliseconds.
-        return _wallMediaOriginUs + _wallClock.Elapsed.Ticks / 10;
+        return WallClockToFileUs();
     }
+
+    /// <summary>
+    /// Picture (and embedded-audio) play rate for this instance. Images are always 1.
+    /// </summary>
+    public double EffectivePlayRate =>
+        _videoComponent?.EffectivePlayRate ?? AudioComponent.DefaultPlayRate;
 
     /// <summary>
     /// Reads the published end-of-queue media time and the PCM still queued in SDL as one
@@ -1272,6 +1317,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 _currentPlayCount++;
                 _naturalEndFadeArmed = false;
                 _audioMasterExhausted = false;
+                if (!_videoComponent.IsImage)
+                    ApplyRegionUnlocked(0);
                 loopAgain = true;
             }
             else
@@ -1283,7 +1330,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         if (loopAgain)
         {
             GD.Print($"ActiveVideoPlayback:HandleSegmentEnd - Loop/play {_currentPlayCount}/{EffectivePlayCount}");
-            SeekInternal(_startTimeUs, restartClock: true);
+            long loopStartUs = _videoComponent.IsImage ? _startTimeUs : _regionStartUs;
+            SeekInternal(loopStartUs, restartClock: true, syncRegion: false);
             return;
         }
 
@@ -1312,18 +1360,22 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 return;
             if ((_videoComponent.Loop || _currentPlayCount < EffectivePlayCount) && !_devampRequested)
                 return;
-
-            double configured = _videoComponent.FadeOutDuration;
-            if (configured <= 1e-9 || _endTimeUs == long.MaxValue)
+            if (!IsOnLastRegionPlayUnlocked())
                 return;
 
-            long remainingUs = _endTimeUs - masterUs;
-            long fadeUs = (long)(configured * 1_000_000.0);
+            double configured = _videoComponent.FadeOutDuration;
+            long regionEndUs = CurrentRegionEndUs();
+            if (configured <= 1e-9 || regionEndUs == long.MaxValue)
+                return;
+
+            long remainingUs = regionEndUs - masterUs;
+            double rate = CurrentPlayRateAt(masterUs);
+            long fadeUs = (long)(configured * rate * 1_000_000.0);
             if (remainingUs > fadeUs)
                 return;
 
             _naturalEndFadeArmed = true;
-            double remainingSec = Math.Max(0, remainingUs / 1_000_000.0);
+            double remainingSec = Math.Max(0, remainingUs / 1_000_000.0 / Math.Max(AudioComponent.MinPlayRate, rate));
             fadeDuration = Math.Max(remainingSec, 1e-3);
             fadeDuration = Math.Min(fadeDuration, configured);
         }
@@ -1444,11 +1496,16 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             IsPaused = false;
             _audioMasterExhausted = false;
             _segmentEndScheduled = false;
+            if (!_videoComponent.IsImage)
+            {
+                RebuildPlaybackRegions();
+                ApplyRegionUnlocked(0);
+            }
             // Wall-clock origin = current media position (used when no audio master).
             // Still images always start their hold timer at 0.
             _wallMediaOriginUs = _videoComponent.IsImage
                 ? 0
-                : (_videoDecoder?.PositionUs ?? _startTimeUs);
+                : (_videoDecoder?.PositionUs ?? _regionStartUs);
             _wallClock.Restart();
             if (_videoComponent.IsImage)
                 _imageFramePresented = false;
@@ -1543,14 +1600,22 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         // Still emit TimeUpdated at the seek target so progress bars hold (not snap back).
         if (_seekInProgress)
         {
-            EmitSignal(SignalName.TimeUpdated, _seekTargetUs / (double)MicrosecondsPerSecond);
+            long holdUs = _clockHoldUs >= 0 ? _clockHoldUs : _seekTargetUs;
+            EmitSignal(SignalName.TimeUpdated, holdUs / (double)MicrosecondsPerSecond);
             return;
         }
+
+        // After the worker finishes, leftover pre-seek ring frames are "late" vs the new
+        // clock and would snap the picture back (especially 4K). Drain them and wait for
+        // a frame near the click target before following live.
+        if (HoldPresentUntilSeekFrame())
+            return;
 
         long masterUs = GetMasterClockUs(out bool clockFromAudio);
         NoteClockStep(masterUs, clockFromAudio);
         EmitSignal(SignalName.TimeUpdated, masterUs / (double)MicrosecondsPerSecond);
         UpdateLinkedSubtitles(masterUs);
+        ApplyOpacityModulate();
 
         // Arm end-fade early so FadeOutDuration runs inside the last seconds of content
         // (e.g. 10s segment + 4s fade → fade begins at t=6s).
@@ -1559,7 +1624,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         bool fadingOut;
         lock (_lock) fadingOut = _isFadingOut;
 
-        if (masterUs >= _endTimeUs)
+        long regionEndUs = CurrentRegionEndUs();
+        if (masterUs >= regionEndUs)
         {
             // While end-fading, hold the last frame until FadeOutAsync HardStops.
             if (fadingOut)
@@ -1567,7 +1633,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
                 ApplyOpacityModulate();
                 return;
             }
-            HandleSegmentEnd();
+            HandleRegionBoundary();
             return;
         }
 
@@ -1616,7 +1682,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         if (_shown > 0
             && CurrentOutputAlpha() > 0f
             && _videoDecoder.TryPeekPtsBuffered(out long duePts)
-            && duePts < _endTimeUs
+            && duePts < regionEndUs
             && presentUs - duePts >= -_presentTuning.PresentEarlyToleranceUs
             && !VideoUploadBudget.TryUpload(_uploadCostTicks, ref _lastUploadWaitFrame))
         {
@@ -1643,7 +1709,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             }
 
             // Frame is at/past the out-point — do not wait for a clock that may stall short of it.
-            if (_endTimeUs < long.MaxValue && nextPts >= _endTimeUs)
+            if (regionEndUs < long.MaxValue && nextPts >= regionEndUs)
             {
                 segmentEnd = true;
                 break;
@@ -1700,7 +1766,65 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
         // Present first so the last in-range frame stays up for the follow handoff.
         if (segmentEnd || eosEmpty)
-            HandleSegmentEnd();
+            HandleRegionBoundary();
+    }
+
+    /// <summary>
+    /// Parks presentation on the seek target until a post-seek frame is shown.
+    /// Drops leftover ring pictures whose PTS is earlier than the hold (pre-seek catch-up).
+    /// </summary>
+    /// <returns>True when the rest of the present tick should be skipped.</returns>
+    private bool HoldPresentUntilSeekFrame()
+    {
+        long holdUs = _clockHoldUs;
+        if (holdUs < 0)
+            return false;
+
+        EmitSignal(SignalName.TimeUpdated, holdUs / (double)MicrosecondsPerSecond);
+        ApplyOpacityModulate();
+
+        if (_videoDecoder == null || _videoComponent == null || _videoComponent.IsImage)
+        {
+            _clockHoldUs = -1;
+            return false;
+        }
+
+        long minPts = holdUs - ClockHoldStaleFrameUs;
+        int drained = 0;
+        while (drained < 32
+               && _videoDecoder.TryPeekPtsBuffered(out long stalePts)
+               && stalePts < minPts)
+        {
+            if (!_videoDecoder.TryTakeFrame(out VideoFrame stale))
+                break;
+            _videoDecoder.ReleaseFrame(stale);
+            _superseded++;
+            drained++;
+        }
+
+        if (_videoDecoder.TryPeekPtsBuffered(out long holdPts) && holdPts >= minPts)
+        {
+            if (_videoDecoder.TryTakeFrame(out VideoFrame holdFrame))
+            {
+                PresentFrame(holdFrame);
+                long presentedPts = holdFrame.PtsUs;
+                _videoDecoder.ReleaseFrame(holdFrame);
+                _wallMediaOriginUs = presentedPts;
+                if (_isPlaying && !IsPaused)
+                    _wallClock.Restart();
+                _lastAudioMasterUs = presentedPts;
+                _lastAudioEndUs = presentedPts;
+                _lastAudioQueuedUs = 0;
+                _clockHoldUs = -1;
+            }
+
+            return true;
+        }
+
+        if (_videoDecoder.EndOfStream)
+            _clockHoldUs = -1;
+
+        return true;
     }
 
     /// <summary>Records how far the master clock moved since the last present tick.</summary>
@@ -1722,6 +1846,16 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private VideoFrame _hiddenFrame;
     private long _hiddenSkips;
 
+    /// <summary>
+    /// Timeline relative opacity at the current file position (1 for stills and missing media).
+    /// </summary>
+    private float TimelineOpacityScale()
+    {
+        if (_videoComponent == null || _videoComponent.IsImage)
+            return AudioTimelineNode.DefaultOpacityScale;
+        return CurrentTimeline().OpacityScale;
+    }
+
     /// <summary>Opacity times fade, as written to the output layers. Main thread.</summary>
     private float CurrentOutputAlpha()
     {
@@ -1730,7 +1864,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         {
             opacity = _runtimeOpacity ?? Mathf.Clamp(_videoComponent?.Opacity ?? 1f, 0f, 1f);
         }
-        return Mathf.Clamp(opacity, 0f, 1f) * _fadeAlpha;
+        return Mathf.Clamp(opacity * TimelineOpacityScale(), 0f, 1f) * _fadeAlpha;
     }
 
     /// <summary>Gives the kept transparent-time picture back to the decoder.</summary>

@@ -76,6 +76,7 @@ public partial class WaveformDisplay : Control
     private Color _volumeLineColor = new Color(1f, 0.62f, 0.22f, 0.95f);
     private Color _rateLineColor = new Color(0.22f, 0.86f, 0.88f, 0.9f);
     private Color _pitchLineColor = new Color(0.72f, 0.42f, 0.98f, 0.9f);
+    private Color _opacityLineColor = new Color(0.42f, 0.88f, 0.52f, 0.9f);
     private Color _volumeZeroColor = new Color(1f, 1f, 1f, 0.18f);
     private Color _regionMarkColor = new Color(0.93f, 0.91f, 0.62f, 0.88f);
 
@@ -97,6 +98,9 @@ public partial class WaveformDisplay : Control
         /// <summary>Relative pitch offset at this node in cents (0 = no change).</summary>
         public float PitchCents { get; init; }
 
+        /// <summary>Relative opacity scale at this node (1 = 100% of the component).</summary>
+        public float OpacityScale { get; init; }
+
         /// <summary>When true, the region before this node loops.</summary>
         public bool Loop { get; init; }
 
@@ -114,11 +118,24 @@ public partial class WaveformDisplay : Control
     }
 
     private readonly List<TimelineNodeDraw> _nodes = new();
-    private readonly List<float> _automationNorms = new(64);
-    private readonly List<Vector2> _rateLinePts = new(64);
-    private readonly List<Vector2> _pitchLinePts = new(64);
-    private readonly List<Vector2> _volumeLinePts = new(64);
+    private readonly List<Vector2> _automationPts = new(32);
+    private Vector2[] _polylineScratch = System.Array.Empty<Vector2>();
+    private Vector2[] _fadePolyScratch = new Vector2[16];
     private int _selectedNodeNumber = -1;
+    private float _pendingNodeNorm = -1f;
+    private WaveformOverlayLayer _overlay;
+
+    /// <summary>When false, the peak envelope is omitted (video with no usable audio).</summary>
+    public bool ShowEnvelope { get; set; } = true;
+
+    /// <summary>When false, the volume automation line and circles are omitted.</summary>
+    public bool ShowVolumeAutomation { get; set; } = true;
+
+    /// <summary>When false, the pitch automation line is omitted.</summary>
+    public bool ShowPitchAutomation { get; set; } = true;
+
+    /// <summary>When false, the opacity automation line is omitted.</summary>
+    public bool ShowOpacityAutomation { get; set; }
 
     private Font _font;
     private StyleBoxFlat _chipBox;
@@ -126,14 +143,14 @@ public partial class WaveformDisplay : Control
     public WaveformPeaks Peaks
     {
         get => _peaks;
-        set { _peaks = value; QueueRedraw(); }
+        set { _peaks = value; RedrawAll(); }
     }
 
     /// <summary>Full file duration in seconds (start/end and playhead stay in file time).</summary>
     public double DurationSeconds
     {
         get => _durationSec;
-        set { _durationSec = Math.Max(1e-6, value); QueueRedraw(); }
+        set { _durationSec = Math.Max(1e-6, value); RedrawAll(); }
     }
 
     /// <summary>
@@ -144,13 +161,13 @@ public partial class WaveformDisplay : Control
     public float StartNorm
     {
         get => _startNorm;
-        set { _startNorm = Mathf.Clamp(value, 0f, 1f); QueueRedraw(); }
+        set { _startNorm = Mathf.Clamp(value, 0f, 1f); RedrawAll(); }
     }
 
     public float EndNorm
     {
         get => _endNorm;
-        set { _endNorm = Mathf.Clamp(value, 0f, 1f); QueueRedraw(); }
+        set { _endNorm = Mathf.Clamp(value, 0f, 1f); RedrawAll(); }
     }
 
     /// <summary>File-normalized inner edge of fade-in (clamped to the selection).</summary>
@@ -162,13 +179,13 @@ public partial class WaveformDisplay : Control
     public float ViewStartNorm
     {
         get => _viewStartNorm;
-        set { _viewStartNorm = Mathf.Clamp(value, 0f, 1f); QueueRedraw(); }
+        set { _viewStartNorm = Mathf.Clamp(value, 0f, 1f); RedrawAll(); }
     }
 
     public float ViewSpanNorm
     {
         get => _viewSpanNorm;
-        set { _viewSpanNorm = Mathf.Clamp(value, 1e-7f, 1f); QueueRedraw(); }
+        set { _viewSpanNorm = Mathf.Clamp(value, 1e-7f, 1f); RedrawAll(); }
     }
 
     /// <summary>File-normalized playhead; negative hides it.</summary>
@@ -179,7 +196,21 @@ public partial class WaveformDisplay : Control
         {
             if (Math.Abs(value - _playheadNorm) < 1e-5f) return;
             _playheadNorm = value;
-            QueueRedraw();
+            RedrawOverlay();
+        }
+    }
+
+    /// <summary>
+    /// File-normalized click preview while the add-node delay is running; negative hides it.
+    /// </summary>
+    public float PendingNodeNorm
+    {
+        get => _pendingNodeNorm;
+        set
+        {
+            if (Math.Abs(value - _pendingNodeNorm) < 1e-5f) return;
+            _pendingNodeNorm = value;
+            RedrawOverlay();
         }
     }
 
@@ -191,7 +222,7 @@ public partial class WaveformDisplay : Control
         {
             if (Math.Abs(value - _hoverNorm) < 1e-4f) return;
             _hoverNorm = value;
-            QueueRedraw();
+            RedrawOverlay();
         }
     }
 
@@ -230,7 +261,7 @@ public partial class WaveformDisplay : Control
         _fadeOutStartNorm = Mathf.Clamp(_endNorm - fadeOutN, _startNorm, _endNorm);
         _fadeInCurve = fadeInCurve;
         _fadeOutCurve = fadeOutCurve;
-        QueueRedraw();
+        RedrawAll();
     }
 
     /// <summary>
@@ -353,7 +384,7 @@ public partial class WaveformDisplay : Control
                 _nodes.Add(node);
         }
         _selectedNodeNumber = selectedNumber;
-        QueueRedraw();
+        RedrawOverlay();
     }
 
     /// <summary>
@@ -466,6 +497,71 @@ public partial class WaveformDisplay : Control
     }
 
     /// <summary>
+    /// Invisible hit target for the opacity point on the automation line.
+    /// </summary>
+    /// <param name="handle">Drag control for the opacity point.</param>
+    /// <param name="fileNorm">File-normalized time of the marker.</param>
+    /// <param name="opacityScale">Relative opacity at the marker.</param>
+    /// <param name="panelWidth">Waveform panel width in pixels.</param>
+    public void PlaceOpacityHandle(Control handle, float fileNorm, float opacityScale, float panelWidth)
+    {
+        if (handle == null || !GodotObject.IsInstanceValid(handle))
+            return;
+
+        float x = FileNormToX(fileNorm);
+        float y = OpacityScaleToY(opacityScale, RulerHeight, Size.Y);
+        float hit = VolumeHandleRadius * 2f + NodeHitPad * 2f;
+        bool visible = x >= -hit && x <= panelWidth + hit;
+        handle.Visible = visible;
+        if (!visible)
+            return;
+
+        handle.CustomMinimumSize = Vector2.Zero;
+        handle.Position = new Vector2(x - hit * 0.5f, y - hit * 0.5f);
+        handle.Size = new Vector2(hit, hit);
+    }
+
+    /// <summary>
+    /// Makes an opacity-point handle an invisible 2D drag target.
+    /// </summary>
+    /// <param name="handle">Opacity drag button.</param>
+    public static void StyleOpacityHandle(Button handle)
+    {
+        StyleVolumeHandle(handle);
+        if (handle == null)
+            return;
+        handle.TooltipText = UiLocalizer.T("Drag to set time and opacity");
+    }
+
+    /// <summary>
+    /// Makes an end-of-file opacity-point handle a vertical-only drag target.
+    /// </summary>
+    /// <param name="handle">Opacity drag button.</param>
+    public static void StyleFileEndOpacityHandle(Button handle)
+    {
+        StyleOpacityHandle(handle);
+        if (handle == null)
+            return;
+        handle.MouseDefaultCursorShape = CursorShape.Vsize;
+        handle.TooltipText = UiLocalizer.T("Drag to set opacity (end of file is fixed)");
+    }
+
+    /// <summary>
+    /// Converts a panel Y position to relative opacity (0–1, bottom = 0%, top = 100%).
+    /// </summary>
+    /// <param name="y">Y in waveform-panel coordinates.</param>
+    /// <returns>Clamped relative opacity scale.</returns>
+    public float YToOpacityScale(float y)
+    {
+        float waveTop = RulerHeight + 2f;
+        float waveBottom = Size.Y - 2f;
+        if (waveBottom <= waveTop + 1e-3f)
+            return AudioTimelineNode.DefaultOpacityScale;
+        float t = Mathf.Clamp((waveBottom - y) / (waveBottom - waveTop), 0f, 1f);
+        return AudioTimelineNode.ClampOpacityScale(t);
+    }
+
+    /// <summary>
     /// Creates a styled volume-point drag button.
     /// </summary>
     /// <param name="nodeId">Stable node id used as metadata.</param>
@@ -485,7 +581,7 @@ public partial class WaveformDisplay : Control
     }
 
     /// <summary>
-    /// Converts a panel Y position to relative linear volume (dB map of the waveform body).
+    /// Converts a panel Y position to relative linear volume (amplitude-weighted waveform body).
     /// </summary>
     /// <param name="y">Y in waveform-panel coordinates.</param>
     /// <returns>Clamped linear relative gain.</returns>
@@ -496,8 +592,7 @@ public partial class WaveformDisplay : Control
         if (waveBottom <= waveTop + 1e-3f)
             return AudioTimelineNode.DefaultVolumeLinear;
         float t = Mathf.Clamp((waveBottom - y) / (waveBottom - waveTop), 0f, 1f);
-        float db = Mathf.Lerp(UiUtilities.MinVolumeDb, UiUtilities.MaxComponentGainDb, t);
-        return AudioTimelineNode.ClampVolumeLinear(UiUtilities.DbToLinear(db));
+        return AudioTimelineNode.ClampVolumeLinear(VolumeNormToLinear(t));
     }
 
     /// <summary>
@@ -575,6 +670,14 @@ public partial class WaveformDisplay : Control
         if (_globalSignals != null)
             _globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
         SyncAccentColors();
+
+        _overlay = new WaveformOverlayLayer(this)
+        {
+            Name = "Overlay",
+            MouseFilter = MouseFilterEnum.Ignore
+        };
+        AddChild(_overlay);
+        _overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
     }
 
     public override void _Draw()
@@ -600,7 +703,7 @@ public partial class WaveformDisplay : Control
 
         DrawLine(new Vector2(0, midY), new Vector2(width, midY), _centerLineColor, 1f);
 
-        if (_peaks != null && _peaks.BinCount >= 1)
+        if (ShowEnvelope && _peaks != null && _peaks.BinCount >= 1)
         {
             float peakScale = _peaks.ComputePeakScale(0f, 1f);
             var waveRect = new Rect2(0, waveTop, width, waveHeight);
@@ -613,16 +716,44 @@ public partial class WaveformDisplay : Control
         DrawOutsideSelectionOverlay(width, waveTop, waveBottom);
         DrawSelectionTopBand(width, waveTop);
         DrawFadeWedges(width, waveTop, waveBottom);
-        DrawHover(width, height, waveTop);
         DrawTimeMarker(FileNormToX(_startNorm), waveBottom, _startMarkerColor, isStart: true);
         DrawTimeMarker(FileNormToX(_endNorm), waveBottom, _endMarkerColor, isStart: false);
         DrawFadeMarkers(width, waveTop, waveBottom, _fadeInEndNorm, _startMarkerColor, isFadeIn: true);
         DrawFadeMarkers(width, waveTop, waveBottom, _fadeOutStartNorm, _endMarkerColor, isFadeIn: false);
-        DrawAutomationLines(width, waveTop, waveBottom);
-        DrawRegionPlayMarks(width, waveTop, waveBottom);
-        DrawTimelineNodes(width, waveTop, waveBottom);
-        DrawVolumePoints(width, waveTop, waveBottom);
-        DrawPlayhead(width, height);
+    }
+
+    private void RedrawAll()
+    {
+        QueueRedraw();
+        _overlay?.QueueRedraw();
+    }
+
+    private void RedrawOverlay()
+    {
+        _overlay?.QueueRedraw();
+    }
+
+    /// <summary>
+    /// Nodes, automation, playhead, and hover: redraws without rebuilding the envelope.
+    /// </summary>
+    private void DrawOverlayNow(CanvasItem canvas)
+    {
+        var size = Size;
+        if (canvas == null || size.X < 2 || size.Y < 2)
+            return;
+
+        float width = size.X;
+        float height = size.Y;
+        float waveTop = RulerHeight;
+        float waveBottom = height;
+        DrawHover(canvas, width, height, waveTop);
+        DrawAutomationLines(canvas, width, waveTop, waveBottom);
+        DrawRegionPlayMarks(canvas, width, waveTop, waveBottom);
+        DrawTimelineNodes(canvas, width, waveTop, waveBottom);
+        DrawVolumePoints(canvas, width, waveTop, waveBottom);
+        DrawOpacityPoints(canvas, width, waveTop, waveBottom);
+        DrawPendingNode(canvas, width, waveTop, waveBottom);
+        DrawPlayhead(canvas, width, height);
     }
 
     /// <summary>
@@ -794,22 +925,30 @@ public partial class WaveformDisplay : Control
         FadeCurveType curve, bool fadeOut)
     {
         float span = x1 - x0;
-        int cols = Math.Max(2, (int)Math.Ceiling(span));
-        float colW = span / cols;
-        var pts = new Vector2[cols + 1];
+        int cols = curve == FadeCurveType.Linear ? 1 : 12;
+        int curveCount = cols + 1;
+        int polyCount = curveCount + 2;
+        if (_fadePolyScratch.Length < polyCount)
+            _fadePolyScratch = new Vector2[polyCount];
+
+        _fadePolyScratch[0] = new Vector2(x0, waveTop);
         for (int i = 0; i <= cols; i++)
         {
             float u = i / (float)cols;
             float x = x0 + u * span;
             float shaped = FadeCurve.Evaluate(u, curve);
             float gain = fadeOut ? 1f - shaped : shaped;
-            float y = Mathf.Lerp(waveBottom, waveTop, gain);
-            pts[i] = new Vector2(x, y);
-            if (i < cols && y > waveTop + 0.5f)
-                DrawRect(new Rect2(x, waveTop, colW + 0.2f, y - waveTop), fill, true);
+            _fadePolyScratch[1 + i] = new Vector2(x, Mathf.Lerp(waveBottom, waveTop, gain));
         }
+        _fadePolyScratch[polyCount - 1] = new Vector2(x1, waveTop);
 
-        DrawPolyline(pts, line, 1f, antialiased: true);
+        var poly = new Vector2[polyCount];
+        System.Array.Copy(_fadePolyScratch, poly, polyCount);
+        DrawColoredPolygon(poly, fill);
+
+        var linePts = new Vector2[curveCount];
+        System.Array.Copy(_fadePolyScratch, 1, linePts, 0, curveCount);
+        DrawPolyline(linePts, line, 1f, antialiased: false);
     }
 
     private void DrawFadeMarkers(float width, float waveTop, float waveBottom, float fileNorm, Color color, bool isFadeIn)
@@ -817,10 +956,6 @@ public partial class WaveformDisplay : Control
         float x = SnapPx(FileNormToX(fileNorm));
         if (x < -20 || x > width + 20)
             return;
-
-        bool hoverNear = _hoverNorm >= 0f && Math.Abs(FileNormToX(_hoverNorm) - FileNormToX(fileNorm)) <= 8f;
-        if (hoverNear)
-            color = color.Lightened(0.18f);
 
         // Skip a second stem when the fade edge sits on start/end.
         float sibling = isFadeIn ? FileNormToX(_startNorm) : FileNormToX(_endNorm);
@@ -872,13 +1007,13 @@ public partial class WaveformDisplay : Control
         DrawRect(new Rect2(left, waveTop, right - left, 2f), new Color(1f, 1f, 1f, 0.18f), true);
     }
 
-    private void DrawHover(float width, float height, float waveTop)
+    private void DrawHover(CanvasItem canvas, float width, float height, float waveTop)
     {
         if (_hoverNorm < 0f || !IsInView(_hoverNorm))
             return;
 
         float x = FileNormToX(_hoverNorm);
-        DrawLine(new Vector2(x, waveTop), new Vector2(x, height), _hoverLineColor, 1f);
+        canvas.DrawLine(new Vector2(x, waveTop), new Vector2(x, height), _hoverLineColor, 1f);
 
         var font = _font ?? ThemeDB.FallbackFont;
         if (font == null) return;
@@ -892,12 +1027,12 @@ public partial class WaveformDisplay : Control
         float chipH = 14f;
         float chipX = Mathf.Clamp(x + 6f, 2f, Math.Max(2f, width - chipW - 2f));
         var chipRect = new Rect2(chipX, 3f, chipW, chipH);
-        DrawChip(chipRect, new Color(0.05f, 0.06f, 0.07f, 0.88f));
-        DrawString(font, new Vector2(chipX + 4f, 13f), label,
+        DrawChip(canvas, chipRect, new Color(0.05f, 0.06f, 0.07f, 0.88f));
+        canvas.DrawString(font, new Vector2(chipX + 4f, 13f), label,
             HorizontalAlignment.Left, -1, fontSize, Colors.White);
     }
 
-    private void DrawChip(Rect2 rect, Color bg)
+    private void DrawChip(CanvasItem canvas, Rect2 rect, Color bg)
     {
         _chipBox ??= new StyleBoxFlat
         {
@@ -907,103 +1042,174 @@ public partial class WaveformDisplay : Control
             CornerRadiusBottomRight = 0
         };
         _chipBox.BgColor = bg;
-        DrawStyleBox(_chipBox, rect);
+        canvas.DrawStyleBox(_chipBox, rect);
     }
 
-    private void DrawAutomationLines(float width, float waveTop, float waveBottom)
+    private void DrawAutomationLines(CanvasItem canvas, float width, float waveTop, float waveBottom)
     {
         if (_nodes.Count == 0 || width < 2f)
             return;
 
-        float zeroY = VolumeLinearToY(1f, waveTop, waveBottom);
-        DrawLine(new Vector2(0, zeroY), new Vector2(width, zeroY), _volumeZeroColor, 1f);
-
-        float viewStart = _viewStartNorm;
-        float viewEnd = _viewStartNorm + Math.Max(_viewSpanNorm, 1e-7f);
-        _automationNorms.Clear();
-        void AddNorm(float n)
+        if (ShowVolumeAutomation)
         {
-            n = Mathf.Clamp(n, 0f, 1f);
-            if (n < viewStart - 1e-6f || n > viewEnd + 1e-6f)
-                return;
-            if (_automationNorms.Count > 0 && Math.Abs(_automationNorms[^1] - n) < 1e-6f)
-                return;
-            _automationNorms.Add(n);
+            float zeroY = VolumeLinearToY(1f, waveTop, waveBottom);
+            canvas.DrawLine(new Vector2(0, zeroY), new Vector2(width, zeroY), _volumeZeroColor, 1f);
         }
 
-        AddNorm(viewStart);
-        int samples = Math.Max(8, (int)(width / 2f));
-        for (int i = 1; i < samples; i++)
-            AddNorm(viewStart + (viewEnd - viewStart) * (i / (float)samples));
-        AddNorm(viewEnd);
+        bool drawVolume = false;
+        bool drawRate = false;
+        bool drawPitch = false;
+        bool drawOpacity = false;
         foreach (var node in _nodes)
         {
-            AddNorm(node.FileNorm);
-            AddNorm(node.FileNorm + 1e-5f);
-        }
-        _automationNorms.Sort();
-
-        _rateLinePts.Clear();
-        _pitchLinePts.Clear();
-        _volumeLinePts.Clear();
-        foreach (var n in _automationNorms)
-        {
-            GetAutomationAtFileNorm(n, out float volume, out float rate, out float pitch);
-            float x = FileNormToX(n);
-            _rateLinePts.Add(new Vector2(x, RateScaleToY(rate, waveTop, waveBottom)));
-            _pitchLinePts.Add(new Vector2(x, PitchCentsToY(pitch, waveTop, waveBottom)));
-            _volumeLinePts.Add(new Vector2(x, VolumeLinearToY(volume, waveTop, waveBottom)));
+            if (ShowVolumeAutomation
+                && Math.Abs(node.VolumeLinear - AudioTimelineNode.DefaultVolumeLinear) > 1e-4f)
+                drawVolume = true;
+            if (Math.Abs(node.RateScale - AudioTimelineNode.DefaultRateScale) > 1e-3f)
+                drawRate = true;
+            if (ShowPitchAutomation
+                && Math.Abs(node.PitchCents - AudioTimelineNode.DefaultPitchCents) > 0.5f)
+                drawPitch = true;
+            if (ShowOpacityAutomation
+                && Math.Abs(node.OpacityScale - AudioTimelineNode.DefaultOpacityScale) > 1e-3f)
+                drawOpacity = true;
         }
 
-        DrawAutomationPolyline(_rateLinePts, _rateLineColor, 1.25f);
-        DrawAutomationPolyline(_pitchLinePts, _pitchLineColor, 1.25f);
-        DrawAutomationPolyline(_volumeLinePts, _volumeLineColor, 1.5f);
+        if (drawRate)
+            DrawAutomationCurve(canvas, width, waveTop, waveBottom, AutomationChannel.Rate, _rateLineColor, 1.25f);
+        if (drawPitch)
+            DrawAutomationCurve(canvas, width, waveTop, waveBottom, AutomationChannel.Pitch, _pitchLineColor, 1.25f);
+        if (drawOpacity)
+            DrawAutomationCurve(canvas, width, waveTop, waveBottom, AutomationChannel.Opacity, _opacityLineColor, 1.25f);
+        if (drawVolume)
+            DrawAutomationCurve(canvas, width, waveTop, waveBottom, AutomationChannel.Volume, _volumeLineColor, 1.5f);
     }
 
-    private void DrawAutomationPolyline(List<Vector2> pts, Color color, float width)
+    private enum AutomationChannel
     {
-        if (pts.Count >= 2)
-            DrawPolyline(pts.ToArray(), color, width, antialiased: true);
+        Volume,
+        Rate,
+        Pitch,
+        Opacity
     }
 
-    private void GetAutomationAtFileNorm(float fileNorm, out float volume, out float rate, out float pitch)
+    private void DrawAutomationCurve(
+        CanvasItem canvas, float width, float waveTop, float waveBottom,
+        AutomationChannel channel, Color color, float lineWidth)
     {
-        volume = AudioTimelineNode.DefaultVolumeLinear;
-        rate = AudioTimelineNode.DefaultRateScale;
-        pitch = AudioTimelineNode.DefaultPitchCents;
-        if (_nodes.Count == 0)
-            return;
-
-        if (fileNorm <= _nodes[0].FileNorm)
+        _automationPts.Clear();
+        float YOf(in TimelineNodeDraw node) => channel switch
         {
-            volume = _nodes[0].VolumeLinear;
-            rate = _nodes[0].RateScale;
-            pitch = _nodes[0].PitchCents;
-            return;
-        }
+            AutomationChannel.Rate => RateScaleToY(node.RateScale, waveTop, waveBottom),
+            AutomationChannel.Pitch => PitchCentsToY(node.PitchCents, waveTop, waveBottom),
+            AutomationChannel.Opacity => OpacityScaleToY(node.OpacityScale, waveTop, waveBottom),
+            _ => VolumeLinearToY(node.VolumeLinear, waveTop, waveBottom)
+        };
+
+        var first = _nodes[0];
+        float firstX = FileNormToX(first.FileNorm);
+        float firstY = YOf(first);
+        if (firstX > 0.5f)
+            _automationPts.Add(new Vector2(0, firstY));
+        _automationPts.Add(new Vector2(firstX, firstY));
 
         for (int i = 0; i < _nodes.Count - 1; i++)
         {
-            var next = _nodes[i + 1];
-            if (fileNorm > next.FileNorm)
-                continue;
             var prev = _nodes[i];
-            float span = next.FileNorm - prev.FileNorm;
-            float t = span <= 1e-8f ? 1f : (fileNorm - prev.FileNorm) / span;
-            var mode = next.Interpolation;
-            volume = TimelineVolume.InterpolateVolumeLinear(mode, prev.VolumeLinear, next.VolumeLinear, t);
-            rate = TimelineVolume.InterpolateRateScale(mode, prev.RateScale, next.RateScale, t);
-            pitch = TimelineVolume.InterpolatePitchCents(mode, prev.PitchCents, next.PitchCents, t);
-            return;
+            var next = _nodes[i + 1];
+            if (channel == AutomationChannel.Volume)
+            {
+                AppendVolumeSpan(_automationPts, prev, next, waveTop, waveBottom);
+                continue;
+            }
+
+            AppendAutomationSpan(
+                _automationPts,
+                FileNormToX(prev.FileNorm), YOf(prev),
+                FileNormToX(next.FileNorm), YOf(next),
+                next.Interpolation);
         }
 
         var last = _nodes[^1];
-        volume = last.VolumeLinear;
-        rate = last.RateScale;
-        pitch = last.PitchCents;
+        float lastX = FileNormToX(last.FileNorm);
+        float lastY = YOf(last);
+        if (lastX < width - 0.5f)
+            _automationPts.Add(new Vector2(width, lastY));
+
+        DrawAutomationPolyline(canvas, _automationPts, color, lineWidth);
     }
 
-    private void DrawRegionPlayMarks(float width, float waveTop, float waveBottom)
+    private static void AppendAutomationSpan(
+        List<Vector2> pts, float x0, float y0, float x1, float y1,
+        TimelineVolumeInterpolation mode)
+    {
+        if (mode == TimelineVolumeInterpolation.Snap)
+        {
+            pts.Add(new Vector2(x1, y0));
+            pts.Add(new Vector2(x1, y1));
+            return;
+        }
+
+        if (mode == TimelineVolumeInterpolation.Bezier)
+        {
+            float spanPx = Math.Abs(x1 - x0);
+            int steps = Math.Clamp((int)(spanPx * 0.5f), 8, 96);
+            for (int i = 1; i <= steps; i++)
+            {
+                float t = i / (float)steps;
+                float u = TimelineVolume.Shape(TimelineVolumeInterpolation.Bezier, t);
+                pts.Add(new Vector2(Mathf.Lerp(x0, x1, t), Mathf.Lerp(y0, y1, u)));
+            }
+            return;
+        }
+
+        pts.Add(new Vector2(x1, y1));
+    }
+
+    /// <summary>
+    /// Volume spans sample the dB interpolator, then map through the amplitude-weighted Y axis.
+    /// Lerping Y would draw linear-in-amplitude, which does not match playback.
+    /// </summary>
+    private void AppendVolumeSpan(
+        List<Vector2> pts,
+        in TimelineNodeDraw prev,
+        in TimelineNodeDraw next,
+        float waveTop, float waveBottom)
+    {
+        float x0 = FileNormToX(prev.FileNorm);
+        float x1 = FileNormToX(next.FileNorm);
+        float y0 = VolumeLinearToY(prev.VolumeLinear, waveTop, waveBottom);
+        float y1 = VolumeLinearToY(next.VolumeLinear, waveTop, waveBottom);
+        var mode = next.Interpolation;
+
+        if (mode == TimelineVolumeInterpolation.Snap)
+        {
+            pts.Add(new Vector2(x1, y0));
+            pts.Add(new Vector2(x1, y1));
+            return;
+        }
+
+        float spanPx = Math.Abs(x1 - x0);
+        int steps = Math.Clamp((int)(spanPx * 0.5f), 8, 96);
+        for (int i = 1; i <= steps; i++)
+        {
+            float t = i / (float)steps;
+            float vol = TimelineVolume.InterpolateVolumeLinear(mode, prev.VolumeLinear, next.VolumeLinear, t);
+            pts.Add(new Vector2(Mathf.Lerp(x0, x1, t), VolumeLinearToY(vol, waveTop, waveBottom)));
+        }
+    }
+
+    private void DrawAutomationPolyline(CanvasItem canvas, List<Vector2> pts, Color color, float width)
+    {
+        if (pts.Count < 2)
+            return;
+        if (_polylineScratch.Length != pts.Count)
+            _polylineScratch = new Vector2[pts.Count];
+        pts.CopyTo(_polylineScratch);
+        canvas.DrawPolyline(_polylineScratch, color, width, antialiased: true);
+    }
+
+    private void DrawRegionPlayMarks(CanvasItem canvas, float width, float waveTop, float waveBottom)
     {
         if (_nodes.Count == 0 || width < 2f)
             return;
@@ -1029,7 +1235,7 @@ public partial class WaveformDisplay : Control
             float w = Math.Abs(to - from);
             if (w < 1f)
                 return;
-            DrawRect(new Rect2(SnapPx(left), atY, Math.Max(1f, Mathf.Round(w)), 1f), _regionMarkColor, true);
+            canvas.DrawRect(new Rect2(SnapPx(left), atY, Math.Max(1f, Mathf.Round(w)), 1f), _regionMarkColor, true);
         }
 
         float prevNorm = 0f;
@@ -1072,13 +1278,13 @@ public partial class WaveformDisplay : Control
             bool endOnScreen = xEnd >= -1f && xEnd <= width + 1f;
             if (startOnScreen)
             {
-                DrawVBar(SnapPx(xStart), capY, lineY + 1f, _regionMarkColor, 1f);
+                DrawVBar(canvas, SnapPx(xStart), capY, lineY + 1f, _regionMarkColor, 1f);
                 DrawHSeg(xStart, xStart + hook, capY);
             }
 
             if (endOnScreen)
             {
-                DrawVBar(SnapPx(xEnd), capY, lineY + 1f, _regionMarkColor, 1f);
+                DrawVBar(canvas, SnapPx(xEnd), capY, lineY + 1f, _regionMarkColor, 1f);
                 DrawHSeg(xEnd - hook, xEnd, capY);
             }
 
@@ -1095,34 +1301,79 @@ public partial class WaveformDisplay : Control
             }
 
             float baseline = lineY + 4f;
-            DrawOutlinedString(font, new Vector2(tx, baseline), label, fontSize, _regionMarkColor);
+            DrawOutlinedString(canvas, font, new Vector2(tx, baseline), label, fontSize, _regionMarkColor);
         }
     }
 
-    private void DrawOutlinedString(Font font, Vector2 pos, string text, int fontSize, Color fill)
+    private static void DrawOutlinedString(
+        CanvasItem canvas, Font font, Vector2 pos, string text, int fontSize, Color fill)
     {
         var outline = new Color(0f, 0f, 0f, 0.92f);
-        for (int ox = -1; ox <= 1; ox++)
+        canvas.DrawString(font, pos + new Vector2(-1f, 0f), text, HorizontalAlignment.Left, -1, fontSize, outline);
+        canvas.DrawString(font, pos + new Vector2(1f, 0f), text, HorizontalAlignment.Left, -1, fontSize, outline);
+        canvas.DrawString(font, pos + new Vector2(0f, -1f), text, HorizontalAlignment.Left, -1, fontSize, outline);
+        canvas.DrawString(font, pos + new Vector2(0f, 1f), text, HorizontalAlignment.Left, -1, fontSize, outline);
+        canvas.DrawString(font, pos, text, HorizontalAlignment.Left, -1, fontSize, fill);
+    }
+
+    /// <summary>
+    /// 0 dB position as a 0–1 fraction from the floor, matching the old linear-dB layout
+    /// so the hairline stays put. Below unity the axis is linear amplitude; above it, linear dB.
+    /// </summary>
+    private static float UnityVolumeNorm()
+    {
+        float span = UiUtilities.MaxComponentGainDb - UiUtilities.MinVolumeDb;
+        if (span < 1e-3f)
+            return 1f;
+        return (0f - UiUtilities.MinVolumeDb) / span;
+    }
+
+    /// <summary>
+    /// Maps relative linear gain to a 0–1 display position (bottom = silence, top = +12 dB).
+    /// Cuts (−60…0 dB) are linear in amplitude so 0 dB to −3 dB has more travel than −50 dB to −60 dB.
+    /// Boost (0…+12 dB) stays linear in dB so +12 does not eat the scale.
+    /// </summary>
+    private static float VolumeLinearToNorm(float linear)
+    {
+        linear = AudioTimelineNode.ClampVolumeLinear(linear);
+        float unityT = UnityVolumeNorm();
+        if (linear >= 1f)
         {
-            for (int oy = -1; oy <= 1; oy++)
-            {
-                if (ox == 0 && oy == 0)
-                    continue;
-                DrawString(font, pos + new Vector2(ox, oy), text,
-                    HorizontalAlignment.Left, -1, fontSize, outline);
-            }
+            float boost = UiUtilities.MaxComponentGainDb;
+            if (boost <= 1e-3f || unityT >= 1f - 1e-6f)
+                return 1f;
+            float db = 20f * MathF.Log10(Math.Max(linear, 1f));
+            db = Math.Clamp(db, 0f, boost);
+            return unityT + (db / boost) * (1f - unityT);
         }
 
-        DrawString(font, pos, text, HorizontalAlignment.Left, -1, fontSize, fill);
+        return linear * unityT;
+    }
+
+    /// <summary>
+    /// Inverse of <see cref="VolumeLinearToNorm"/>.
+    /// </summary>
+    private static float VolumeNormToLinear(float t)
+    {
+        t = Mathf.Clamp(t, 0f, 1f);
+        float unityT = UnityVolumeNorm();
+        if (t >= unityT)
+        {
+            float boost = UiUtilities.MaxComponentGainDb;
+            if (boost <= 1e-3f || unityT >= 1f - 1e-6f)
+                return 1f;
+            float db = (t - unityT) / (1f - unityT) * boost;
+            return UiUtilities.DbToLinear(db);
+        }
+
+        if (unityT <= 1e-6f)
+            return 0f;
+        return t / unityT;
     }
 
     private static float VolumeLinearToY(float linear, float waveTop, float waveBottom)
     {
-        float db = UiUtilities.LinearToDb(linear);
-        float span = UiUtilities.MaxComponentGainDb - UiUtilities.MinVolumeDb;
-        if (span < 1e-3f)
-            return waveBottom;
-        float t = (db - UiUtilities.MinVolumeDb) / span;
+        float t = VolumeLinearToNorm(linear);
         return Mathf.Lerp(waveBottom - 2f, waveTop + 2f, Mathf.Clamp(t, 0f, 1f));
     }
 
@@ -1148,7 +1399,13 @@ public partial class WaveformDisplay : Control
         return Mathf.Lerp(waveBottom - 2f, waveTop + 2f, Mathf.Clamp(t, 0f, 1f));
     }
 
-    private void DrawTimelineNodes(float width, float waveTop, float waveBottom)
+    private static float OpacityScaleToY(float scale, float waveTop, float waveBottom)
+    {
+        float t = AudioTimelineNode.ClampOpacityScale(scale);
+        return Mathf.Lerp(waveBottom - 2f, waveTop + 2f, t);
+    }
+
+    private void DrawTimelineNodes(CanvasItem canvas, float width, float waveTop, float waveBottom)
     {
         if (_nodes.Count == 0)
             return;
@@ -1171,14 +1428,14 @@ public partial class WaveformDisplay : Control
             if (selected || hoverNear)
                 color = color.Lightened(0.18f);
 
-            DrawVBar(x, waveTop, waveBottom, color, 1f);
+            DrawVBar(canvas, x, waveTop, waveBottom, color, 1f);
 
             float sqLeft = Mathf.Round(x - size * 0.5f);
             float sqTop = Mathf.Round(waveTop + 2f);
             var square = new Rect2(sqLeft, sqTop, size, size);
-            DrawRect(square, color, true);
+            canvas.DrawRect(square, color, true);
             if (selected)
-                DrawRect(square, Colors.White, false, 1f);
+                canvas.DrawRect(square, Colors.White, false, 1f);
 
             if (font == null)
                 continue;
@@ -1190,14 +1447,14 @@ public partial class WaveformDisplay : Control
                 tx = sqLeft - 3f - textSize.X;
             if (tx < 1f)
                 tx = 1f;
-            DrawString(font, new Vector2(tx, sqTop + size - 1f), label,
+            canvas.DrawString(font, new Vector2(tx, sqTop + size - 1f), label,
                 HorizontalAlignment.Left, -1, fontSize, color);
         }
     }
 
-    private void DrawVolumePoints(float width, float waveTop, float waveBottom)
+    private void DrawVolumePoints(CanvasItem canvas, float width, float waveTop, float waveBottom)
     {
-        if (_nodes.Count == 0)
+        if (!ShowVolumeAutomation || _nodes.Count == 0)
             return;
 
         float r = VolumeHandleRadius;
@@ -1208,20 +1465,56 @@ public partial class WaveformDisplay : Control
                 continue;
             float y = VolumeLinearToY(node.VolumeLinear, waveTop, waveBottom);
             bool selected = node.Number == _selectedNodeNumber;
-            DrawCircle(new Vector2(x, y), r, _volumeLineColor);
+            canvas.DrawCircle(new Vector2(x, y), r, _volumeLineColor);
             if (selected)
-                DrawArc(new Vector2(x, y), r + 1.2f, 0f, MathF.Tau, 24, Colors.White, 1.4f, antialiased: true);
+                canvas.DrawArc(new Vector2(x, y), r + 1.2f, 0f, MathF.Tau, 24, Colors.White, 1.4f, antialiased: true);
         }
     }
 
-    private void DrawPlayhead(float width, float height)
+    private void DrawOpacityPoints(CanvasItem canvas, float width, float waveTop, float waveBottom)
+    {
+        if (!ShowOpacityAutomation || ShowVolumeAutomation || _nodes.Count == 0)
+            return;
+
+        float r = VolumeHandleRadius;
+        foreach (var node in _nodes)
+        {
+            float x = FileNormToX(node.FileNorm);
+            if (x < -20 || x > width + 20)
+                continue;
+            float y = OpacityScaleToY(node.OpacityScale, waveTop, waveBottom);
+            bool selected = node.Number == _selectedNodeNumber;
+            canvas.DrawCircle(new Vector2(x, y), r, _opacityLineColor);
+            if (selected)
+                canvas.DrawArc(new Vector2(x, y), r + 1.2f, 0f, MathF.Tau, 24, Colors.White, 1.4f, antialiased: true);
+        }
+    }
+
+    private void DrawPendingNode(CanvasItem canvas, float width, float waveTop, float waveBottom)
+    {
+        if (_pendingNodeNorm < 0f)
+            return;
+
+        float x = SnapPx(FileNormToX(_pendingNodeNorm));
+        if (x < -20 || x > width + 20)
+            return;
+
+        var color = new Color(_nodeColor, 0.5f);
+        DrawVBar(canvas, x, waveTop, waveBottom, color, 1f);
+        float size = NodeSquareSize;
+        float sqLeft = Mathf.Round(x - size * 0.5f);
+        float sqTop = Mathf.Round(waveTop + 2f);
+        canvas.DrawRect(new Rect2(sqLeft, sqTop, size, size), color, false, 1f);
+    }
+
+    private void DrawPlayhead(CanvasItem canvas, float width, float height)
     {
         if (_playheadNorm < 0f || !IsInView(_playheadNorm))
             return;
         float x = SnapPx(FileNormToX(_playheadNorm));
         if (x < -2 || x > width + 2) return;
 
-        DrawVBar(x, 8f, height, _playheadColor, 2f);
+        DrawVBar(canvas, x, 8f, height, _playheadColor, 2f);
         var tip = new[]
         {
             new Vector2(x - 5f, 1f),
@@ -1229,17 +1522,13 @@ public partial class WaveformDisplay : Control
             new Vector2(x, 9f)
         };
         SnapPoly(tip);
-        DrawColoredPolygon(tip, _playheadColor);
+        canvas.DrawColoredPolygon(tip, _playheadColor);
     }
 
     private void DrawTimeMarker(float x, float height, Color color, bool isStart)
     {
         x = SnapPx(x);
         if (x < -20 || x > Size.X + 20) return;
-
-        bool hoverNear = _hoverNorm >= 0f && Math.Abs(FileNormToX(_hoverNorm) - x) <= 8f;
-        if (hoverNear)
-            color = color.Lightened(0.18f);
 
         DrawVBar(x, FlagHeight - 1f, height, color, 2f);
 
@@ -1266,7 +1555,10 @@ public partial class WaveformDisplay : Control
         DrawColoredPolygon(flag, color);
     }
 
-    private void DrawVBar(float x, float y0, float y1, Color color, float thickness)
+    private void DrawVBar(float x, float y0, float y1, Color color, float thickness) =>
+        DrawVBar(this, x, y0, y1, color, thickness);
+
+    private static void DrawVBar(CanvasItem canvas, float x, float y0, float y1, Color color, float thickness)
     {
         float w = Math.Max(1f, Mathf.Round(thickness));
         float left = Mathf.Round(x - w * 0.5f);
@@ -1274,7 +1566,7 @@ public partial class WaveformDisplay : Control
         float h = Math.Abs(y1 - y0);
         if (h < 1f)
             return;
-        DrawRect(new Rect2(left, top, w, h), color, true);
+        canvas.DrawRect(new Rect2(left, top, w, h), color, true);
     }
 
     private static float SnapPx(float v) => Mathf.Round(v);
@@ -1301,7 +1593,25 @@ public partial class WaveformDisplay : Control
         if (!GodotObject.IsInstanceValid(this))
             return;
         SyncAccentColors();
-        QueueRedraw();
+        RedrawAll();
+    }
+
+    /// <summary>
+    /// Cheap layer for nodes, automation, playhead, and hover (envelope stays on the parent).
+    /// </summary>
+    private sealed partial class WaveformOverlayLayer : Control
+    {
+        private readonly WaveformDisplay _host;
+
+        public WaveformOverlayLayer(WaveformDisplay host)
+        {
+            _host = host;
+        }
+
+        public override void _Draw()
+        {
+            _host?.DrawOverlayNow(this);
+        }
     }
 
     /// <summary>

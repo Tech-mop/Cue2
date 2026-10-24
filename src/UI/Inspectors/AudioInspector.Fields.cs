@@ -6,8 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Cue2.Domain.Cuelist;
 using Cue2.Domain.Playback;
 using Cue2.Domain.Devices;
@@ -252,111 +250,68 @@ public partial class AudioInspector
     }
 
     /// <summary>
-    /// Re-binds the audio component from the live cue and refreshes fields (undo/redo, external edits).
+    /// Refreshes inspector fields after an external model edit (<see cref="GlobalSignals.SyncShellInspector"/>).
     /// </summary>
+    /// <remarks>
+    /// Duration/time edits (including adding a timeline node) emit this signal so the shell
+    /// inspector can repaint. A full <see cref="ShellSelected"/> rebind enumerates audio devices,
+    /// rebuilds the routing matrix, and redraws the waveform; skip that when the live component
+    /// is unchanged. Undo/redo replaces the component instance, which takes the full path
+    /// (and <see cref="GlobalSignals.ShellFocused"/> from history restore also rebinds).
+    /// </remarks>
     private void OnSyncFromHistory()
     {
-    	TaskUtil.Run(OnSyncFromHistoryAsync, "AudioInspector.OnSyncFromHistory");
-    }
+        if (!IsInsideTree())
+            return;
 
-    private async Task OnSyncFromHistoryAsync()
-    {
-        // SyncShellInspector is global (shell pre-wait edits, etc.). Skip if this inspector
-        // is not in the live tree (tab not built / freed) to avoid get_node absolute-path errors.
-        if (!IsInsideTree()) return;
-
-        // Multi-edit / full rebind after cuelist restore.
-        if (_focusedCue != null || InspectorMultiEditSupport.ShouldUseMultiEdit(_globalData))
+        if (NeedsFullAudioInspectorRebind())
         {
             int cueId = _focusedCue?.Id ?? _globalData?.FocusedCue ?? -1;
-            if (cueId >= 0 || InspectorMultiEditSupport.ShouldUseMultiEdit(_globalData))
-            {
-                ShellSelected(cueId >= 0 ? cueId : (_globalData?.FocusedCue ?? -1));
-                return;
-            }
-        }
-
-        if (_focusedCue == null) return;
-        // Re-fetch cue in case instance was replaced (cuelist-scope restore).
-        var cue = CueList.FetchCueFromId(_focusedCue.Id);
-        if (cue == null)
-        {
-            _focusedCue = null;
-            _focusedAudioComponent = null;
-            return;
-        }
-        _focusedCue = cue;
-        _focusedAudioComponent = cue.GetAudioComponent();
-        if (_focusedAudioComponent == null)
-        {
-            _infoLabel.Text = UiLocalizer.T("No Audio File");
-            SetSelectFileVisible(true);
-            _inspectorContent.Visible = false;
-            _fileUrl.Text = "";
-            RestoreFileUrlPlaceholder();
-            ClearFileMetadataLabel();
-            if (_deleteAudioComponentButton != null)
-                _deleteAudioComponentButton.Visible = false;
+            ShellSelected(cueId);
             return;
         }
 
-        UpdateAudioUiFields(_focusedAudioComponent.AudioFile ?? string.Empty);
-        // Output routing is not part of the scalar time fields — refresh dropdown + matrix too.
-        PopulateOutputOptions();
-        // Heavy matrix rebuild only when the routing UI is actually visible (avoid thrashing
-        // on every shell pre/post-wait keystroke commit while Audio tab is inactive).
-        if (_routingContainer != null && _routingContainer.Visible)
-            BuildRoutingMatrix();
+        if (_focusedAudioInput != null)
+            return;
+        if (_focusedAudioComponent != null)
+            UpdateAudioUiFields(_focusedAudioComponent.AudioFile ?? string.Empty);
+    }
 
-        // History snapshots omit WaveformData; invalidate cache and regenerate peaks so start/end
-        // selection colors + handles redraw after undo/redo.
-        _cachedPeaks = null;
-        _cachedPeaksSource = null;
-        _isDraggingStart = false;
-        _isDraggingEnd = false;
-        _isDraggingFadeIn = false;
-        _isDraggingFadeOut = false;
-        _draggingTimelineNodeId = -1;
-        CancelPendingTimelineNodeClick();
-
-        if (!string.IsNullOrEmpty(_focusedAudioComponent.AudioFile)
-            && (_focusedAudioComponent.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0))
+    /// <summary>
+    /// True when the focused cue or its audio component is no longer the live instance
+    /// (history restore, add/remove component, cuelist rebuild).
+    /// </summary>
+    private bool NeedsFullAudioInspectorRebind()
+    {
+        if (InspectorMultiEditSupport.ShouldUseMultiEdit(_globalData))
         {
-            try
-            {
-                var wave = await _mediaEngine.GenerateWaveformAsync(
-                    _focusedAudioComponent.AudioFile, RestartWaveformToken());
-                if (_focusedAudioComponent != null && wave != null && wave.Length > 0)
-                    _focusedAudioComponent.WaveformData = wave;
-            }
-            catch (OperationCanceledException) { /* focus moved */ }
-            catch (Exception ex)
-            {
-                GD.PrintErr($"AudioInspector:OnSyncFromHistory - Waveform regen failed: {ex.Message}");
-            }
+            int focusedId = _focusedCue?.Id ?? _globalData?.FocusedCue ?? -1;
+            if (focusedId < 0)
+                return true;
+            return CueBindingChanged(CueList.FetchCueFromId(focusedId));
         }
 
-        if (_focusedAudioComponent.Metadata == null && !string.IsNullOrEmpty(_focusedAudioComponent.AudioFile))
-        {
-            try
-            {
-                _focusedAudioComponent.Metadata =
-                    await _mediaEngine.GetAudioFileMetadataAsync(_focusedAudioComponent.AudioFile);
-                // Channel count now known — pan is stereo-only.
-                UpdatePanUiVisibilityAndValues();
-                RefreshRoutingInputPanLabels();
-            }
-            catch (Exception ex)
-            {
-                GD.PrintErr($"AudioInspector:OnSyncFromHistory - Metadata refresh failed: {ex.Message}");
-            }
-        }
-        else
-        {
-            UpdatePanUiVisibilityAndValues();
-        }
+        if (_focusedCue == null)
+            return false;
 
-        await DrawWaveform();
+        return CueBindingChanged(CueList.FetchCueFromId(_focusedCue.Id));
+    }
+
+    /// <summary>
+    /// True when <paramref name="live"/> is missing or is not the inspector's current cue/component.
+    /// </summary>
+    /// <param name="live">Cue currently in the index for the focused id, or null.</param>
+    private bool CueBindingChanged(Cue live)
+    {
+        if (live == null)
+            return true;
+        if (!ReferenceEquals(_focusedCue, live))
+            return true;
+        if (!ReferenceEquals(_focusedAudioComponent, live.GetAudioComponent()))
+            return true;
+        if (!ReferenceEquals(_focusedAudioInput, live.GetAudioInputComponent()))
+            return true;
+        return false;
     }
     
     
@@ -413,53 +368,9 @@ public partial class AudioInspector
         if (targets == null || targets.Count == 0)
             return;
 
-        if (_rateInput != null)
-        {
-            if (InspectorMultiEditSupport.TryGetUniformDouble(targets.Select(t => t.Component.PlayRate), out double rate))
-            {
-                _rateInput.Text = FormatPlayRate(rate);
-                _rateInput.PlaceholderText = string.Empty;
-            }
-            else
-            {
-                _rateInput.Text = string.Empty;
-                _rateInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
-            }
-        }
-
-        if (_keepPitchCheck != null)
-        {
-            if (InspectorMultiEditSupport.TryGetUniform(targets.Select(t => t.Component.KeepPitch), out bool keep))
-                _keepPitchCheck.SetPressedNoSignal(keep);
-            else
-                _keepPitchCheck.SetPressedNoSignal(false);
-        }
-
-        if (_pitchInput != null)
-        {
-            if (InspectorMultiEditSupport.TryGetUniformFloat(targets.Select(t => t.Component.PitchCents), out float cents))
-            {
-                _pitchInput.Text = FormatPitchCents(cents);
-                _pitchInput.PlaceholderText = string.Empty;
-            }
-            else
-            {
-                _pitchInput.Text = string.Empty;
-                _pitchInput.PlaceholderText = InspectorMultiEditSupport.MultiPlaceholder;
-            }
-        }
-    }
-
-    private static string FormatPlayRate(double rate)
-    {
-        rate = AudioComponent.ClampPlayRate(rate);
-        return rate.ToString("0.###");
-    }
-
-    private static string FormatPitchCents(float cents)
-    {
-        int rounded = (int)Math.Round(AudioComponent.ClampPitchCents(cents));
-        return rounded.ToString();
+        InspectorRatePitch.SyncRateField(_rateInput, targets.Select(t => t.Component.PlayRate));
+        InspectorRatePitch.SyncKeepPitch(_keepPitchCheck, targets.Select(t => t.Component.KeepPitch));
+        InspectorRatePitch.SyncCentsField(_pitchInput, targets.Select(t => t.Component.PitchCents));
     }
 
     private void OnRateSubmitted(string text)
@@ -469,7 +380,7 @@ public partial class AudioInspector
         if (targets.Count == 0 || _rateInput == null) return;
         if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
 
-        if (!double.TryParse((text ?? "").Trim(), out double rate) || rate <= 0)
+        if (!InspectorRatePitch.TryParseRate(text, out double rate))
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"Invalid play rate: {text}", (int)LogType.Warning);
@@ -478,8 +389,7 @@ public partial class AudioInspector
             return;
         }
 
-        rate = AudioComponent.ClampPlayRate(rate);
-        _rateInput.Text = FormatPlayRate(rate);
+        _rateInput.Text = InspectorRatePitch.FormatRate(rate);
         if (targets.All(t => Math.Abs(t.Component.PlayRate - rate) < 1e-6))
         {
             if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
@@ -514,8 +424,7 @@ public partial class AudioInspector
         if (targets.Count == 0 || _pitchInput == null) return;
         if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
 
-        string trimmed = (text ?? "").Trim().TrimEnd('¢', 'c', 'C');
-        if (!float.TryParse(trimmed, out float cents))
+        if (!InspectorRatePitch.TryParseCents(text, out float cents))
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"Invalid pitch cents: {text}", (int)LogType.Warning);
@@ -524,8 +433,7 @@ public partial class AudioInspector
             return;
         }
 
-        cents = AudioComponent.ClampPitchCents(cents);
-        _pitchInput.Text = FormatPitchCents(cents);
+        _pitchInput.Text = InspectorRatePitch.FormatCents(cents);
         if (targets.All(t => Math.Abs(t.Component.PitchCents - cents) < 0.5f))
         {
             if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();

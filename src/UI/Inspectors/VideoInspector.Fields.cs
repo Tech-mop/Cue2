@@ -349,6 +349,7 @@ public partial class VideoInspector
 		if (_fileDurationLabel != null) _fileDurationLabel.Visible = !isImage;
 		if (_fileDurationValue != null) _fileDurationValue.Visible = !isImage;
 		if (_loopPlayCountRow != null) _loopPlayCountRow.Visible = !isImage;
+		if (_rateRow != null) _rateRow.Visible = !isImage;
 
 		if (_durationValue != null)
 		{
@@ -773,6 +774,109 @@ public partial class VideoInspector
 		_globalSignals.EmitSignal(nameof(GlobalSignals.SyncShellInspector));
 	}
 	
+	/// <summary>
+	/// Syncs rate / keep-pitch / cents from video targets (blank when mixed).
+	/// </summary>
+	private void SyncRatePitchUi(List<(Cue Cue, VideoComponent Component)> targets)
+	{
+		if (targets == null || targets.Count == 0)
+			return;
+
+		var videoTargets = targets.Where(t => !t.Component.IsImage).ToList();
+		if (_rateInput != null && videoTargets.Count == 0)
+		{
+			_rateInput.Text = "1";
+			_rateInput.PlaceholderText = string.Empty;
+		}
+		else
+		{
+			InspectorRatePitch.SyncRateField(_rateInput, videoTargets.Select(t => t.Component.PlayRate));
+		}
+
+		InspectorRatePitch.SyncKeepPitch(_keepPitchCheck, targets.Select(t => t.Component.KeepPitch));
+		InspectorRatePitch.SyncCentsField(_pitchInput, targets.Select(t => t.Component.PitchCents));
+
+		ApplyPreviewPlayRate();
+	}
+
+	private void ApplyPreviewPlayRate()
+	{
+		if (_videoPreviewer == null || _focusedVideoComponent == null)
+			return;
+		_videoPreviewer.PlayRate = _focusedVideoComponent.EffectivePlayRate;
+	}
+
+	private void OnRateSubmitted(string text)
+	{
+		var targets = GetVideoTargets().Where(t => !t.Component.IsImage).ToList();
+		if (targets.Count == 0 || _rateInput == null) return;
+		if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+
+		if (!InspectorRatePitch.TryParseRate(text, out double rate))
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				$"Invalid play rate: {text}", (int)LogType.Warning);
+			SyncRatePitchUi(GetVideoTargets());
+			if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
+			return;
+		}
+
+		_rateInput.Text = InspectorRatePitch.FormatRate(rate);
+		if (targets.All(t => Math.Abs(t.Component.PlayRate - rate) < 1e-6))
+		{
+			if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
+			return;
+		}
+
+		RecordVideoHistory("Edit video play rate");
+		foreach (var (_, comp) in targets)
+			comp.PlayRate = rate;
+		SyncDuration();
+		RedrawWaveformView();
+		ApplyPreviewPlayRate();
+		if (_rateInput.HasFocus()) _rateInput.ReleaseFocus();
+	}
+
+	private void OnKeepPitchToggled(bool pressed)
+	{
+		if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+		var targets = GetVideoTargets();
+		if (targets.Count == 0) return;
+		if (targets.All(t => t.Component.KeepPitch == pressed)) return;
+
+		RecordVideoHistory("Edit video keep pitch");
+		foreach (var (_, comp) in targets)
+			comp.KeepPitch = pressed;
+	}
+
+	private void OnPitchSubmitted(string text)
+	{
+		var targets = GetVideoTargets();
+		if (targets.Count == 0 || _pitchInput == null) return;
+		if (_isSyncingUi || _globalData?.HistoryManager?.IsRestoring == true) return;
+
+		if (!InspectorRatePitch.TryParseCents(text, out float cents))
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				$"Invalid pitch cents: {text}", (int)LogType.Warning);
+			SyncRatePitchUi(targets);
+			if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();
+			return;
+		}
+
+		_pitchInput.Text = InspectorRatePitch.FormatCents(cents);
+		if (targets.All(t => Math.Abs(t.Component.PitchCents - cents) < 0.5f))
+		{
+			if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();
+			return;
+		}
+
+		RecordVideoHistory("Edit video pitch");
+		foreach (var (_, comp) in targets)
+			comp.PitchCents = cents;
+		if (_pitchInput.HasFocus()) _pitchInput.ReleaseFocus();
+	}
+
 	/// <summary>
 	/// Handles play count submission with validation to prevent invalid integers.
 	/// </summary>
