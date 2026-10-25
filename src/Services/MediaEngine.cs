@@ -46,7 +46,12 @@ public partial class MediaEngine : Node
     private readonly Dictionary<string, Task<MediaEngine.AudioMetadataProbeResult>> _audioMetaInflight =
         new Dictionary<string, Task<MediaEngine.AudioMetadataProbeResult>>(
             OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
-    
+
+    /// <summary>
+    /// True after native FFmpeg libraries loaded and bound. False means audio/video decode is unavailable.
+    /// </summary>
+    public bool IsFFmpegAvailable { get; private set; }
+
     public override void _Ready()
     {
         if (SingleInstanceGuard.IsSecondary)
@@ -57,8 +62,14 @@ public partial class MediaEngine : Node
         try
         {
             GD.Print("MediaEngine:_Ready - Loading FFmpeg libs.");
-            LinkFFmpegLibraries();
+            if (!TryLinkFFmpegLibraries(out string linkError))
+            {
+                ReportFFmpegUnavailable(linkError);
+                return;
+            }
+
             GD.Print($"MediaEngine:_Ready - FFmpeg version: {ffmpeg.av_version_info()}");
+            IsFFmpegAvailable = true;
             CallDeferred(nameof(LogVideoHost));
             CallDeferred(nameof(WarmUpPlayback));
         }
@@ -72,14 +83,34 @@ public partial class MediaEngine : Node
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
                 $"MediaEngine:_Ready - Failed to initialize MediaEngine: {msg}", 2);
             GD.PrintErr($"MediaEngine:_Ready - Initialization error: {msg}, {ex.StackTrace}");
+            ReportFFmpegUnavailable(msg);
         }
         catch (Exception ex)
         {
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
                 $"MediaEngine:_Ready - Failed to initialize MediaEngine: {ex.Message}", 2);
             GD.PrintErr($"MediaEngine:_Ready - Initialization error: {ex.Message}, {ex.StackTrace}");
+            ReportFFmpegUnavailable(ex.Message);
         }
         
+    }
+
+    /// <summary>
+    /// Records FFmpeg as unavailable for the startup-error overlay (audio, video, waveforms).
+    /// </summary>
+    /// <param name="detail">Technical reason already suitable for the log.</param>
+    private void ReportFFmpegUnavailable(string detail)
+    {
+        IsFFmpegAvailable = false;
+        _globalData?.ReportStartupFault(
+            "ffmpeg",
+            "FFmpeg",
+            string.IsNullOrWhiteSpace(detail)
+                ? "Native FFmpeg libraries could not be loaded."
+                : detail,
+            "Audio playback",
+            "Video playback",
+            "Waveforms");
     }
 
     /// <summary>
@@ -106,6 +137,9 @@ public partial class MediaEngine : Node
     /// </summary>
     private void WarmUpPlayback()
     {
+        if (!IsFFmpegAvailable)
+            return;
+
         try
         {
             bool hardwareOff = _globalData?.Settings != null
@@ -147,8 +181,11 @@ public partial class MediaEngine : Node
     /// Ensures core shared libraries (avcodec, avformat, etc.) are resolved before any FFmpeg calls.
     /// Searches export-friendly paths then <c>res://bin/{platform}/</c> (see <see cref="NativeLibPaths"/>).
     /// </summary>
-    private void LinkFFmpegLibraries()
+    /// <param name="error">Failure reason when the method returns false.</param>
+    /// <returns>True when every required FFmpeg library loaded.</returns>
+    private bool TryLinkFFmpegLibraries(out string error)
     {
+        error = null;
         try
         {
             string platformDir = NativeLibPaths.GetPlatformDir(out string platformLabel);
@@ -201,18 +238,23 @@ public partial class MediaEngine : Node
             }
 
             GD.Print("MediaEngine:LoadFFmpegLibraries - All FFmpeg libs loaded successfully.");
+            return true;
         }
         catch (DllNotFoundException ex)
         {
+            error = ex.Message;
             GD.PrintErr($"MediaEngine:LoadFFmpegLibraries - Library not found: {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"FFmpeg: {ex.Message}", 2);
+            return false;
         }
         catch (Exception ex)
         {
+            error = ex.Message;
             GD.PrintErr($"MediaEngine:LoadFFmpegLibraries - Load error: {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"FFmpeg load error: {ex.Message}", 2);
+            return false;
         }
     }
 

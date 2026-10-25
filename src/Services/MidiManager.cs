@@ -580,6 +580,12 @@ public partial class MidiManager : Node
             GD.PrintErr($"MidiManager:EnsureNativeLibraryLoaded - {error}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"MIDI: native library not found — {error}", (int)LogType.Error);
+            _globalData?.ReportStartupFault(
+                "midi",
+                "MIDI",
+                error,
+                "MIDI input and output",
+                "MIDI timecode");
             return false;
         }
         catch (Exception ex)
@@ -587,6 +593,12 @@ public partial class MidiManager : Node
             GD.PrintErr($"MidiManager:EnsureNativeLibraryLoaded - {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
                 $"MIDI: failed to load native library — {ex.Message}", (int)LogType.Error);
+            _globalData?.ReportStartupFault(
+                "midi",
+                "MIDI",
+                ex.Message,
+                "MIDI input and output",
+                "MIDI timecode");
             return false;
         }
     }

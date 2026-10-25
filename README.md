@@ -1,6 +1,9 @@
 <p align="center">
   <a href="https://www.cue2.live/">
-    <img src="src/UI/Assets/Cue2Logo.svg" width="400" alt="Cue2 logo">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="src/UI/Assets/Cue2Logo.svg">
+      <img src=".github/assets/Cue2Logo-light.svg" width="400" alt="Cue2 logo">
+    </picture>
   </a>
 </p>
 

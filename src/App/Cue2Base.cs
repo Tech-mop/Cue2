@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2025-2026 Samuel Moxham
 // SPDX-License-Identifier: MIT
 
+using System;
 using System.IO;
 using Godot;
 using Cue2.Services;
+using Cue2.UI.Popups;
 using Cue2.UI.Shell;
 using Cue2.UI.Utilities;
 using Cue2.UI.Windows;
@@ -41,6 +43,9 @@ public partial class Cue2Base : Control
 	/// <summary>Workspace overlay shown while the startup (or later) showfile apply is in progress.</summary>
 	private SessionLoadOverlay _sessionLoadOverlay;
 
+	/// <summary>Boot system-fault overlay, if currently shown.</summary>
+	private StartupErrorDialog _startupErrorDialog;
+
 	public WorkspaceStates State { get; set; }
 
 	//public GlobalMediaPlayerManager mediaManager;
@@ -74,6 +79,7 @@ public partial class Cue2Base : Control
 
 		// Deferred so main window geometry/chrome settles before a modal-style sub-window opens.
 		CallDeferred(nameof(MaybeShowFirstTimeStartup));
+		CallDeferred(nameof(MaybeShowStartupFaults));
 		CallDeferred(nameof(ScheduleStartupUpdateCheck));
 	}
 
@@ -168,6 +174,82 @@ public partial class Cue2Base : Control
 		if (_firstTimeStartupWindow != null)
 			_firstTimeStartupWindow.TreeExiting -= OnFirstTimeStartupWindowExiting;
 		_firstTimeStartupWindow = null;
+		CallDeferred(nameof(MaybeShowStartupFaults));
+	}
+
+	/// <summary>
+	/// Shows the system-fault overlay after chrome (and the first-time welcome, if any) is up.
+	/// Missing audio devices and other user configuration failures are not shown here.
+	/// </summary>
+	private void MaybeShowStartupFaults()
+	{
+		var faults = _globalData?.StartupFaults;
+		if (faults == null || !faults.HasFaults)
+		{
+			faults?.Seal();
+			return;
+		}
+
+		if (_firstTimeStartupWindow != null && GodotObject.IsInstanceValid(_firstTimeStartupWindow))
+			return;
+
+		if (_startupErrorDialog != null && GodotObject.IsInstanceValid(_startupErrorDialog))
+			return;
+
+		var dialog = StartupErrorDialog.Create(out string error);
+		if (dialog == null)
+		{
+			GD.PrintErr($"Cue2Base:MaybeShowStartupFaults - {error}");
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				"Could not open the startup-error dialog.", (int)LogType.Error);
+			faults.Seal();
+			return;
+		}
+
+		faults.Seal();
+		_startupErrorDialog = dialog;
+		dialog.RestartRequested += OnStartupFaultRestart;
+		dialog.ContinueRequested += OnStartupFaultContinue;
+		dialog.TreeExiting += OnStartupErrorDialogExiting;
+		AddChild(dialog);
+		dialog.Configure(faults.Snapshot(), faults.CollectAffectedFeatures());
+		dialog.ShowConfigured();
+	}
+
+	private void OnStartupErrorDialogExiting()
+	{
+		if (_startupErrorDialog == null)
+			return;
+		_startupErrorDialog.RestartRequested -= OnStartupFaultRestart;
+		_startupErrorDialog.ContinueRequested -= OnStartupFaultContinue;
+		_startupErrorDialog.TreeExiting -= OnStartupErrorDialogExiting;
+		_startupErrorDialog = null;
+	}
+
+	private void OnStartupFaultContinue()
+	{
+		GD.Print("Cue2Base:OnStartupFaultContinue - Continuing with unavailable system features.");
+	}
+
+	/// <summary>
+	/// Relaunches Cue2 with the same user command-line args, then quits this process.
+	/// </summary>
+	private void OnStartupFaultRestart()
+	{
+		try
+		{
+			string[] args = OS.GetCmdlineUserArgs() ?? Array.Empty<string>();
+			OS.SetRestartOnExit(true, args);
+			GD.Print("Cue2Base:OnStartupFaultRestart - Restart on exit set.");
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Cue2Base:OnStartupFaultRestart - {ex.Message}");
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				$"Could not schedule a restart: {ex.Message}", (int)LogType.Error);
+		}
+
+		GetTree()?.Quit();
 	}
 
 	private void ScaleUI(float uiScale)
@@ -212,6 +294,13 @@ public partial class Cue2Base : Control
 
 		if (_firstTimeStartupWindow != null && GodotObject.IsInstanceValid(_firstTimeStartupWindow))
 			_firstTimeStartupWindow.TreeExiting -= OnFirstTimeStartupWindowExiting;
+
+		if (_startupErrorDialog != null && GodotObject.IsInstanceValid(_startupErrorDialog))
+		{
+			_startupErrorDialog.RestartRequested -= OnStartupFaultRestart;
+			_startupErrorDialog.ContinueRequested -= OnStartupFaultContinue;
+			_startupErrorDialog.TreeExiting -= OnStartupErrorDialogExiting;
+		}
 
 		if (_globalSignals != null)
 		{

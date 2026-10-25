@@ -195,6 +195,38 @@ public partial class GlobalData : Node
 	/// </summary>
 	public string StartupOpenPath;
 
+	/// <summary>
+	/// System faults recorded during autoload (FFmpeg, SDL, MIDI natives). User configuration
+	/// failures are not stored here. Sealed when the startup-error overlay is shown or skipped.
+	/// </summary>
+	public StartupFaultRegistry StartupFaults { get; } = new();
+
+	/// <summary>
+	/// True after <c>SDL.Init</c> succeeded. Audio device open/poll must skip when this is false.
+	/// </summary>
+	public bool SdlInitialized { get; private set; }
+
+	/// <summary>
+	/// Records a boot-time system fault for the startup-error overlay. Duplicate ids are ignored.
+	/// </summary>
+	/// <param name="id">Stable id (for example <c>ffmpeg</c>, <c>sdl</c>, <c>midi</c>).</param>
+	/// <param name="subsystem">Short name shown in the dialog details.</param>
+	/// <param name="detail">Technical reason (already suitable for the log).</param>
+	/// <param name="affectedFeatures">User-facing capabilities this failure takes away.</param>
+	/// <returns>True when the fault was newly recorded.</returns>
+	public bool ReportStartupFault(string id, string subsystem, string detail, params string[] affectedFeatures)
+	{
+		if (!StartupFaults.Report(id, subsystem, detail, affectedFeatures))
+			return false;
+
+		string line = string.IsNullOrEmpty(detail)
+			? $"Startup error ({subsystem})"
+			: $"Startup error ({subsystem}): {detail}";
+		GD.PrintErr($"GlobalData:ReportStartupFault - {line}");
+		_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), line, (int)LogType.Error);
+		return true;
+	}
+
 	private SingleInstanceGuard _instanceGuard;
 	
 	/// <summary>
@@ -445,20 +477,33 @@ public partial class GlobalData : Node
 		AddChild(CueLibraryManager);
 
 		// Load Cue2's 64-channel SDL3 from bin/{platform} before any DllImport.
-		if (NativeLibPaths.TryLoadSdlNative(out string sdlPath, out string sdlLoadError))
+		bool patchedSdl = NativeLibPaths.TryLoadSdlNative(out string sdlPath, out string sdlLoadError);
+		if (patchedSdl)
 			GD.Print($"GlobalData:_Ready - Loaded patched SDL3 from {sdlPath}");
 		else
 			GD.Print($"GlobalData:_Ready - Using packaged SDL3 ({sdlLoadError})");
 
-		// Initialize SDL with audio, events, and video
-		if (SDL.Init(SDL.InitFlags.Audio | SDL.InitFlags.Events | SDL.InitFlags.Video) == false)
+		// Initialize SDL with audio, events, and video. Failure is a system fault: keep
+		// constructing the rest of GlobalData so the main window can show the overlay.
+		try
 		{
-			var errorMsg = $"SDL Init failed: {SDL.GetError()}";
-			GD.Print("GlobalData:_Ready - " + errorMsg);
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), errorMsg, 3);
-			return;
+			SdlInitialized = SDL.Init(SDL.InitFlags.Audio | SDL.InitFlags.Events | SDL.InitFlags.Video);
+			if (!SdlInitialized)
+			{
+				string errorMsg = $"SDL Init failed: {SDL.GetError()}";
+				GD.Print("GlobalData:_Ready - " + errorMsg);
+				ReportStartupFault("sdl", "SDL", errorMsg, "Audio playback", "Audio devices");
+			}
 		}
-		GD.Print("GlobalData:_Ready - SDL initialized successfully.");
+		catch (System.Exception ex)
+		{
+			SdlInitialized = false;
+			GD.PrintErr($"GlobalData:_Ready - SDL Init threw: {ex.Message}");
+			ReportStartupFault("sdl", "SDL", ex.Message, "Audio playback", "Audio devices");
+		}
+
+		if (SdlInitialized)
+			GD.Print("GlobalData:_Ready - SDL initialized successfully.");
 
 		ShellSelection = new ShellSelection();
 		AddChild(ShellSelection);
@@ -658,7 +703,8 @@ public partial class GlobalData : Node
 		}
 		_defaultInputBindings.Clear();
 
-		if (SDL.WasInit(SDL.InitFlags.Audio) != 0) SDL.Quit();
+		if (SdlInitialized && SDL.WasInit(SDL.InitFlags.Audio) != 0)
+			SDL.Quit();
 		GD.Print("GlobalData:_ExitTree - Cleaned up SDL.");
 	}
 

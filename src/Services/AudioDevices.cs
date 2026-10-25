@@ -128,6 +128,9 @@ public partial class AudioDevices : Node
 
     private void PollSdlEvents()
     {
+	    if (_globalData != null && !_globalData.SdlInitialized)
+		    return;
+
 	    bool changesDetected = false; 
 	    while (SDL.PollEvent(out var ev))
 	    {
@@ -409,6 +412,12 @@ public partial class AudioDevices : Node
     /// </remarks>
     public AudioDevice OpenAudioDevice(string name, out string error)
     {
+	    if (_globalData != null && !_globalData.SdlInitialized)
+	    {
+		    error = "Audio system failed to start.";
+		    return null;
+	    }
+
 	    // Check if audio device already opened
 	    GD.Print($"OpenAudioDevice called for: {name}");
 	    foreach (var dev in _openDevices.Values)
@@ -515,6 +524,9 @@ public partial class AudioDevices : Node
     /// </remarks>
     public List<string> GetAvailableAudioDeviceNames()
     {
+	    if (_globalData != null && !_globalData.SdlInitialized)
+		    return new List<string>();
+
 	    try
 	    {
 		    //GD.Print("AudioDevices:GetAvailableAudioDeviceNames - Enumerating playback devices");

@@ -1,0 +1,89 @@
+[gd_scene format=3 uid="uid://c9m3r5w8xsterr"]
+
+[ext_resource type="Theme" uid="uid://vidokm2ilwtk" path="res://src/UI/Assets/base_theme.tres" id="1_theme"]
+[ext_resource type="Script" uid="uid://b8k2n4p7qst02" path="res://src/UI/Popups/StartupErrorDialog.cs" id="1_script"]
+
+[node name="StartupErrorDialog" type="Control"]
+z_index = 50
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = ExtResource("1_theme")
+script = ExtResource("1_script")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.04, 0.05, 0.055, 0.88)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+
+[node name="CardMargin" type="MarginContainer" parent="Center/Card"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card/CardMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Startup error"
+horizontal_alignment = 1
+
+[node name="BodyLabel" type="Label" parent="Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "An error occurred during startup that will affect some Cue2 features. You can restart Cue2 to try again, or continue with these features unavailable."
+autowrap_mode = 3
+
+[node name="DetailsLabel" type="Label" parent="Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.72, 0.74, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="ActionBar" type="HBoxContainer" parent="Center/Card/CardMargin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 2
+
+[node name="ContinueButton" type="Button" parent="Center/Card/CardMargin/VBox/ActionBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Continue"
+
+[node name="RestartButton" type="Button" parent="Center/Card/CardMargin/VBox/ActionBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Restart"

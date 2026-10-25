@@ -33,6 +33,7 @@
 - Shell inspector Solo option: Off (default), Stop all, or Stop current list.
 - Settings → Cue2 Preferences → Theme. Choose **Cue2 (Default)**, **Dark**, **Light**, or **Neon**, or **Add Theme** for a Godot Theme `.tres`.
 - Preload standby cue (Settings, General, Media): "Edit and show mode", "Show mode only" (default) or "Off". The cue on the playhead has its media opened before GO, hidden and silent, so GO starts it straight away. Groups of more than 16 cues are not preloaded.
+- If a system dependency fails at launch (FFmpeg, SDL, or MIDI), Cue2 shows a dialog listing the affected features, with Restart and Continue.
 
 ### Fixed
 - Audio and video inspectors refresh the Output menu and routing matrix when output patches are edited, without rebinding the whole inspector.
