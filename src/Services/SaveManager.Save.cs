@@ -522,7 +522,7 @@ public partial class SaveManager
 	/// <param name="sessionPath">Absolute .c2 path.</param>
 	/// <param name="saveData">Snapshot dictionary built on the main thread.</param>
 	/// <returns>Success flag and error text.</returns>
-	private static (bool Ok, string Error) WritePlainShowfile(string sessionPath, Dictionary saveData)
+	internal static (bool Ok, string Error) WritePlainShowfile(string sessionPath, Dictionary saveData)
 	{
 		string tmpPath = sessionPath + ".tmp";
 		try

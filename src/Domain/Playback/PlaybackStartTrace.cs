@@ -45,6 +45,7 @@ internal sealed class PlaybackStartTrace
     {
         if (Interlocked.Exchange(ref _pictureLogged, 1) != 0)
             return;
+        PlaybackTimingRecorder.Record(_label, PlaybackTimingRecorder.StageFirstPicture, _goTicks, _playTicks);
         GD.Print($"PlaybackStartTrace:NotePicture - Start timing {_label}: first picture {Describe()}");
     }
 
@@ -54,6 +55,7 @@ internal sealed class PlaybackStartTrace
         if (Volatile.Read(ref _audioLogged) != 0 || queuedBytes <= 0)
             return;
         Interlocked.Exchange(ref _primedBytes, queuedBytes);
+        PlaybackTimingRecorder.Record(_label, PlaybackTimingRecorder.StageAudioQueued, _goTicks, _playTicks);
         GD.Print($"PlaybackStartTrace:NoteAudioPrimed - Start timing {_label}: audio queued {Describe()}");
     }
 
@@ -65,6 +67,7 @@ internal sealed class PlaybackStartTrace
             return;
         if (Interlocked.Exchange(ref _audioLogged, 1) != 0)
             return;
+        PlaybackTimingRecorder.Record(_label, PlaybackTimingRecorder.StageOutputTookAudio, _goTicks, _playTicks);
         GD.Print($"PlaybackStartTrace:NoteAudioQueued - Start timing {_label}: output started taking audio {Describe()}");
     }
 

@@ -47,6 +47,20 @@ UpgradeLog.htm
 .DS_Store*
 **/.DS_Store
 
+# Automated tests (tests/README.md): keep the test project files, drop build output and results
+!tests/**/*.csproj
+!tests/*.sln
+tests/**/bin/
+tests/**/obj/
+tests/artifacts/
+TestResults/
+# Written by the GdUnit4 test adapter during an engine test run
+/gdunit4_testadapter_v5/
+# Import settings for images that scenes reference by UID (keeps fresh checkouts warning-free)
+!/src/UI/Assets/icons.png.import
+!/src/UI/Assets/icon32.png.import
+!/src/UI/Assets/Cue2Logo.svg.import
+
 # Not in the public repo yet
 /docs/
 /AGENTS.md

@@ -842,7 +842,7 @@ public partial class TimecodeManager : Node
     /// <summary>
     /// GO's armed cues once each time a session clock reaches (or jumps across) their trigger frame.
     /// Rewinding and passing the same time again fires again, including while the first instance is still live.
-    /// Sitting on the frame does not retrigger.
+    /// Sitting on the frame does not retrigger. The decision itself is <see cref="TimecodeTriggerRule.ShouldFire"/>.
     /// </summary>
     private void FireCueTimecodeTriggers()
     {
@@ -871,19 +871,21 @@ public partial class TimecodeManager : Node
             if (endpoint.Direction == TimecodeDirection.Input && !endpoint.CurrentValue.IsLocked)
                 continue;
 
-            var current = endpoint.CurrentValue;
-            double currentElapsed = current.ToElapsedSeconds();
             double targetElapsed = cue.GetTimecodeTriggerElapsedSeconds(endpoint.FrameRate);
             if (targetElapsed < 0)
                 continue;
             if (!_triggerPrevValue.TryGetValue(endpoint.Id, out var previous))
                 continue;
 
-            bool onFrame = MatchesTriggerFrame(current, cue);
-            bool wasOn = MatchesTriggerFrame(previous, cue);
-            bool hit = onFrame && !wasOn;
-            if (!hit)
-                hit = TimecodeValue.CrossedElapsed(previous.ToElapsedSeconds(), currentElapsed, targetElapsed);
+            bool hit = TimecodeTriggerRule.ShouldFire(
+                previous,
+                endpoint.CurrentValue,
+                endpoint.Direction == TimecodeDirection.Input,
+                cue.TimecodeTriggerHours,
+                cue.TimecodeTriggerMinutes,
+                cue.TimecodeTriggerSeconds,
+                cue.TimecodeTriggerFrames,
+                targetElapsed);
             if (!hit)
                 continue;
 
@@ -938,19 +940,6 @@ public partial class TimecodeManager : Node
         for (int i = 0; i < stale.Count; i++)
             _triggerPrevValue.Remove(stale[i]);
     }
-
-    private static bool MatchesTriggerFrame(TimecodeValue reading, Cue cue)
-    {
-        if (cue == null || !cue.HasTimecodeTrigger)
-            return false;
-        int fps = Math.Max(1, reading.FrameRate.NominalFramesPerSecond());
-        int frames = Math.Clamp(cue.TimecodeTriggerFrames, 0, fps - 1);
-        return reading.Hours == cue.TimecodeTriggerHours
-               && reading.Minutes == cue.TimecodeTriggerMinutes
-               && reading.Seconds == cue.TimecodeTriggerSeconds
-               && reading.Frames == frames;
-    }
-
 
     private IReadOnlyList<string> ListMidiNames(bool inputs)
     {

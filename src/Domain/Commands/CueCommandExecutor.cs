@@ -72,7 +72,8 @@ public partial class CueCommandExecutor : Node
         _mediaEngine = GetNode<MediaEngine>("/root/MediaEngine");
         _audioDevices = GetNode<AudioDevices>("/root/AudioDevices");
         
-        _activeCueList = GetNode("/root/Cue2Base").GetNode<PanelContainer>("%ActiveCueContainer").GetNode<VBoxContainer>("%ActiveCueList");
+        if (!EnsureActiveCueList())
+            GD.Print("CueCommandExecutor:_Ready - Main window not loaded yet; the active cue list is looked up on first use.");
         GD.Print("CueCommandExecutor:_Ready - Cue Command Executor Successfully added");
         
         _globalSignals.Go += GoCommand;
@@ -81,6 +82,21 @@ public partial class CueCommandExecutor : Node
         SetupProgressiveStart();
 
         TreeExiting += CleanUp;
+    }
+
+    /// <summary>
+    /// Finds the main window's active cue list once it exists (it is created after this node
+    /// when the main scene loads later, for example in an engine test run).
+    /// </summary>
+    /// <returns><see langword="true"/> when the list is available.</returns>
+    private bool EnsureActiveCueList()
+    {
+        if (_activeCueList != null && GodotObject.IsInstanceValid(_activeCueList))
+            return true;
+        _activeCueList = GetNodeOrNull("/root/Cue2Base")
+            ?.GetNodeOrNull<PanelContainer>("%ActiveCueContainer")
+            ?.GetNodeOrNull<VBoxContainer>("%ActiveCueList");
+        return _activeCueList != null;
     }
 
     /// <summary>
@@ -163,6 +179,19 @@ public partial class CueCommandExecutor : Node
     /// <see cref="StartRootsProgressivelyAsync"/>).
     /// </summary>
     public void GoCommand()
+    {
+        long goTicks = Stopwatch.GetTimestamp();
+        try
+        {
+            RunGo();
+        }
+        finally
+        {
+            PlaybackTimingRecorder.Record(string.Empty, PlaybackTimingRecorder.StageGoHandler, goTicks, 0);
+        }
+    }
+
+    private void RunGo()
     {
         if (RejectOperatorGo("GO"))
             return;
@@ -285,7 +314,7 @@ public partial class CueCommandExecutor : Node
     /// <param name="cue">Cue to preload.</param>
     public async Task PreloadCueAsync(Cue cue)
     {
-        if (cue == null || _activeCueList == null)
+        if (cue == null || !EnsureActiveCueList())
             return;
 
         if (!cue.Armed)
@@ -347,6 +376,13 @@ public partial class CueCommandExecutor : Node
         if (head == null)
         {
             GD.PrintErr("CueCommandExecutor:ActivateSequenceFromAsync - Cue is null");
+            return;
+        }
+        if (!EnsureActiveCueList())
+        {
+            GD.PrintErr($"CueCommandExecutor:ActivateSequenceFromAsync - Main window not loaded; GO of \"{head.Name}\" ignored");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                $"GO of \"{head.Name}\" ignored: the main window is not loaded yet.", (int)LogType.Error);
             return;
         }
         PlaybackActivity.Touch(); // autosave waits for a quiet moment after a GO

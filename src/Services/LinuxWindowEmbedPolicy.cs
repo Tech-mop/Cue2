@@ -90,12 +90,16 @@ public static class LinuxWindowEmbedPolicy
             return;
 
         // The main viewport is already a native window. ForceNative after it is visible
-        // can hide or recreate it on Linux.
-        SceneTree tree = window.GetTree();
+        // can hide or recreate it on Linux. A window still being constructed is not in the
+        // tree yet, so it cannot be the main viewport.
+        SceneTree tree = window.IsInsideTree() ? window.GetTree() : null;
         if (tree?.Root != null && window == tree.Root)
             return;
 
-        window.ForceNative = true;
+        // Godot refuses (with an error) to change ForceNative on a visible window, so a
+        // window that is already visible keeps the setting it has.
+        if (!window.ForceNative && !window.Visible)
+            window.ForceNative = true;
         window.GuiEmbedSubwindows = true;
     }
 }

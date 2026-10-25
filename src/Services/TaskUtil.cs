@@ -3,7 +3,6 @@
 
 using System;
 using System.Threading.Tasks;
-using Godot;
 
 namespace Cue2.Services;
 
@@ -80,6 +79,6 @@ public static class TaskUtil
 			: ex;
 
 		string where = string.IsNullOrEmpty(context) ? "TaskUtil" : $"TaskUtil:{context}";
-		GD.PrintErr($"{where} - {flat.GetType().Name}: {flat.Message}");
+		Diag.Error($"{where} - {flat.GetType().Name}: {flat.Message}");
 	}
 }

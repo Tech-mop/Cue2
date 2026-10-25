@@ -38,6 +38,7 @@ public partial class TimecodeManager
         public byte[] Buffer;
         public float[] Mono;
         public LtcDecoder Decoder = new();
+        public TimecodeContinuityFilter Continuity = new();
     }
 
     private readonly object _ltcLock = new();
@@ -403,6 +404,7 @@ public partial class TimecodeManager
             if (available > runtime.Buffer.Length * 8)
             {
                 SDL.ClearAudioStream(runtime.Stream);
+                runtime.Decoder.Reset();
                 continue;
             }
 
@@ -428,7 +430,8 @@ public partial class TimecodeManager
                     buffer.AsSpan(offset, sizeof(float)));
             }
 
-            if (runtime.Decoder.Push(runtime.Mono.AsSpan(0, frames), runtime.SampleRate, endpoint.FrameRate, out var decoded))
+            if (runtime.Decoder.Push(runtime.Mono.AsSpan(0, frames), runtime.SampleRate, endpoint.FrameRate, out var decoded)
+                && runtime.Continuity.Accept(decoded))
                 ApplyLockedInput(endpoint, decoded);
         }
     }

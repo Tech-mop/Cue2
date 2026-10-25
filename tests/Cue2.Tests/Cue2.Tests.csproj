@@ -1,0 +1,26 @@
+<!--
+SPDX-FileCopyrightText: 2026 Samuel Moxham
+SPDX-License-Identifier: MIT
+-->
+<!-- Plain C# tests for Cue2 logic that does not need the Godot engine. Run with tests/run-tests.ps1 or tests/run-tests.sh. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Cue2.Tests</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <!-- Same versions as the engine test packages that Debug builds of Cue2 bring along. -->
+    <PackageReference Include="System.Collections.Immutable" Version="9.0.0" />
+    <PackageReference Include="System.Reflection.Metadata" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Cue2.csproj" />
+  </ItemGroup>
+</Project>

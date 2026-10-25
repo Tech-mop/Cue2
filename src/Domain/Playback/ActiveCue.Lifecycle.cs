@@ -1621,6 +1621,7 @@ public partial class ActiveCue
         if (_contentPhaseStartedRaised || _suppressContentCompleted || _isCleaned)
             return;
         _contentPhaseStartedRaised = true;
+        PlaybackTimingRecorder.Record(_cue?.Name, PlaybackTimingRecorder.StageContentStarted, _goTicks, 0);
         try
         {
             ContentPhaseStarted?.Invoke();

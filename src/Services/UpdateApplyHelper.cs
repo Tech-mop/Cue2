@@ -581,7 +581,8 @@ public static class UpdateApplyHelper
 		return true;
 	}
 
-	private const string WindowsScript =
+	/// <summary>Windows helper (PowerShell 5.1): waits for Cue2, backs up, copies with robocopy, restores on failure, relaunches. Internal so tests can run it.</summary>
+	internal const string WindowsScript =
 		@"$ErrorActionPreference = 'Continue'
 $log = $env:CUE2_LOG
 if (-not $log) { $log = Join-Path $env:TEMP 'Cue2Update\apply-update.log' }
@@ -761,7 +762,8 @@ Log 'ok'
 exit 0
 ";
 
-	private const string MacScript =
+	/// <summary>macOS helper (bash): waits for Cue2, swaps the .app bundle, restores it on failure, reopens it. Internal so tests can run it.</summary>
+	internal const string MacScript =
 		@"#!/bin/bash
 LOG=""${CUE2_LOG:-${TMPDIR:-/tmp}/Cue2Update/apply-update.log}""
 mkdir -p ""$(dirname ""$LOG"")""
@@ -827,7 +829,8 @@ log ""ok""
 exit 0
 ";
 
-	private const string LinuxScript =
+	/// <summary>Linux helper (bash): waits for Cue2, backs up, copies, restores on failure, relaunches. Internal so tests can run it.</summary>
+	internal const string LinuxScript =
 		@"#!/bin/bash
 LOG=""${CUE2_LOG:-${TMPDIR:-/tmp}/Cue2Update/apply-update.log}""
 mkdir -p ""$(dirname ""$LOG"")""

@@ -131,6 +131,12 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
     /// <summary>
     /// Parses a LineEdit the way Cue2 time fields do: cleanup, then fill missing higher digits.
     /// </summary>
+    /// <remarks>
+    /// The typed fields are the timecode label, so the result shows exactly the typed frame at
+    /// every rate (29.97 included). A plain number is label seconds (<c>34</c> is 00:00:34:00).
+    /// A drop-frame label that does not exist (frames 0 and 1 of most minutes) moves to the
+    /// next real label, as drop-frame clocks do.
+    /// </remarks>
     /// <param name="text">Operator input, with optional leading <c>+</c> or <c>-</c>.</param>
     /// <param name="frameRate">Rate used when the string does not imply drop-frame.</param>
     /// <param name="value">Normalized reading (magnitude only).</param>
@@ -143,12 +149,18 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
         out int sign)
     {
         value = default;
-        if (!TryParseUserElapsed(text, frameRate, out double elapsed, out sign))
+        if (!TryParseUserLabelFrames(text, frameRate, out long labelFrames, out var rate, out sign))
             return false;
-        var rate = (text ?? string.Empty).Contains(';')
-            ? TimecodeFrameRate.Fps2997Drop
-            : frameRate;
-        value = FromElapsedSeconds(elapsed, rate, isRunning: true);
+
+        int nominal = Math.Max(1, rate.NominalFramesPerSecond());
+        int frames = (int)(labelFrames % nominal);
+        long totalSeconds = labelFrames / nominal;
+        int seconds = (int)(totalSeconds % 60);
+        int minutes = (int)((totalSeconds / 60) % 60);
+        int hours = (int)((totalSeconds / 3600) % 24);
+        if (rate.IsDropFrame() && seconds == 0 && frames < 2 && minutes % 10 != 0)
+            frames = 2;
+        value = new TimecodeValue(hours, minutes, seconds, frames, rate, isRunning: true);
         return true;
     }
 
@@ -156,6 +168,13 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
     /// Parses operator input to elapsed seconds without wrapping at 24 hours
     /// (for offset and duration fields).
     /// </summary>
+    /// <remarks>
+    /// A plain number is real seconds. Colon input is read as a frame count (fields counted at
+    /// the nominal rate) and converted at the real rate, so it is the exact inverse of
+    /// <see cref="FormatElapsed"/>: the field shows what was typed. At 24, 25 and 30 fps this is
+    /// the same as reading the fields as seconds; at 29.97 one typed timecode second is
+    /// 30 frames, 1.001 real seconds.
+    /// </remarks>
     /// <param name="text">Operator input, with optional leading <c>+</c> or <c>-</c>.</param>
     /// <param name="frameRate">Rate used to convert frames to seconds.</param>
     /// <param name="elapsedSeconds">Non-negative elapsed seconds (magnitude).</param>
@@ -168,60 +187,105 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
         out int sign)
     {
         elapsedSeconds = 0;
-        if (!TryReadSignedBody(text, out string raw, out sign))
+        if (!TryCleanUserInput(text, frameRate, out string cleaned, out var rate, out sign))
             return false;
-
-        bool drop = raw.Contains(';');
-        string cleaned = NonTimecodeChars.Replace(raw, "");
-        cleaned = cleaned.Replace(';', ':');
-        cleaned = RepeatedColons.Replace(cleaned, ":");
-        cleaned = RepeatedDots.Replace(cleaned, ".");
-        cleaned = cleaned.Trim(':');
-
-        if (string.IsNullOrEmpty(cleaned) || cleaned == ".")
-            return false;
-
-        var rate = drop ? TimecodeFrameRate.Fps2997Drop : frameRate;
-        double realFps = Math.Max(1e-6, rate.RealFramesPerSecond());
-        int nominal = Math.Max(1, rate.NominalFramesPerSecond());
 
         if (!cleaned.Contains(':'))
         {
-            if (!double.TryParse(cleaned, NumberStyles.Float, CultureInfo.InvariantCulture, out double totalSec)
-                || totalSec < 0
-                || double.IsNaN(totalSec)
-                || double.IsInfinity(totalSec))
+            if (!TryParsePlainSeconds(cleaned, out double totalSec))
                 return false;
             elapsedSeconds = totalSec;
             return true;
         }
 
+        if (!TryReadLabelFields(cleaned, rate, out long labelFrames))
+            return false;
+        elapsedSeconds = labelFrames / Math.Max(1e-6, rate.RealFramesPerSecond());
+        return elapsedSeconds >= 0 && !double.IsInfinity(elapsedSeconds);
+    }
+
+    /// <summary>
+    /// Reads operator input as a label frame count (fields at the nominal rate). A plain number is
+    /// label seconds; its fraction becomes frames.
+    /// </summary>
+    private static bool TryParseUserLabelFrames(
+        string text,
+        TimecodeFrameRate frameRate,
+        out long labelFrames,
+        out TimecodeFrameRate rate,
+        out int sign)
+    {
+        labelFrames = 0;
+        if (!TryCleanUserInput(text, frameRate, out string cleaned, out rate, out sign))
+            return false;
+
+        int nominal = Math.Max(1, rate.NominalFramesPerSecond());
+        if (!cleaned.Contains(':'))
+        {
+            if (!TryParsePlainSeconds(cleaned, out double totalSec) || totalSec > long.MaxValue / (2.0 * nominal))
+                return false;
+            double whole = Math.Floor(totalSec);
+            int frames = Math.Min(nominal - 1, (int)Math.Floor((totalSec - whole) * nominal + 1e-6));
+            labelFrames = (long)whole * nominal + frames;
+            return true;
+        }
+
+        return TryReadLabelFields(cleaned, rate, out labelFrames);
+    }
+
+    /// <summary>Strips everything but digits and separators; a semicolon means drop-frame.</summary>
+    private static bool TryCleanUserInput(
+        string text,
+        TimecodeFrameRate frameRate,
+        out string cleaned,
+        out TimecodeFrameRate rate,
+        out int sign)
+    {
+        cleaned = string.Empty;
+        rate = frameRate;
+        if (!TryReadSignedBody(text, out string raw, out sign))
+            return false;
+
+        if (raw.Contains(';'))
+            rate = TimecodeFrameRate.Fps2997Drop;
+        cleaned = NonTimecodeChars.Replace(raw, "");
+        cleaned = cleaned.Replace(';', ':');
+        cleaned = RepeatedColons.Replace(cleaned, ":");
+        cleaned = RepeatedDots.Replace(cleaned, ".");
+        cleaned = cleaned.Trim(':');
+        return !string.IsNullOrEmpty(cleaned) && cleaned != ".";
+    }
+
+    private static bool TryParsePlainSeconds(string cleaned, out double totalSec) =>
+        double.TryParse(cleaned, NumberStyles.Float, CultureInfo.InvariantCulture, out totalSec)
+        && totalSec >= 0
+        && !double.IsNaN(totalSec)
+        && !double.IsInfinity(totalSec);
+
+    /// <summary>
+    /// Reads <c>SS:FF</c>, <c>MM:SS:FF</c> or <c>HH:MM:SS:FF</c> as a frame count at the nominal
+    /// rate. Overflowing fields roll up (90 seconds is 1 minute 30).
+    /// </summary>
+    private static bool TryReadLabelFields(string cleaned, TimecodeFrameRate rate, out long labelFrames)
+    {
+        labelFrames = 0;
         string[] parts = cleaned.Split(':');
         if (parts.Length is < 2 or > 4)
             return false;
 
         int hours = 0;
         int minutes = 0;
-        int seconds = 0;
-        int frames = 0;
-        if (!TryParseNonNegativeInt(parts[^1], out frames)
-            || !TryParseNonNegativeInt(parts[^2], out seconds))
+        if (!TryParseNonNegativeInt(parts[^1], out int frames)
+            || !TryParseNonNegativeInt(parts[^2], out int seconds))
             return false;
         if (parts.Length >= 3 && !TryParseNonNegativeInt(parts[^3], out minutes))
             return false;
         if (parts.Length == 4 && !TryParseNonNegativeInt(parts[^4], out hours))
             return false;
 
-        int carry;
-        (carry, frames) = Math.DivRem(frames, nominal);
-        seconds += carry;
-        (carry, seconds) = Math.DivRem(seconds, 60);
-        minutes += carry;
-        (carry, minutes) = Math.DivRem(minutes, 60);
-        hours += carry;
-
-        elapsedSeconds = hours * 3600.0 + minutes * 60.0 + seconds + frames / realFps;
-        return elapsedSeconds >= 0 && !double.IsInfinity(elapsedSeconds);
+        int nominal = Math.Max(1, rate.NominalFramesPerSecond());
+        labelFrames = (((long)hours * 60 + minutes) * 60 + seconds) * nominal + frames;
+        return true;
     }
 
     private static readonly Regex NonTimecodeChars = new(@"[^0-9:.;]", RegexOptions.Compiled);
@@ -308,9 +372,22 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
     /// <param name="currentElapsed">Current sample in real seconds.</param>
     /// <param name="targetElapsed">Target time in real seconds.</param>
     /// <returns><see langword="true"/> when the target was crossed this sample.</returns>
-    public static bool CrossedElapsed(double previousElapsed, double currentElapsed, double targetElapsed)
+    public static bool CrossedElapsed(double previousElapsed, double currentElapsed, double targetElapsed) =>
+        CrossedElapsed(previousElapsed, currentElapsed, targetElapsed, 24.0 * 3600.0);
+
+    /// <summary>
+    /// True when <paramref name="targetElapsed"/> is crossed while moving from
+    /// <paramref name="previousElapsed"/> to <paramref name="currentElapsed"/> (forward only),
+    /// with a day of <paramref name="daySeconds"/> (see <see cref="SecondsPerDay"/>).
+    /// </summary>
+    /// <param name="previousElapsed">Previous sample in real seconds.</param>
+    /// <param name="currentElapsed">Current sample in real seconds.</param>
+    /// <param name="targetElapsed">Target time in real seconds.</param>
+    /// <param name="daySeconds">Length of the timecode day in real seconds.</param>
+    /// <returns><see langword="true"/> when the target was crossed this sample.</returns>
+    public static bool CrossedElapsed(double previousElapsed, double currentElapsed, double targetElapsed, double daySeconds)
     {
-        const double day = 24.0 * 3600.0;
+        double day = daySeconds > 0 ? daySeconds : 24.0 * 3600.0;
         double previous = ((previousElapsed % day) + day) % day;
         double current = ((currentElapsed % day) + day) % day;
         double target = ((targetElapsed % day) + day) % day;
@@ -327,6 +404,29 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
 
         return false;
     }
+
+    /// <summary>
+    /// Number of frames in one 24-hour run of labels at <paramref name="frameRate"/>
+    /// (00:00:00:00 to 23:59:59:last). Drop-frame skips 2 labels in 9 of every 10 minutes.
+    /// </summary>
+    /// <param name="frameRate">Counting rate.</param>
+    /// <returns>Frames per timecode day.</returns>
+    public static long FramesPerDay(TimecodeFrameRate frameRate)
+    {
+        if (frameRate.IsDropFrame())
+            return 24L * 6 * (30 * 60 * 10 - 9 * 2);
+        return 24L * 3600 * Math.Max(1, frameRate.NominalFramesPerSecond());
+    }
+
+    /// <summary>
+    /// Real seconds in one 24-hour run of labels at <paramref name="frameRate"/>: exactly 86400 at
+    /// 24, 25 and 30 fps; 86486.4 at 29.97 non-drop and 86399.9136 at 29.97 drop-frame.
+    /// Elapsed seconds wrap at this length so every label of the day keeps its own time.
+    /// </summary>
+    /// <param name="frameRate">Counting rate.</param>
+    /// <returns>Seconds per timecode day.</returns>
+    public static double SecondsPerDay(TimecodeFrameRate frameRate) =>
+        FramesPerDay(frameRate) / frameRate.RealFramesPerSecond();
 
     /// <summary>00:00:00:00 at <paramref name="frameRate"/>.</summary>
     /// <param name="frameRate">Counting rate.</param>
@@ -350,14 +450,17 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
             elapsedSeconds = 0;
 
         double realFps = frameRate.RealFramesPerSecond();
-        double framesPerDay = 24.0 * 3600.0 * realFps;
+        // Wrap at the day of labels, not 24 real hours: at 29.97 non-drop those differ by
+        // 86 seconds, and wrapping early turned the last labels of the day into 00:00 times.
+        double framesPerDay = FramesPerDay(frameRate);
         double wrapped = elapsedSeconds * realFps;
         if (framesPerDay > 0)
             wrapped %= framesPerDay;
         if (wrapped < 0)
             wrapped += framesPerDay;
 
-        long frameNumber = (long)Math.Floor(wrapped);
+        // Exact frame times can land a hair below the frame in floating point; nudge before flooring.
+        long frameNumber = (long)Math.Floor(wrapped + 1e-6);
         if (frameRate.IsDropFrame())
             return FromDropFrameNumber(frameNumber, frameRate, isRunning);
 
@@ -420,7 +523,7 @@ public readonly struct TimecodeValue : IEquatable<TimecodeValue>
     public TimecodeValue OffsetBySeconds(double seconds)
     {
         double elapsed = ToElapsedSeconds() + seconds;
-        double day = 24.0 * 3600.0;
+        double day = SecondsPerDay(FrameRate);
         elapsed %= day;
         if (elapsed < 0)
             elapsed += day;

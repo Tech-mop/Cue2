@@ -21,6 +21,8 @@ public sealed class LtcDecoder
     private int _bitWrite;
     private int _bitsFilled;
     private TimecodeFrameRate _hint = TimecodeFrameRate.Fps30;
+    private long _bitCount;
+    private long _lastSyncBit = -1;
 
     /// <summary>
     /// Pushes interleaved-extracted mono samples and returns a frame when the sync word is found.
@@ -75,7 +77,9 @@ public sealed class LtcDecoder
             int half = _halfBitSamples;
             if (interval > half * 4)
             {
+                // Dropout or silence: the next sync word only sets a fresh starting point.
                 _halfRun = 0;
+                _lastSyncBit = -1;
                 continue;
             }
 
@@ -88,8 +92,11 @@ public sealed class LtcDecoder
                 {
                     PushBit(1);
                     _halfRun = 0;
-                    if (TryReadFrame(out latest))
+                    if (TryReadFrame(out var frame))
+                    {
+                        latest = frame;
                         decoded = true;
+                    }
                 }
             }
             else
@@ -97,8 +104,11 @@ public sealed class LtcDecoder
                 _halfBitSamples = Math.Clamp((_halfBitSamples * 3 + interval / 2) / 4, 2, expectedHalf * 3);
                 _halfRun = 0;
                 PushBit(0);
-                if (TryReadFrame(out latest))
+                if (TryReadFrame(out var frame))
+                {
+                    latest = frame;
                     decoded = true;
+                }
             }
         }
 
@@ -115,6 +125,8 @@ public sealed class LtcDecoder
         _halfRun = 0;
         _bitWrite = 0;
         _bitsFilled = 0;
+        _bitCount = 0;
+        _lastSyncBit = -1;
         Array.Clear(_bits);
     }
 
@@ -124,6 +136,7 @@ public sealed class LtcDecoder
         _bitWrite = (_bitWrite + 1) % BitHistory;
         if (_bitsFilled < BitHistory)
             _bitsFilled++;
+        _bitCount++;
     }
 
     private bool TryReadFrame(out TimecodeValue value)
@@ -132,29 +145,27 @@ public sealed class LtcDecoder
         if (_bitsFilled < 80)
             return false;
 
+        // A frame ends with its sync word, so it is complete exactly when the newest 80 bits
+        // hold it. Older offsets would mix bits from two frames and give wrong times.
         Span<byte> window = stackalloc byte[80];
-        CopyWindow(0, window);
-        if (LtcEncoder.TryUnpack(window, _hint, out value))
-            return true;
+        CopyWindow(window);
+        if (!LtcEncoder.TryUnpack(window, _hint, out value))
+            return false;
 
-        for (int origin = 1; origin < 80; origin += 1)
-        {
-            CopyWindow(origin, window);
-            if (LtcEncoder.TryUnpack(window, _hint, out value))
-                return true;
-        }
-
-        return false;
+        // Report a frame only when the previous sync word was exactly one frame earlier.
+        // The first frame after start, a dropout or a bit slip may begin with stale bits,
+        // so it only sets the starting point.
+        bool followsLastFrame = _lastSyncBit >= 0 && _bitCount - _lastSyncBit == 80;
+        _lastSyncBit = _bitCount;
+        return followsLastFrame;
     }
 
-    private void CopyWindow(int origin, Span<byte> window)
+    private void CopyWindow(Span<byte> window)
     {
+        int start = _bitWrite - 80;
+        if (start < 0)
+            start += BitHistory;
         for (int i = 0; i < 80; i++)
-        {
-            int idx = _bitWrite - 80 + origin + i;
-            while (idx < 0)
-                idx += BitHistory;
-            window[i] = _bits[idx % BitHistory];
-        }
+            window[i] = _bits[(start + i) % BitHistory];
     }
 }

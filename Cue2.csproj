@@ -24,4 +24,23 @@ SPDX-License-Identifier: MIT
 <ItemGroup>
   <EmbeddedResource Remove="bin\**" />
 </ItemGroup>
+<ItemGroup>
+  <!-- Automated tests build as their own projects under tests/ (see tests/README.md). -->
+  <Compile Remove="tests\**" />
+  <None Remove="tests\**" />
+  <EmbeddedResource Remove="tests\**" />
+  <InternalsVisibleTo Include="Cue2.Tests" />
+</ItemGroup>
+<!-- Engine tests (tests/engine) run inside Godot through GdUnit4Net. Debug builds only, so
+     exports never contain test code or test packages. -->
+<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+  <PackageReference Include="gdUnit4.api" Version="5.1.0-rc5" PrivateAssets="all" />
+  <PackageReference Include="gdUnit4.test.adapter" Version="3.1.1" PrivateAssets="all" />
+  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" PrivateAssets="all" />
+  <Compile Include="tests\engine\**\*.cs" />
+</ItemGroup>
+<ItemGroup Condition="'$(Configuration)' != 'Debug'">
+  <!-- Written by the GdUnit4 test adapter during an engine test run. -->
+  <Compile Remove="gdunit4_testadapter_v5\**" />
+</ItemGroup>
 </Project> 

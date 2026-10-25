@@ -488,6 +488,43 @@ public partial class SaveManager : Node
 	}
 
 	/// <summary>
+	/// Saves the current show to <paramref name="path"/> without a dialog, the same way Save As does
+	/// after the dialog closes. Used by automation and the engine tests.
+	/// </summary>
+	/// <param name="path">Absolute .c2 path.</param>
+	/// <param name="skipMediaBackup">When true, media is not copied into the show folder.</param>
+	/// <returns><see langword="true"/> when the file was written.</returns>
+	internal Task<bool> SaveToPathAsync(string path, bool skipMediaBackup = true) =>
+		SaveSessionAsync(path, skipMediaBackup);
+
+	/// <summary>
+	/// Opens the showfile at <paramref name="path"/> without a dialog, the same way the Open dialog does.
+	/// A file that needs version confirmation still shows the version dialog.
+	/// </summary>
+	/// <param name="path">Absolute .c2 path.</param>
+	internal Task OpenPathAsync(string path) => OpenSelectedSessionAsync(path);
+
+	/// <summary>Starts a new empty session without asking about unsaved changes.</summary>
+	internal void NewSessionWithoutPrompt() => PerformNewSession();
+
+	/// <summary>
+	/// Waits until no showfile open or session apply is running.
+	/// </summary>
+	/// <param name="timeoutMs">Longest wait in milliseconds.</param>
+	/// <returns><see langword="true"/> when idle before the timeout.</returns>
+	internal async Task<bool> WaitForSessionIdleAsync(int timeoutMs)
+	{
+		var clock = System.Diagnostics.Stopwatch.StartNew();
+		while (IsSessionLoading || _isOpenInProgress)
+		{
+			if (clock.ElapsedMilliseconds > timeoutMs)
+				return false;
+			await YieldProcessFrame();
+		}
+		return true;
+	}
+
+	/// <summary>
 	/// File → Quit / window close. Prompts when a footer background task is running,
 	/// then when the document is dirty, then quits.
 	/// </summary>

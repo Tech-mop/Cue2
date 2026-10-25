@@ -39,8 +39,14 @@ public static class CueSequencePlanner
 	/// <param name="stopBeforeIds">
 	/// Optional ids the chain ends before (never the head): cues the same GO starts on their own.
 	/// </param>
+	/// <param name="nextSibling">
+	/// Optional lookup of the next cue at the same level; defaults to <see cref="Cue.GetNextSiblingCue"/>.
+	/// </param>
 	/// <returns>Ordered chain members from head through sequence end.</returns>
-	public static List<CueChainMember> BuildChain(Cue head, ISet<int> stopBeforeIds = null)
+	public static List<CueChainMember> BuildChain(
+		Cue head,
+		ISet<int> stopBeforeIds = null,
+		System.Func<Cue, Cue> nextSibling = null)
 	{
 		var result = new List<CueChainMember>();
 		if (head == null) return result;
@@ -62,7 +68,7 @@ public static class CueSequencePlanner
 			if (current.Follow == FollowType.None)
 				break;
 
-			var next = current.GetNextSiblingCue();
+			var next = nextSibling != null ? nextSibling(current) : current.GetNextSiblingCue();
 			if (next == null)
 				break;
 			if (stopBeforeIds != null && stopBeforeIds.Contains(next.Id))

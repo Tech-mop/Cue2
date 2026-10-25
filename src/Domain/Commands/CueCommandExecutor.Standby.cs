@@ -173,7 +173,7 @@ public partial class CueCommandExecutor
         string key = BuildStandbyKey(target);
         if (_autoStandby != null)
         {
-            if (_autoStandbyCueId == target.Id && (key == _autoStandbyKey || (!_autoStandbyReady && SameStateId(key))))
+            if (_autoStandbyCueId == target.Id && (key == _autoStandbyKey || (!_autoStandbyReady && SameStateId(key, _autoStandbyKey))))
                 return;
             ReleaseAutoStandby(_autoStandbyCueId == target.Id ? "cue changed" : "playhead moved");
         }
@@ -218,7 +218,7 @@ public partial class CueCommandExecutor
     {
         if (_globalData?.Settings == null || !_globalData.Settings.PreloadStandbyActive)
             return null;
-        if (_activeCueList == null || !GodotObject.IsInstanceValid(_activeCueList))
+        if (!EnsureActiveCueList())
             return null;
         if (_globalSignals == null || _globalSignals.IsGoDisabledBy(GlobalSignals.GoDisableReasonSessionLoad))
             return null;
@@ -250,7 +250,11 @@ public partial class CueCommandExecutor
     /// <summary>
     /// Counts the cue and everything nested under it, stopping once <paramref name="limit"/> is reached.
     /// </summary>
-    private static int CountTreeCues(Cue root, int limit)
+    /// <summary>Counts a cue and its descendants, stopping at <paramref name="limit"/>.</summary>
+    /// <param name="root">Cue to start from.</param>
+    /// <param name="limit">Count at which to stop walking.</param>
+    /// <returns>Number of cues found, at most <paramref name="limit"/>.</returns>
+    internal static int CountTreeCues(Cue root, int limit)
     {
         int count = 0;
         var pending = new System.Collections.Generic.Stack<(Cue cue, int depth)>();
@@ -353,7 +357,7 @@ public partial class CueCommandExecutor
             return null;
         }
         string key = BuildStandbyKey(cue);
-        bool matches = key == _autoStandbyKey || (!_autoStandbyReady && SameStateId(key));
+        bool matches = key == _autoStandbyKey || (!_autoStandbyReady && SameStateId(key, _autoStandbyKey));
         if (!matches)
         {
             ReleaseAutoStandby("cue changed");
@@ -432,13 +436,17 @@ public partial class CueCommandExecutor
         return sb.ToString();
     }
 
-    private bool SameStateId(string key)
+    /// <summary>Whether two standby keys share the same first line (the show state id).</summary>
+    /// <param name="key">Key just built.</param>
+    /// <param name="otherKey">Key of the current standby.</param>
+    /// <returns><see langword="true"/> when both first lines are present and equal.</returns>
+    internal static bool SameStateId(string key, string otherKey)
     {
-        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(_autoStandbyKey))
+        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(otherKey))
             return false;
         int a = key.IndexOf('\n');
-        int b = _autoStandbyKey.IndexOf('\n');
-        return a > 0 && a == b && string.CompareOrdinal(key, 0, _autoStandbyKey, 0, a) == 0;
+        int b = otherKey.IndexOf('\n');
+        return a > 0 && a == b && string.CompareOrdinal(key, 0, otherKey, 0, a) == 0;
     }
 
     /// <summary>

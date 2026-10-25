@@ -3,7 +3,6 @@
 
 using System;
 using System.IO;
-using Godot;
 
 namespace Cue2.Services;
 
@@ -51,7 +50,7 @@ public static class MediaPaths
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"MediaPaths:Resolve - {ex.Message}");
+            Diag.Error($"MediaPaths:Resolve - {ex.Message}");
             return storedPath;
         }
     }
@@ -98,7 +97,7 @@ public static class MediaPaths
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"MediaPaths:TryMakeRelative - {ex.Message}");
+            Diag.Error($"MediaPaths:TryMakeRelative - {ex.Message}");
             return null;
         }
     }
