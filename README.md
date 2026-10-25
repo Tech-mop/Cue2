@@ -1,15 +1,27 @@
-# Cue-2
+<div align="center">
 
-## Cross-platform show control and playback
-Cue-2 offers a reliable and fast way to build sound, video and show control.
+<a href="https://www.cue2.live/">
+  <img src="src/UI/Assets/Cue2Logo.svg#gh-dark-mode-only" alt="Cue2" width="420">
+  <img src="docs/Cue2Logo-light.svg#gh-light-mode-only" alt="Cue2" width="420">
+</a>
+
+**Cross-platform show control and playback**
+
+Cue2 offers a reliable and fast way to build sound, video and show control.
+
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#download)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Tech-mop/Cue2.svg)](https://github.com/Tech-mop/Cue2/releases/latest)
+[![Godot](https://img.shields.io/badge/Godot-4.7-478cbf.svg?logo=godotengine&logoColor=white)](https://godotengine.org)
+[![Website](https://img.shields.io/badge/website-cue2.live-eb6f02.svg)](https://www.cue2.live/)
+
+</div>
 
 ## Features
 - Audio and video playback (wide format support via FFmpeg)
 - OSC send/receive
 - Text overlays, cue library, session management
 - Low-latency cue triggering
-
-User-facing changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Free and Open Source
 
@@ -47,11 +59,11 @@ python tools/export-all.py
 
 Signing, notarization, and certificates are **not** in this repository.
 
-## Platforms
-Cue-2 targets:
-- Windows 10+
-- macOS
-- Linux
+## Download
+
+Cue2 runs on Windows 10+, macOS, and Linux.
+
+Get the latest build from [GitHub Releases](https://github.com/Tech-mop/Cue2/releases/latest).
 
 ## License
 This project (Cue2 application code) is licensed under the MIT License — see the [LICENSE](LICENSE) file.
