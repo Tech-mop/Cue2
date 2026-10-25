@@ -37,6 +37,13 @@ public static class Version
     /// </summary> 
     /// <value>The patch version integer.</value> 
     public static readonly int Patch = 0; 
+
+    /// <summary>
+    /// Gets the SemVer prerelease label without the leading dash, e.g. "rc.1". Empty for a stable release.
+    /// </summary>
+    /// <value>The prerelease label. Stamped by <c>tools/export-all.py</c> from the release version.</value>
+    /// <remarks>Declared before the version strings below, which read it during static initialization.</remarks>
+    public static readonly string Prerelease = "";
  
     /// <summary> 
     /// Gets the version status. Empty for a public release. 
@@ -92,12 +99,17 @@ public static class Version
     /// </summary>
     /// <value>The full version string, e.g. "v0.1.0 - StripyHat" or "v0.1.0 alpha - StripyHat".</value>
     public static readonly string FullVersionString = string.IsNullOrEmpty(Status)
-        ? $"v{Major}.{Minor}.{Patch} - {CodeName}"
-        : $"v{Major}.{Minor}.{Patch} {Status} - {CodeName}";
+        ? $"v{SemanticVersionCore()} - {CodeName}"
+        : $"v{SemanticVersionCore()} {Status} - {CodeName}";
 
     /// <summary>
-    /// Gets the semantic version string used when stamping showfiles (major.minor.patch).
+    /// Gets the semantic version string used when stamping showfiles and comparing updates
+    /// (major.minor.patch, plus -prerelease for a prerelease build).
     /// </summary>
-    /// <value>The semantic version, e.g. "0.1.0".</value>
-    public static readonly string SemanticVersionString = $"{Major}.{Minor}.{Patch}";
+    /// <value>The semantic version, e.g. "0.1.0" or "0.2.0-rc.1".</value>
+    public static readonly string SemanticVersionString = SemanticVersionCore();
+
+    private static string SemanticVersionCore() => string.IsNullOrEmpty(Prerelease)
+        ? $"{Major}.{Minor}.{Patch}"
+        : $"{Major}.{Minor}.{Patch}-{Prerelease}";
 }

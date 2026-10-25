@@ -32,6 +32,7 @@ public partial class SettingsUpdates : ScrollContainer
 	private Button _openReleasePageButton;
 	private Button _skipVersionButton;
 	private Button _downloadButton;
+	private Button _cancelDownloadButton;
 	private Button _installRestartButton;
 	private ConfirmationDialog _installConfirmDialog;
 
@@ -52,6 +53,7 @@ public partial class SettingsUpdates : ScrollContainer
 		_openReleasePageButton = GetNode<Button>("%OpenReleasePageButton");
 		_skipVersionButton = GetNode<Button>("%SkipVersionButton");
 		_downloadButton = GetNode<Button>("%DownloadButton");
+		_cancelDownloadButton = GetNode<Button>("%CancelDownloadButton");
 		_installRestartButton = GetNode<Button>("%InstallRestartButton");
 		_installConfirmDialog = GetNode<ConfirmationDialog>("%InstallConfirmDialog");
 
@@ -61,6 +63,7 @@ public partial class SettingsUpdates : ScrollContainer
 		_openReleasePageButton.Pressed += OnOpenReleasePagePressed;
 		_skipVersionButton.Pressed += OnSkipVersionPressed;
 		_downloadButton.Pressed += OnDownloadPressed;
+		_cancelDownloadButton.Pressed += OnCancelDownloadPressed;
 		_installRestartButton.Pressed += OnInstallPressed;
 		_installConfirmDialog.Confirmed += OnInstallConfirmed;
 		LinuxWindowEmbedPolicy.ApplyToAppWindow(_installConfirmDialog);
@@ -97,6 +100,8 @@ public partial class SettingsUpdates : ScrollContainer
 			_skipVersionButton.Pressed -= OnSkipVersionPressed;
 		if (_downloadButton != null)
 			_downloadButton.Pressed -= OnDownloadPressed;
+		if (_cancelDownloadButton != null)
+			_cancelDownloadButton.Pressed -= OnCancelDownloadPressed;
 		if (_installRestartButton != null)
 			_installRestartButton.Pressed -= OnInstallPressed;
 		if (_installConfirmDialog != null)
@@ -141,7 +146,7 @@ public partial class SettingsUpdates : ScrollContainer
 			}
 			else
 			{
-				_latestVersionLabel.Text = "—";
+				_latestVersionLabel.Text = "-";
 				_notesEdit.Text = "";
 			}
 
@@ -150,7 +155,7 @@ public partial class SettingsUpdates : ScrollContainer
 			else if (svc != null && !string.IsNullOrEmpty(svc.LastError) && svc.UiState == UpdateUiState.Error)
 				_statusLabel.Text = svc.LastError;
 			else if (svc != null)
-				_statusLabel.Text = StatusFor(svc.UiState, feed);
+				_statusLabel.Text = StatusFor(svc.UiState, feed, svc.StatusMessage);
 			else
 				_statusLabel.Text = "";
 
@@ -161,6 +166,7 @@ public partial class SettingsUpdates : ScrollContainer
 				_downloadButton.Disabled = true;
 				_installRestartButton.Disabled = true;
 				_skipVersionButton.Disabled = true;
+				_cancelDownloadButton.Visible = false;
 			}
 			else
 			{
@@ -169,6 +175,7 @@ public partial class SettingsUpdates : ScrollContainer
 				bool hasAsset = feed?.CurrentAsset != null && !string.IsNullOrWhiteSpace(feed.CurrentAsset.Url);
 				_downloadButton.Disabled = svc?.UiState != UpdateUiState.Available || !hasAsset;
 				_installRestartButton.Disabled = svc?.UiState != UpdateUiState.ReadyToInstall;
+				_cancelDownloadButton.Visible = svc?.UiState == UpdateUiState.Downloading;
 				_skipVersionButton.Disabled = !available;
 			}
 		}
@@ -178,7 +185,7 @@ public partial class SettingsUpdates : ScrollContainer
 		}
 	}
 
-	private static string StatusFor(UpdateUiState state, UpdateFeed feed)
+	private static string StatusFor(UpdateUiState state, UpdateFeed feed, string message)
 	{
 		return state switch
 		{
@@ -192,7 +199,8 @@ public partial class SettingsUpdates : ScrollContainer
 				? Tf("Cue2 {0} is downloaded and ready to install.", feed.Version)
 				: T("Ready to install."),
 			UpdateUiState.Applying => T("Installing update…"),
-			UpdateUiState.Error => T("Could not check for updates."),
+			// The state message says what failed: check, download, free space or the last install.
+			UpdateUiState.Error => string.IsNullOrWhiteSpace(message) ? T("Could not check for updates.") : message,
 			_ => ""
 		};
 	}
@@ -244,16 +252,21 @@ public partial class SettingsUpdates : ScrollContainer
 		_globalData?.UpdateService?.DownloadUpdate();
 	}
 
+	private void OnCancelDownloadPressed()
+	{
+		_globalData?.UpdateService?.CancelDownload();
+	}
+
 	private void OnInstallPressed()
 	{
 		var svc = _globalData?.UpdateService;
 		if (svc == null)
 			return;
 
-		var exec = _globalData.CueCommandExecutor;
-		if (exec?.ActiveCues != null && exec.ActiveCues.Count > 0)
+		string blocked = svc.GetApplyBlockedReason();
+		if (!string.IsNullOrEmpty(blocked))
 		{
-			_statusLabel.Text = T("Stop all playing cues before installing the update.");
+			_statusLabel.Text = blocked;
 			return;
 		}
 

@@ -134,6 +134,9 @@ SEMVER_PREFIX_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 VERSION_DIR_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 CUE2_ARCHIVE_RE = re.compile(r"^Cue2-(\d+)\.(\d+)\.(\d+)(?:-rc\.\d+)?-")
 GIT_TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)")
+# Full release version: X.Y.Z or X.Y.Z-prerelease (SemVer identifiers, e.g. 0.3.0-rc.1).
+RELEASE_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*))?$")
+PRERELEASE_CS_RE = re.compile(r'(readonly string Prerelease = )"([^"]*)";')
 
 
 def parse_triple(version: str) -> VersionTriple:
@@ -176,6 +179,25 @@ def read_version_cs(root: Path) -> str:
 
 def numeric_version(version: str) -> str:
     return format_triple(parse_triple(version))
+
+
+def release_version(version: str) -> str:
+    """Normalize a release version and keep its prerelease label (0.3.0-rc.1 stays as is)."""
+    text = version.strip().lstrip("v")
+    if RELEASE_VERSION_RE.match(text) is None:
+        raise SystemExit(f"Version must be X.Y.Z or X.Y.Z-prerelease (e.g. 0.3.0-rc.1): {version!r}")
+    return text
+
+
+def prerelease_of(version: str) -> str:
+    """Prerelease label without the dash, or empty for a stable version."""
+    match = RELEASE_VERSION_RE.match(version.strip().lstrip("v"))
+    return (match.group(4) or "") if match else ""
+
+
+def read_version_cs_prerelease(root: Path) -> str:
+    match = PRERELEASE_CS_RE.search((root / "Version.cs").read_text(encoding="utf-8"))
+    return match.group(2) if match else ""
 
 
 def collect_existing_versions(root: Path, exports_dir: Path) -> tuple[VersionTriple | None, list[str]]:
@@ -252,18 +274,19 @@ def plan_version(
     no_bump: bool,
 ) -> VersionPlan:
     code_triple = read_version_cs_triple(root)
-    code = format_triple(code_triple)
+    code_pre = read_version_cs_prerelease(root)
+    code = format_triple(code_triple) + (f"-{code_pre}" if code_pre else "")
     highest, sources = collect_existing_versions(root, exports_dir)
 
     if explicit:
-        version = numeric_version(explicit)
+        version = release_version(explicit)
         return VersionPlan(
             version=version,
             code=code,
             highest_existing=format_triple(highest) if highest else None,
             existing_sources=sources,
             reason="from --version",
-            stamp_source=parse_triple(version) != code_triple,
+            stamp_source=version != code,
         )
     if no_bump:
         return VersionPlan(
@@ -285,6 +308,7 @@ def plan_version(
             stamp_source=False,
         )
 
+    # An automatic bump is always a stable version; prereleases need --version X.Y.Z-rc.N.
     baseline = max(code_triple, highest)
     nxt = bump_triple(baseline, bump)
     return VersionPlan(
@@ -297,7 +321,7 @@ def plan_version(
     )
 
 
-def stamp_version_cs(root: Path, triple: VersionTriple) -> None:
+def stamp_version_cs(root: Path, triple: VersionTriple, prerelease: str = "") -> None:
     path = root / "Version.cs"
     text = path.read_text(encoding="utf-8")
     for name, value in (("Major", triple[0]), ("Minor", triple[1]), ("Patch", triple[2])):
@@ -310,8 +334,13 @@ def stamp_version_cs(root: Path, triple: VersionTriple) -> None:
         if count != 1:
             raise SystemExit(f"Could not stamp Version.{name} in {path}")
         text = updated
+    updated, count = PRERELEASE_CS_RE.subn(lambda m: f'{m.group(1)}"{prerelease}";', text, count=1)
+    if count != 1:
+        raise SystemExit(f"Could not stamp Version.Prerelease in {path}")
+    text = updated
     path.write_text(text, encoding="utf-8")
-    log(f"Stamped Version.cs to {format_triple(triple)}")
+    label = format_triple(triple) + (f"-{prerelease}" if prerelease else "")
+    log(f"Stamped Version.cs to {label}")
 
 
 def stamp_project_godot(root: Path, version: str) -> None:
@@ -793,7 +822,10 @@ Examples:
     parser.add_argument("--list", action="store_true", help="Print targets and exit")
     parser.add_argument("--dist", help="Exports parent folder (default: ~/Documents/MyFiles/Cue2_Home/Exports)")
     parser.add_argument("--godot", help="Godot 4.7 Mono editor binary or .app")
-    parser.add_argument("--version", help="Exact version (skips auto next-version)")
+    parser.add_argument(
+        "--version",
+        help="Exact version, X.Y.Z or X.Y.Z-rc.N for a prerelease (skips auto next-version)",
+    )
     parser.add_argument(
         "--bump",
         choices=("patch", "minor", "major"),
@@ -862,14 +894,28 @@ def verify_host(host: Path, target: Target) -> None:
 
 def archive_target(version: str, dist: Path, export_root: Path, target: Target) -> Path:
     dest = dist / archive_name(version, target)
-    if target.id.startswith("macos") and sys.platform == "darwin" and shutil.which("ditto"):
-        macos_zip(export_root, dest)
-    elif target.archive == "tar.gz":
-        tar_gz_folder(export_root, dest, {target.host, "Cue2.sh"})
-    else:
-        zip_folder(export_root, dest)
-    if not dest.is_file() or dest.stat().st_size == 0:
-        raise RuntimeError(f"Archive missing or empty: {dest}")
+    # Write to .part and rename at the end, so an interrupted run never leaves a
+    # truncated archive under the final name (make-latest-json would hash it).
+    part = dest.with_name(dest.name + ".part")
+    if part.exists():
+        part.unlink()
+    try:
+        if target.id.startswith("macos") and sys.platform == "darwin" and shutil.which("ditto"):
+            macos_zip(export_root, part)
+        elif target.archive == "tar.gz":
+            tar_gz_folder(export_root, part, {target.host, "Cue2.sh"})
+        else:
+            zip_folder(export_root, part)
+        if not part.is_file() or part.stat().st_size == 0:
+            raise RuntimeError(f"Archive missing or empty: {part}")
+        os.replace(part, dest)
+    except BaseException:
+        if part.exists():
+            part.unlink()
+        if dest.exists():
+            dest.unlink()
+            log(f"  removed old {dest.name}")
+        raise
     log(f"  {dest} ({dest.stat().st_size} bytes)")
     return dest
 
@@ -1024,13 +1070,13 @@ def main(argv: list[str]) -> int:
 
     if args.dry_run:
         log("")
-        log("Dry run — no files will be written.")
+        log("Dry run: no files will be written.")
         if plan.stamp_source:
-            log(f"Would stamp Version.cs and project.godot to {numeric}")
+            log(f"Would stamp Version.cs to {version} and project.godot to {numeric}")
     else:
         dist.mkdir(parents=True, exist_ok=True)
         if plan.stamp_source:
-            stamp_version_cs(ROOT, parse_triple(numeric))
+            stamp_version_cs(ROOT, parse_triple(numeric), prerelease_of(version))
             stamp_project_godot(ROOT, numeric)
         stamp_export_preset_versions(cfg, numeric)
         warn_homebrew_ffmpeg(ROOT)
@@ -1056,7 +1102,14 @@ def main(argv: list[str]) -> int:
             if args.stop_on_error:
                 break
 
-    if not args.dry_run and not args.skip_latest and not args.skip_archive:
+    latest_path = dist / "latest.json"
+    if failed and not args.dry_run and not args.skip_latest and not args.skip_archive:
+        # A partial latest.json would offer an update to some platforms only, or list stale archives.
+        log("Skipping latest.json because a target failed.")
+        if latest_path.is_file():
+            latest_path.unlink()
+            log(f"  removed old {latest_path.name}")
+    elif not args.dry_run and not args.skip_latest and not args.skip_archive:
         archives = list(dist.glob(f"Cue2-{version}-*.zip")) + list(dist.glob(f"Cue2-{version}-*.tar.gz"))
         if archives:
             try:
@@ -1080,9 +1133,8 @@ def main(argv: list[str]) -> int:
             path = dist / archive_name(version, target)
             if path.is_file():
                 log(f"  {path.name}")
-        latest = dist / "latest.json"
-        if latest.is_file():
-            log(f"  {latest.name}")
+        if latest_path.is_file():
+            log(f"  {latest_path.name}")
     return 0
 
 

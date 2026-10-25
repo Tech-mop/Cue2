@@ -68,6 +68,7 @@
 - When the graphics card cannot decode a file, Cue2 now switches that file to full multi-core software decoding and carries on from the same picture.
 - Resizing the preview or the window no longer slowly builds up video memory.
 - Video that changes picture format part way through now keeps displaying correctly.
+-  Improvements to auto-updater. Better at handling fail conditions.
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.

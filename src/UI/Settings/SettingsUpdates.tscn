@@ -31,7 +31,7 @@ layout_mode = 2
 [node name="Intro" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 10
-text = "Check GitHub Releases for a newer Cue2. Install never runs during playback."
+text = "Check GitHub Releases for a newer Cue2. Install is not available in Show mode."
 autowrap_mode = 3
 
 [node name="CurrentRow" type="HBoxContainer" parent="VBoxContainer"]
@@ -104,7 +104,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 10
-text = "—"
+text = "-"
 vertical_alignment = 1
 
 [node name="NotesCaption" type="Label" parent="VBoxContainer"]
@@ -165,6 +165,13 @@ layout_mode = 2
 focus_mode = 0
 text = "Download"
 
+[node name="CancelDownloadButton" type="Button" parent="VBoxContainer/ActionRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+text = "Cancel download"
+
 [node name="InstallRestartButton" type="Button" parent="VBoxContainer/ActionRow"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -175,4 +182,4 @@ text = "Install and Restart"
 unique_name_in_owner = true
 title = "Install and Restart"
 ok_button_text = "Install and Restart"
-dialog_text = "Cue2 will close and install the update. Unsaved show changes will be lost."
+dialog_text = "Cue2 will close, install the update and restart. Playing cues will stop. You will be asked to save unsaved show changes first."

@@ -48,7 +48,8 @@ public static class UpdateEndpoints
 	}
 
 	/// <summary>
-	/// Platform keys to try when picking an asset: process arch, OS arch, then x86_64 on ARM.
+	/// Platform keys to try when picking an asset: process arch, then OS arch, then x86_64 on an
+	/// arm64 machine only where it can run (see <see cref="BuildPlatformKeys"/>).
 	/// Cached after the first call (must be from the Godot main thread).
 	/// </summary>
 	/// <returns>Deduplicated keys, best match first.</returns>
@@ -66,21 +67,51 @@ public static class UpdateEndpoints
 			string os = MapOsName(OS.GetName());
 			string process = MapArchitecture(RuntimeInformation.ProcessArchitecture);
 			string machine = MapArchitecture(RuntimeInformation.OSArchitecture);
+			bool rosetta = os == "macos" && IsRosettaInstalled();
 
-			var keys = new List<string>(4);
-			void Add(string key)
-			{
-				if (!string.IsNullOrEmpty(key) && !keys.Contains(key))
-					keys.Add(key);
-			}
-
-			Add($"{os}-{process}");
-			Add($"{os}-{machine}");
-			if (process == "arm64" || machine == "arm64")
-				Add($"{os}-x86_64");
-
-			_platformKeyCandidates = keys.ToArray();
+			_platformKeyCandidates = BuildPlatformKeys(os, process, machine, rosetta);
 			return _platformKeyCandidates;
+		}
+	}
+
+	/// <summary>
+	/// Asset keys for an OS and architecture, best match first. The x86_64 fallback on arm64 is
+	/// kept only where x86_64 builds run: Windows (built-in emulation) and macOS with Rosetta 2.
+	/// Linux arm64 never falls back, because an x86_64 build cannot start there.
+	/// </summary>
+	/// <param name="os">Feed OS key: windows, macos or linux.</param>
+	/// <param name="process">Architecture of this process (x86_64, arm64, ...).</param>
+	/// <param name="machine">Architecture of the OS.</param>
+	/// <param name="rosettaInstalled">True on macOS when Rosetta 2 is installed.</param>
+	/// <returns>Deduplicated keys.</returns>
+	internal static string[] BuildPlatformKeys(string os, string process, string machine, bool rosettaInstalled)
+	{
+		var keys = new List<string>(3);
+		void Add(string key)
+		{
+			if (!string.IsNullOrEmpty(key) && !keys.Contains(key))
+				keys.Add(key);
+		}
+
+		Add($"{os}-{process}");
+		Add($"{os}-{machine}");
+		bool onArm = process == "arm64" || machine == "arm64";
+		bool x64Runs = os == "windows" || (os == "macos" && rosettaInstalled);
+		if (onArm && x64Runs)
+			Add($"{os}-x86_64");
+		return keys.ToArray();
+	}
+
+	/// <summary>True when Rosetta 2 is installed (its runtime file exists). macOS only.</summary>
+	private static bool IsRosettaInstalled()
+	{
+		try
+		{
+			return File.Exists("/Library/Apple/usr/share/rosetta/rosetta");
+		}
+		catch (Exception)
+		{
+			return false;
 		}
 	}
 
@@ -98,6 +129,25 @@ public static class UpdateEndpoints
 		if (host == "github.com" || host == "www.github.com")
 			return true;
 		return host.EndsWith(".githubusercontent.com", StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// True when <paramref name="url"/> is an HTTPS page of this repository on github.com.
+	/// Used before handing a feed-supplied release link to the OS browser.
+	/// </summary>
+	public static bool IsAllowedReleasePageUrl(string url)
+	{
+		if (!Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
+			return false;
+		if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+			return false;
+		if (!uri.IsDefaultPort || !string.IsNullOrEmpty(uri.UserInfo))
+			return false;
+
+		string host = uri.Host.Trim().ToLowerInvariant();
+		if (host != "github.com" && host != "www.github.com")
+			return false;
+		return uri.AbsolutePath.StartsWith($"/{OwnerRepo}/", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static string MapOsName(string osName) => osName switch
@@ -174,6 +224,22 @@ public static class UpdateEndpoints
 
 			return false;
 		}
+	}
+
+	/// <summary>
+	/// True when the helper can replace the install: the install folder is writable, and on macOS
+	/// also the folder that holds the <c>.app</c> (the swap writes <c>Cue2.app.new</c> beside it).
+	/// </summary>
+	/// <param name="installRoot">Result of <see cref="GetInstallRoot"/>.</param>
+	/// <param name="isMacApp">True when the payload is a macOS <c>.app</c>.</param>
+	public static bool CanReplaceInstall(string installRoot, bool isMacApp)
+	{
+		if (!IsDirectoryWritable(installRoot))
+			return false;
+		if (!isMacApp)
+			return true;
+		string parent = Path.GetDirectoryName(installRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+		return !string.IsNullOrEmpty(parent) && IsDirectoryWritable(parent);
 	}
 
 	/// <summary>

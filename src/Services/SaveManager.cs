@@ -123,7 +123,8 @@ public partial class SaveManager : Node
 		NewSession,
 		OpenDialog,
 		OpenPath,
-		Quit
+		Quit,
+		UpdateRestart
 	}
 
 	private PendingCloseKind _pendingClose;
@@ -133,6 +134,9 @@ public partial class SaveManager : Node
 	private bool _quitStarted;
 	private bool _pendingBackgroundTaskPrompt;
 	private string _pendingBackgroundTaskName;
+
+	/// <summary>Starts the update helper once an Install and Restart quit is certain.</summary>
+	private Func<bool> _updateRestartStarter;
 
 	/// <summary>
 	/// True when cue / cuelist / show-settings data has changed since the last save or load.
@@ -507,6 +511,46 @@ public partial class SaveManager : Node
 		BeginQuit();
 	}
 
+	/// <summary>
+	/// Install and Restart. Runs the same prompts as Quit (show still loading, running background
+	/// task, unsaved changes). When quitting is certain, calls <paramref name="startUpdater"/>;
+	/// Cue2 quits only when it returns true, so Cancel never leaves an update helper waiting.
+	/// </summary>
+	/// <param name="startUpdater">Starts the update helper; returns false when it could not start.</param>
+	public void RequestQuitForUpdate(Func<bool> startUpdater)
+	{
+		if (startUpdater == null || _quitStarted)
+			return;
+		if (IsUnsavedDialogOpen || _pendingClose != PendingCloseKind.None)
+			return;
+		if (IsSessionLoading || _isOpenInProgress)
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				"A showfile is still loading. Install the update when it has finished.", (int)LogType.Info);
+			return;
+		}
+
+		_updateRestartStarter = startUpdater;
+		if (!ConfirmIfBackgroundTask(PendingCloseKind.UpdateRestart))
+			return;
+		if (!ConfirmIfUnsaved(PendingCloseKind.UpdateRestart))
+			return;
+		BeginUpdateRestart(_updateRestartStarter);
+	}
+
+	/// <summary>Starts the update helper, then quits. Stays open when the helper did not start.</summary>
+	private void BeginUpdateRestart(Func<bool> startUpdater)
+	{
+		_updateRestartStarter = null;
+		if (startUpdater == null || !startUpdater())
+		{
+			GD.Print("SaveManager:BeginUpdateRestart - Update helper did not start; Cue2 stays open.");
+			return;
+		}
+
+		BeginQuit();
+	}
+
 	private bool IsUnsavedDialogOpen =>
 		_unsavedDialog != null && GodotObject.IsInstanceValid(_unsavedDialog);
 
@@ -534,14 +578,14 @@ public partial class SaveManager : Node
 	/// <summary>
 	/// Returns true when quit can proceed. False means the background-task overlay is showing.
 	/// </summary>
-	private bool ConfirmIfBackgroundTask()
+	private bool ConfirmIfBackgroundTask(PendingCloseKind kind = PendingCloseKind.Quit)
 	{
 		if (!TryGetActiveBackgroundTask(out string taskName))
 			return true;
 		if (IsUnsavedDialogOpen || _pendingClose != PendingCloseKind.None)
 			return false;
 
-		_pendingClose = PendingCloseKind.Quit;
+		_pendingClose = kind;
 		_pendingBackgroundTaskPrompt = true;
 		_pendingBackgroundTaskName = taskName;
 		CallDeferred(nameof(ShowUnsavedChangesDialog));
@@ -712,6 +756,7 @@ public partial class SaveManager : Node
 	{
 		PendingCloseKind kind = _pendingClose;
 		string path = _pendingOpenPath;
+		Func<bool> updateStarter = _updateRestartStarter;
 		ClearPendingClose();
 
 		switch (kind)
@@ -729,6 +774,9 @@ public partial class SaveManager : Node
 			case PendingCloseKind.Quit:
 				BeginQuit();
 				break;
+			case PendingCloseKind.UpdateRestart:
+				BeginUpdateRestart(updateStarter);
+				break;
 		}
 	}
 
@@ -739,6 +787,7 @@ public partial class SaveManager : Node
 		_proceedAfterSaveAs = false;
 		_pendingBackgroundTaskPrompt = false;
 		_pendingBackgroundTaskName = null;
+		_updateRestartStarter = null;
 	}
 
 	private void PopupOpenDialog()

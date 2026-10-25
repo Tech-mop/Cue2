@@ -1,27 +1,26 @@
-<div align="center">
+<p align="center">
+  <a href="https://www.cue2.live/">
+    <img src="src/UI/Assets/Cue2Logo.svg" width="400" alt="Cue2 logo">
+  </a>
+</p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/Cue2Logo-dark.svg">
-  <img src="docs/Cue2Logo-light.svg" width="420" alt="">
-</picture>
-
-**Cross-platform show control and playback**
+<p align="center">
+  <a href="#download"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Platform"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="https://github.com/Tech-mop/Cue2/releases/latest"><img src="https://img.shields.io/github/v/release/Tech-mop/Cue2.svg" alt="Release"></a>
+  <a href="https://godotengine.org"><img src="https://img.shields.io/badge/Godot-4.7-478cbf.svg?logo=godotengine&logoColor=white" alt="Godot 4.7"></a>
+  <a href="https://www.cue2.live/"><img src="https://img.shields.io/badge/website-cue2.live-eb6f02.svg" alt="Website"></a>
+</p>
 
 Cue2 offers a reliable and fast way to build sound, video and show control.
-
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#download)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/Tech-mop/Cue2.svg)](https://github.com/Tech-mop/Cue2/releases/latest)
-[![Godot](https://img.shields.io/badge/Godot-4.7-478cbf.svg?logo=godotengine&logoColor=white)](https://godotengine.org)
-[![Website](https://img.shields.io/badge/website-cue2.live-eb6f02.svg)](https://www.cue2.live/)
-
-</div>
 
 ## Features
 - Audio and video playback (wide format support via FFmpeg)
 - OSC send/receive
 - Text overlays, cue library, session management
 - Low-latency cue triggering
+
+User-facing changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Free and Open Source
 
