@@ -153,7 +153,7 @@ public partial class AboutWindow : Window
 [i]Built with love for the performing arts community.[/i]";
 
     // License texts
-    private const string Cue2License = @"Cue2 v0.1 : MIT License
+    private static string Cue2License => $@"Cue2 v{Version.SemanticVersionString} : MIT License
 
 Copyright © 2025-2026 Samuel Moxham
 

@@ -43,7 +43,7 @@ public static class Version
     /// </summary>
     /// <value>The prerelease label. Stamped by <c>tools/export-all.py</c> from the release version.</value>
     /// <remarks>Declared before the version strings below, which read it during static initialization.</remarks>
-    public static readonly string Prerelease = "";
+    public static readonly string Prerelease = "rc.1";
  
     /// <summary> 
     /// Gets the version status. Empty for a public release. 
@@ -58,7 +58,7 @@ public static class Version
     /// Gets the code name of the version. 
     /// </summary> 
     /// <value>The code name string.</value> 
-    public static readonly string CodeName = "StripyHat"; 
+    public static readonly string CodeName = "Heaviside"; 
  
     /// <summary> 
     /// Gets the module configuration. 
@@ -97,7 +97,7 @@ public static class Version
     /// <summary>
     /// Gets the full version string combining major, minor, patch, status, and code name.
     /// </summary>
-    /// <value>The full version string, e.g. "v0.1.0 - StripyHat" or "v0.1.0 alpha - StripyHat".</value>
+    /// <value>The full version string, e.g. "v0.2.0-rc.1 - Heaviside" or "v0.2.0 - Heaviside".</value>
     public static readonly string FullVersionString = string.IsNullOrEmpty(Status)
         ? $"v{SemanticVersionCore()} - {CodeName}"
         : $"v{SemanticVersionCore()} {Status} - {CodeName}";

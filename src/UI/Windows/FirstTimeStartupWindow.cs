@@ -136,7 +136,7 @@ public partial class FirstTimeStartupWindow : Window
 	/// </summary>
 	/// <remarks>
 	/// <c>{0}</c> is the live version label from <see cref="Cue2.Version"/> (for example
-	/// <c>0.1.1 - StripyHat</c>). English always shows this string. Other locales are
+	/// <c>0.2.0-rc.1 - Heaviside</c>). English always shows this string. Other locales are
 	/// filled from it by <c>python3 tools/i18n/update_catalog.py</c> before a release.
 	/// Do not edit the wording in <c>translations/cue2.csv</c>.
 	/// </remarks>

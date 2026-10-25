@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.2.0-rc.1] - 2026-10-26
+
+First 0.2 release candidate (Heaviside).
+
 ### Added
 - Multiple cuelists as tabs. The **+** tab opens a menu to add a Cuelist or a Button Board. Double-click a tab to rename it. Extra tabs can be closed with the tab close button (the last cuelist stays). Dragging a cue over another list or Button Board tab switches to that page (hold ~⅓ s); dropping moves cues between cuelists and boards.
 - Button Board cuelist type added
@@ -57,7 +61,7 @@
 - Stop during setup discards late components
 - Audio seek, prefetch and first prefill off main thread
 - More accurate fingerprint checking of used video displays. Better alerting if changes detected (ie unplug / replug)
-- Prewaits now account for potential delays is cue activation, allowing prewaits to stay syncronous to parents and peers.
+- Pre-waits now account for potential delays in cue activation, so they stay synchronous with parents and peers.
 - OSC cues keep sending after you undo or redo an OSC connection change, or recall a settings file that includes OSC connections. Before, every OSC cue went silent until the show was reopened.
 - Media backup no longer mixes up different files that share a name. Two files called door.wav from different folders now get their own copies (door.wav and door_1.wav), and a file is only reused when its content is identical, not just its size
 - Stopping a cue while it is still fading in now fades it out smoothly. Before, the level or picture could flutter, jump back to full, or keep changing after the cue was gone.
@@ -69,7 +73,7 @@
 - When the graphics card cannot decode a file, Cue2 now switches that file to full multi-core software decoding and carries on from the same picture.
 - Resizing the preview or the window no longer slowly builds up video memory.
 - Video that changes picture format part way through now keeps displaying correctly.
--  Improvements to auto-updater. Better at handling fail conditions.
+- Improvements to auto-updater. Better at handling fail conditions.
 
 ### Changed
 - Control inspector add-action buttons (GO, Fade, Devamp, …) have a light outline so they read as buttons.

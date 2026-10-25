@@ -1022,8 +1022,11 @@ def main(argv: list[str]) -> int:
     cfg = ROOT / "export_presets.cfg"
     notes = args.notes_file
     if notes is None:
-        candidate = ROOT / "docs" / "releases" / f"{numeric}.txt"
-        notes = candidate if candidate.is_file() else None
+        for name in (version, numeric):
+            candidate = ROOT / "docs" / "releases" / f"{name}.txt"
+            if candidate.is_file():
+                notes = candidate
+                break
 
     log("Cue2 export-all")
     log(f"  project: {ROOT}")
