@@ -483,16 +483,23 @@ public partial class GlobalData : Node
 		else
 			GD.Print($"GlobalData:_Ready - Using packaged SDL3 ({sdlLoadError})");
 
-		// Initialize SDL with audio, events, and video. Failure is a system fault: keep
-		// constructing the rest of GlobalData so the main window can show the overlay.
+		// Initialize SDL audio and events. Failure is a system fault: keep constructing the
+		// rest of GlobalData so the main window can show the overlay.
+		// SDL video is only used for display names, so it starts separately: a machine with
+		// no X11 or Wayland display (a headless server, a test runner) must still have audio.
 		try
 		{
-			SdlInitialized = SDL.Init(SDL.InitFlags.Audio | SDL.InitFlags.Events | SDL.InitFlags.Video);
+			SdlInitialized = SDL.Init(SDL.InitFlags.Audio | SDL.InitFlags.Events);
 			if (!SdlInitialized)
 			{
 				string errorMsg = $"SDL Init failed: {SDL.GetError()}";
 				GD.Print("GlobalData:_Ready - " + errorMsg);
 				ReportStartupFault("sdl", "SDL", errorMsg, "Audio playback", "Audio devices");
+			}
+			else if (!SDL.InitSubSystem(SDL.InitFlags.Video))
+			{
+				GD.Print("GlobalData:_Ready - SDL video unavailable, display names come from Godot only: "
+					+ SDL.GetError());
 			}
 		}
 		catch (System.Exception ex)
