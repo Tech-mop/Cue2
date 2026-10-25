@@ -1169,6 +1169,11 @@ public partial class MediaEngine : Node
     {
         foreach (AVHWDeviceType type in PreferredHardwareTypes())
         {
+            if (type == AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI && !VaapiLibrariesPresent(out string missing))
+            {
+                GD.Print($"MediaEngine:ProbeHardwareDevice - skipping vaapi, not installed: {missing}");
+                continue;
+            }
             AVBufferRef* created = null;
             int ret = ffmpeg.av_hwdevice_ctx_create(&created, type, null, null, 0);
             if (ret < 0 || created == null)
@@ -1192,6 +1197,30 @@ public partial class MediaEngine : Node
             AVHWDeviceType.AV_HWDEVICE_TYPE_VAAPI,
             AVHWDeviceType.AV_HWDEVICE_TYPE_CUDA
         };
+    }
+
+    // The bundled Linux FFmpeg loads libva, libdrm and libX11 the first time a VAAPI device
+    // is created, and aborts the whole process when one of them is missing. Check first.
+    private static readonly string[] VaapiLibraries =
+    {
+        "libva.so.2", "libva-drm.so.2", "libva-x11.so.2", "libdrm.so.2", "libX11.so.6"
+    };
+
+    /// <summary>
+    /// True when every system library FFmpeg needs for a VAAPI device can be loaded.
+    /// Without this check, a Linux machine with no libva crashes at the first video.
+    /// </summary>
+    /// <param name="missing">Comma-separated libraries that could not be loaded.</param>
+    private static bool VaapiLibrariesPresent(out string missing)
+    {
+        var notFound = new List<string>();
+        foreach (string lib in VaapiLibraries)
+        {
+            if (!NativeLibrary.TryLoad(lib, out _))
+                notFound.Add(lib);
+        }
+        missing = string.Join(", ", notFound);
+        return notFound.Count == 0;
     }
 
     private static string HardwareTypeName(AVHWDeviceType type)

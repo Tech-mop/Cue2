@@ -154,6 +154,8 @@ $audioDriver    </EnvironmentVariables>
         '--logger', 'console;verbosity=normal'
     )
     if ($engineFilter -ne '') { $testArgs += @('--filter', $engineFilter) }
+    $staleTrx = Join-Path $engineDir 'engine.trx'
+    if (Test-Path -LiteralPath $staleTrx) { Remove-Item -LiteralPath $staleTrx -Force }
     try {
         dotnet @testArgs
         $code = $LASTEXITCODE
@@ -163,7 +165,25 @@ $audioDriver    </EnvironmentVariables>
         $runner = Join-Path $repo 'gdunit4_testadapter_v5'
         if (Test-Path -LiteralPath $runner) { Remove-Item -LiteralPath $runner -Recurse -Force }
     }
-    if ($code -ne 0) { exit $code }
+    # When Godot crashes early, dotnet test can still exit 0 with nothing run.
+    $executed = 0
+    $trx = Join-Path $engineDir 'engine.trx'
+    if ($code -eq 0 -and (Test-Path -LiteralPath $trx)) {
+        $match = Select-String -LiteralPath $trx -Pattern '<Counters [^>]*executed="(\d+)"' | Select-Object -First 1
+        if ($match) { $executed = [int]$match.Matches[0].Groups[1].Value }
+    }
+    if ($code -eq 0 -and $executed -eq 0) {
+        Write-Host "run-tests: the engine suite ran no tests"
+        $code = 1
+    }
+    if ($code -ne 0) {
+        # "No test is available" from dotnet test usually means Godot itself crashed before
+        # any test ran, not that the tests were not found.
+        Write-Host "run-tests: engine suite failed. If the output shows 'GodotRuntimeTestRunner ends with exit code'"
+        Write-Host "run-tests: followed by 'No test is available', Godot crashed before the tests ran: the last"
+        Write-Host "run-tests: 'Godot /err' lines above it give the reason."
+        exit $code
+    }
 }
 
 Push-Location $repo

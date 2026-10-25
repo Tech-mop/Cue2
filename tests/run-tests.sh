@@ -127,10 +127,33 @@ SETTINGS
         --logger "trx;LogFileName=engine.trx"
         --logger "console;verbosity=normal")
     if [ -n "$engine_filter" ]; then args+=(--filter "$engine_filter"); fi
+    rm -f "$engine_dir/engine.trx"
     trap cleanup_engine EXIT
-    dotnet "${args[@]}"
+    local code=0
+    dotnet "${args[@]}" || code=$?
     cleanup_engine
     trap - EXIT
+    if [ "$code" -ne 0 ]; then
+        engine_failure_hint
+        exit "$code"
+    fi
+    # When Godot crashes early, dotnet test can still exit 0 with nothing run.
+    local executed
+    executed="$(grep -o '<Counters [^>]*executed="[0-9]*"' "$engine_dir/engine.trx" 2>/dev/null \
+        | sed 's/.*executed="\([0-9]*\)"/\1/' || true)"
+    if [ -z "$executed" ] || [ "$executed" -eq 0 ]; then
+        echo "run-tests: the engine suite ran no tests" >&2
+        engine_failure_hint
+        exit 1
+    fi
+}
+
+engine_failure_hint() {
+    # "No test is available" from dotnet test usually means Godot itself crashed before any
+    # test ran, not that the tests were not found.
+    echo "run-tests: engine suite failed. If the output shows 'GodotRuntimeTestRunner ends with exit code'" >&2
+    echo "run-tests: followed by 'No test is available', Godot crashed before the tests ran: the last" >&2
+    echo "run-tests: 'Godot /err' lines above it give the reason." >&2
 }
 
 if [ "$suite" = "all" ] || [ "$suite" = "plain" ]; then run_plain; fi

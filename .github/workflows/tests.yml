@@ -130,6 +130,8 @@ jobs:
           chmod +x "$bin"
           echo "CUE2_GODOT=$bin" >> "$GITHUB_ENV"
 
+      # libva (VAAPI) is deliberately not installed: the runner has no GPU, and running without
+      # it checks that Cue2 falls back to software decode instead of crashing.
       - name: Run engine tests
         run: bash tests/run-tests.sh --suite engine
 
