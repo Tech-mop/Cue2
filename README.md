@@ -1,9 +1,9 @@
 <div align="center">
 
-<a href="https://www.cue2.live/">
-  <img src="src/UI/Assets/Cue2Logo.svg#gh-dark-mode-only" alt="Cue2" width="420">
-  <img src="docs/Cue2Logo-light.svg#gh-light-mode-only" alt="Cue2" width="420">
-</a>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/Cue2Logo-dark.svg">
+  <img src="docs/Cue2Logo-light.svg" width="420" alt="">
+</picture>
 
 **Cross-platform show control and playback**
 
