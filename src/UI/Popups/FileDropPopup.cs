@@ -25,6 +25,7 @@ public partial class FileDropPopup : Window
 	private GlobalSignals _globalSignals;
 
 	private string[] _files = Array.Empty<string>();
+	private DroppedMediaResult _expansion;
 	private FileDropTargetType _targetType = FileDropTargetType.None;
 	private string _targetDisplayName = "";
 	private int _targetCueId = -1;
@@ -91,15 +92,24 @@ public partial class FileDropPopup : Window
 	/// <param name="targetType">Where the files landed.</param>
 	/// <param name="targetDisplayName">Readable target (cue name or "Cue List").</param>
 	/// <param name="targetCueId">Cue ID if dropped on a specific shell, otherwise -1.</param>
-	public void ConfigureForDrop(string[] files, FileDropTargetType targetType, string targetDisplayName, int targetCueId)
+	/// <param name="expansion">Optional folder-tree expansion; enables preserve-tree and large-import warning.</param>
+	public void ConfigureForDrop(
+		string[] files,
+		FileDropTargetType targetType,
+		string targetDisplayName,
+		int targetCueId,
+		DroppedMediaResult expansion = null)
 	{
 		_files = files ?? Array.Empty<string>();
+		_expansion = expansion;
 		_targetType = targetType;
 		_targetDisplayName = targetDisplayName ?? targetType.ToString();
 		_targetCueId = targetCueId;
 
 		_chosenInsertMode = DropInsertMode.Below;
-		_chosenMultiFileMode = MultiFileDropMode.SeparateCues;
+		_chosenMultiFileMode = expansion?.HasFolderTree == true
+			? MultiFileDropMode.PreserveFolderTree
+			: MultiFileDropMode.SeparateCues;
 		_chosenBoardAction = BoardDropAction.Replace;
 
 		PopulateOptions();
@@ -175,18 +185,34 @@ public partial class FileDropPopup : Window
 			container.AddChild(CreateWrappingLabel(UiLocalizer.T("Insert Location: End of list (or after current selection)")));
 		}
 
+		if (_expansion?.IsLargeImport == true)
+		{
+			container.AddChild(new HSeparator());
+			container.AddChild(CreateWrappingLabel(FormatLargeImportWarning(_expansion)));
+		}
+
 		// Multi-file options
 		if (_files.Length > 1)
 		{
 			container.AddChild(new HSeparator());
 			container.AddChild(CreateWrappingLabel(UiLocalizer.T("Multiple Files Action:")));
 
+			bool hasFolderTree = _expansion?.HasFolderTree == true;
 			var multiContainer = new VBoxContainer();
 			multiContainer.AddThemeConstantOverride("separation", 2);
+			if (hasFolderTree)
+			{
+				multiContainer.AddChild(CreateMultiFileChoice(
+					UiLocalizer.T("Preserve folder tree as groups (folder names become group cues)"),
+					MultiFileDropMode.PreserveFolderTree,
+					isDefault: true));
+			}
 			multiContainer.AddChild(CreateMultiFileChoice(
-				UiLocalizer.T("Create separate cue for each file (recommended)"),
+				hasFolderTree
+					? UiLocalizer.T("Create separate cue for each file")
+					: UiLocalizer.T("Create separate cue for each file (recommended)"),
 				MultiFileDropMode.SeparateCues,
-				isDefault: true));
+				isDefault: !hasFolderTree));
 			multiContainer.AddChild(CreateMultiFileChoice(
 				UiLocalizer.T("Wrap all files inside one new Group cue"),
 				MultiFileDropMode.WrapInOneGroup));
@@ -195,6 +221,28 @@ public partial class FileDropPopup : Window
 				MultiFileDropMode.ParentPerFile));
 			container.AddChild(multiContainer);
 		}
+	}
+
+	/// <summary>
+	/// Builds the large-import warning shown when many files were expanded from a drop.
+	/// </summary>
+	/// <param name="expansion">Expanded drop (file and folder counts).</param>
+	/// <returns>Localized warning text.</returns>
+	private static string FormatLargeImportWarning(DroppedMediaResult expansion)
+	{
+		int files = expansion?.FileCount ?? 0;
+		int folders = expansion?.FolderCount ?? 0;
+		if (folders > 0)
+		{
+			return UiLocalizer.Tf(
+				"This drop includes {0} files in {1} folders. Creating that many cues may take a moment.",
+				files,
+				folders);
+		}
+
+		return UiLocalizer.Tf(
+			"This drop includes {0} files. Creating that many cues may take a moment.",
+			files);
 	}
 
 	private void PopulateBoardOptions(VBoxContainer container)

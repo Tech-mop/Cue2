@@ -897,20 +897,20 @@ public partial class ShellInspector
 		_timecodeSourceOption.SetBlockSignals(true);
 		_timecodeSourceOption.Clear();
 
+		UiLocalizer.AddTranslatedItem(_timecodeSourceOption, "Select Timecode");
+		_timecodeSourceOption.SetItemMetadata(0, -1);
+
 		var inputs = _timecodeManager?.Inputs;
 		var outputs = _timecodeManager?.Outputs;
 		bool any = (inputs != null && inputs.Count > 0) || (outputs != null && outputs.Count > 0);
 		if (!any)
 		{
-			UiLocalizer.AddTranslatedItem(_timecodeSourceOption, "(No timecode I/O)");
-			_timecodeSourceOption.SetItemDisabled(0, true);
-			_timecodeSourceOption.SetItemMetadata(0, -1);
 			_timecodeSourceOption.Select(0);
 			_timecodeSourceOption.SetBlockSignals(false);
 			return;
 		}
 
-		int select = -1;
+		int select = 0;
 		void AddGroup(string header, IReadOnlyList<TimecodeEndpoint> list, string prefix)
 		{
 			if (list == null || list.Count == 0)
@@ -933,7 +933,7 @@ public partial class ShellInspector
 		AddGroup("Inputs", inputs, "In");
 		AddGroup("Outputs", outputs, "Out");
 
-		if (select < 0 && selectedEndpointId >= 0)
+		if (select == 0 && selectedEndpointId >= 0)
 		{
 			select = _timecodeSourceOption.ItemCount;
 			_timecodeSourceOption.AddItem($"Missing #{selectedEndpointId}");

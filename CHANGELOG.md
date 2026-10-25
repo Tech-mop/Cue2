@@ -1,7 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
 ## [0.2.0-rc.1] - 2026-10-26
 
 First 0.2 release candidate (Heaviside).
@@ -38,6 +36,8 @@ First 0.2 release candidate (Heaviside).
 - Settings → Cue2 Preferences → Theme. Choose **Cue2 (Default)**, **Dark**, **Light**, or **Neon**, or **Add Theme** for a Godot Theme `.tres`.
 - Preload standby cue (Settings, General, Media): "Edit and show mode", "Show mode only" (default) or "Off". The cue on the playhead has its media opened before GO, hidden and silent, so GO starts it straight away. Groups of more than 16 cues are not preloaded.
 - If a system dependency fails at launch (FFmpeg, SDL, or MIDI), Cue2 shows a dialog listing the affected features, with Restart and Continue.
+- Drag-and-drop of folders imports every supported media file inside, including nested folders. Hidden files are skipped. The drop popup can preserve the folder tree as group cues named after each folder, and warns when the import is large (50 or more files).
+
 
 ### Fixed
 - Audio and video inspectors refresh the Output menu and routing matrix when output patches are edited, without rebinding the whole inspector.

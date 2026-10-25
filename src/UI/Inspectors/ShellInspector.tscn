@@ -443,19 +443,22 @@ text = "Timecode"
 
 [node name="TimecodeSourceOption" type="OptionButton" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers/TimecodeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(88, 0)
+custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
 tooltip_text = "Session timecode input or output to watch. Inputs and outputs both appear, matching the clocks shown in Settings and the header."
 focus_mode = 0
 theme_override_font_sizes/font_size = 10
 fit_to_longest_item = false
+text_overrun_behavior = 1
+clip_text = true
 
 [node name="TimecodeTimeInput" type="LineEdit" parent="MarginContainer/ScrollContainer/ContentMargin/HBoxContainer/Triggers/TimecodeRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 0)
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 0
 tooltip_text = "Trigger time. Type HH:MM:SS:FF, or shorter: 12:20 is 12s 20f, 3:12:20 is 3m 12s 20f, 200 is 200 seconds. Leave empty for none."
 theme_override_font_sizes/font_size = 10
 placeholder_text = "00:00:00:00"
