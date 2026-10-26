@@ -11,7 +11,8 @@ This script writes every locale column except English.
   python tools/i18n/fill_test_locales.py       # fill only
 
 Existing non-English cells are kept. Identity-English and empty cells are filled
-from test_locale_strings.py (de/ru/ja/ar/hi) and test_locale_overlay.py (mi/es).
+from test_locale_strings.py (de/ru/ja/ar/hi), extra_locale_strings.py (all locales),
+and test_locale_overlay.py (mi/es).
 """
 
 from __future__ import annotations
@@ -108,6 +109,13 @@ def main() -> int:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from test_locale_strings import STRINGS as strings
 
+    extra: dict = {}
+    try:
+        from extra_locale_strings import STRINGS as extra
+    except ImportError:
+        extra = {}
+    strings = {**strings, **extra}
+
     overlay: dict = {}
     try:
         from test_locale_overlay import OVERLAY as overlay
@@ -136,9 +144,12 @@ def main() -> int:
         loc_map = lookup_map(strings, overlay, key, english)
         ident_src = is_identity(english) or is_identity(key)
 
+        english_stripped = (english or "").strip()
         for loc in fill_locales:
             existing = (row.get(loc) or "").strip()
-            if existing and existing != english:
+            # Strip both sides: trailing/leading space on English keys would
+            # otherwise look like a "real" translation and skip the fill.
+            if existing and existing != english_stripped:
                 skipped[loc] += 1
                 continue
             if ident_src:

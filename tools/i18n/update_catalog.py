@@ -19,6 +19,7 @@ Steps:
 
 Then restart Cue2. Authored strings live in:
   tools/i18n/test_locale_strings.py   (de ru ja ar hi)
+  tools/i18n/extra_locale_strings.py  (mi es de ru ja ar hi; launch-pass coverage)
   tools/i18n/test_locale_overlay.py   (mi es)
 
 To add a language later: add a CSV column, add it to LocalizationService.SupportedLocales,

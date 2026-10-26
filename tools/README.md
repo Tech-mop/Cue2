@@ -22,6 +22,7 @@ python tools/i18n/extract_ui_strings.py --report-unwrapped
 `update_catalog.py` never overwrites a cell that is already translated. Authored strings live in:
 
 - `tools/i18n/test_locale_strings.py` — de, ru, ja, ar, hi
+- `tools/i18n/extra_locale_strings.py` — mi, es, de, ru, ja, ar, hi (launch-pass coverage)
 - `tools/i18n/test_locale_overlay.py` — mi, es
 
 Restart Cue2 after a catalog update.

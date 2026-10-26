@@ -102,6 +102,7 @@ First 0.2 release candidate (Heaviside).
 - Memory clean-up no longer runs while video plays (it waits up to a minute), so it no longer causes a stutter.
 - Video cues that are fully transparent (opacity or fade at 0) no longer send pictures to the graphics card.
 - Audio output patch matrix: added buses are named Ch3, Ch4, … from the current channel count, instead of "New Channel".
+- Translation catalog refreshed for launch: new UI strings extracted, and mi/es/de/ru/ja/ar/hi filled for previously English keys (CueNet, timecode, audio input, timeline nodes, themes, updates, and remaining tooltips). Te reo Māori still wants native review.
 
 ## [0.1.1] - 2026-09-21
 
