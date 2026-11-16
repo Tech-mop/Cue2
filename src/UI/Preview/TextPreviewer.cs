@@ -23,6 +23,12 @@ public partial class TextPreviewer : Control
     private ColorRect _background;
     private RichTextLabel _label;
 
+    private GlobalSignals _globalSignals;
+    /// <summary>Stored so we can disconnect from the process-lifetime autoload on exit.</summary>
+    private Callable _layerGeometryChangedCallable;
+    /// <summary>Stored so we can disconnect from the process-lifetime autoload on exit.</summary>
+    private Callable _displaysChangedCallable;
+
     private TextComponent _component;
     private int _layerId = -1;
     private float _previewScale = 1f;
@@ -66,6 +72,13 @@ public partial class TextPreviewer : Control
         _viewArea.Resized += OnViewResized;
         _layerHost.ClipContents = true;
         _layerHost.MouseFilter = MouseFilterEnum.Ignore;
+
+        // Follow live layer geometry/rotation changes (canvas editor, control cues, undo).
+        _globalSignals = GetNode<GlobalSignals>("/root/GlobalSignals");
+        _layerGeometryChangedCallable = Callable.From<int>(OnLayerGeometryChanged);
+        _displaysChangedCallable = Callable.From(OnDisplaysModelChanged);
+        _globalSignals.Connect(nameof(GlobalSignals.LayerGeometryChanged), _layerGeometryChangedCallable);
+        _globalSignals.Connect(nameof(GlobalSignals.DisplaysChanged), _displaysChangedCallable);
     }
 
     /// <inheritdoc />
@@ -73,6 +86,13 @@ public partial class TextPreviewer : Control
     {
         if (_viewArea != null && IsInstanceValid(_viewArea))
             _viewArea.Resized -= OnViewResized;
+        if (_globalSignals != null && IsInstanceValid(_globalSignals))
+        {
+            if (_globalSignals.IsConnected(nameof(GlobalSignals.LayerGeometryChanged), _layerGeometryChangedCallable))
+                _globalSignals.Disconnect(nameof(GlobalSignals.LayerGeometryChanged), _layerGeometryChangedCallable);
+            if (_globalSignals.IsConnected(nameof(GlobalSignals.DisplaysChanged), _displaysChangedCallable))
+                _globalSignals.Disconnect(nameof(GlobalSignals.DisplaysChanged), _displaysChangedCallable);
+        }
     }
 
     /// <inheritdoc />
@@ -132,6 +152,24 @@ public partial class TextPreviewer : Control
             CallDeferred(MethodName.RefreshLayout);
     }
 
+    /// <summary>Layer geometry (position/size/rotation) changed, re-read the preview rect.</summary>
+    private void OnLayerGeometryChanged(int layerId)
+    {
+        if (layerId != _layerId)
+            return;
+        _areasDirty = true;
+        if (IsVisibleInTree())
+            CallDeferred(MethodName.RefreshLayout);
+    }
+
+    /// <summary>Screens/layers were rebuilt (undo, show load, rename), re-read the preview rect.</summary>
+    private void OnDisplaysModelChanged()
+    {
+        _areasDirty = true;
+        if (IsVisibleInTree())
+            CallDeferred(MethodName.RefreshLayout);
+    }
+
     private void RefreshLayout()
     {
         _areasDirty = false;
@@ -180,6 +218,10 @@ public partial class TextPreviewer : Control
         var scaledLayerSize = new Vector2(layer.Size.X, layer.Size.Y) * _previewScale;
         _layerHost.Position = _canvasArea.Position + scaledLayerPos;
         _layerHost.Size = scaledLayerSize;
+        // Mirror the layer's canvas output rotation (same center pivot as the output host)
+        // so the inspector preview matches what the screens render.
+        _layerHost.PivotOffset = _layerHost.Size * 0.5f;
+        _layerHost.Rotation = Mathf.DegToRad(layer.Rotation);
 
         ApplyComponentVisuals();
     }

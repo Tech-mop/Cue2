@@ -58,10 +58,12 @@ public partial class TestPattern : Control
     /// <param name="patternSize">Pattern size in pixels.</param>
     /// <param name="patternPosition">Top-left position in the parent.</param>
     /// <param name="name">Display name (layer or screen).</param>
-    public TestPattern(Vector2I patternSize, Vector2I patternPosition, string name = "")
+    /// <param name="rotationDegrees">Optional clockwise rotation about the pattern center.</param>
+    public TestPattern(Vector2I patternSize, Vector2I patternPosition, string name = "",
+        float rotationDegrees = 0f)
         : this()
     {
-        ApplyLayout(patternSize, patternPosition, name);
+        ApplyLayout(patternSize, patternPosition, name, rotationDegrees);
     }
 
     /// <inheritdoc />
@@ -73,13 +75,15 @@ public partial class TestPattern : Control
     }
 
     /// <summary>
-    /// Updates size, position, and optional name, then redraws.
+    /// Updates size, position, optional rotation, and optional name, then redraws.
     /// Safe to call before or after the node enters the tree.
     /// </summary>
     /// <param name="size">New size in pixels (clamped to at least 1×1).</param>
     /// <param name="position">New top-left position in parent space.</param>
     /// <param name="name">When non-null, replaces the display name.</param>
-    public void ApplyLayout(Vector2I size, Vector2I position, string name = null)
+    /// <param name="rotationDegrees">Clockwise rotation about the pattern center (degrees).</param>
+    public void ApplyLayout(Vector2I size, Vector2I position, string name = null,
+        float rotationDegrees = 0f)
     {
         if (name != null)
             _displayName = name;
@@ -90,6 +94,10 @@ public partial class TestPattern : Control
         // Control.Size/Position drive _Draw and layout; Pattern* alone is not enough.
         Size = PatternSize;
         Position = PatternPosition;
+
+        // Rotate about the center so the pattern matches a rotated layer on the canvas.
+        Rotation = Mathf.DegToRad(rotationDegrees);
+        PivotOffset = Size * 0.5f;
 
         EnsureLabels();
         RefreshLabels();
