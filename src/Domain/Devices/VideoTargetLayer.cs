@@ -43,6 +43,14 @@ public class VideoTargetLayer
     public bool Transparent { get; set; } = false;
 
     /// <summary>
+    /// Output rotation of the layer on the canvas, in degrees (clockwise, Godot convention).
+    /// Rotates the layer about its center on every screen output. This only affects the
+    /// output mapping: the input content (expand/stretch layout of the source texture)
+    /// is treated as normal and is not rotated before mapping.
+    /// </summary>
+    public float Rotation { get; set; } = 0f;
+
+    /// <summary>
     /// Whether the test pattern is enabled for this layer.
     /// </summary>
     public bool TestPatternEnabled { get; set; } = false;
@@ -93,6 +101,7 @@ public class VideoTargetLayer
         data.Add("SizeX", Size.X);
         data.Add("SizeY", Size.Y);
         data.Add("Transparent", Transparent);
+        data.Add("Rotation", Rotation);
         data.Add("KeepAspect", KeepAspect);
         data.Add("TestPatternEnabled", TestPatternEnabled);
         data.Add("Locked", Locked);
@@ -127,6 +136,10 @@ public class VideoTargetLayer
         CanvasPosition = new Vector2I(canvPosX, canvPosY);
 
         Transparent = data.ContainsKey("Transparent") && (bool)data["Transparent"];
+        // Older showfiles have no Rotation: default to 0 (unrotated) so they load unchanged.
+        // Variant.AsSingle (not Convert.ToSingle): Godot Variant does not implement
+        // IConvertible, so Convert throws and would break undo/show loads.
+        Rotation = data.ContainsKey("Rotation") ? data["Rotation"].AsSingle() : 0f;
         KeepAspect = data.ContainsKey("KeepAspect") && (bool)data["KeepAspect"];
         TestPatternEnabled = data.ContainsKey("TestPatternEnabled") && (bool)data["TestPatternEnabled"];
         Locked = data.ContainsKey("Locked") && (bool)data["Locked"];

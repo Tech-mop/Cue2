@@ -667,6 +667,12 @@ public partial class VideoOutputDevice : Window, IDisposable
         host.Size = (Vector2)layer.Size;
         host.ClipContents = true;
 
+        // Output-mapping rotation about the layer center (matches the canvas editor gizmo).
+        // Only where the layer lands on the canvas rotates: the input content layout on
+        // outputLayer (expand/stretch from VideoComponent.ApplyTextureLayout) is untouched.
+        host.PivotOffset = host.Size * 0.5f;
+        host.Rotation = Mathf.DegToRad(layer.Rotation);
+
         outputLayer.Position = Vector2.Zero;
         if (outputLayer.ExpandMode == TextureRect.ExpandModeEnum.IgnoreSize)
             outputLayer.Size = host.Size;
@@ -1573,7 +1579,8 @@ public partial class VideoOutputDevice : Window, IDisposable
     /// <param name="layerId">Layer identity.</param>
     /// <param name="layerName">Label drawn on the pattern.</param>
     /// <param name="rect">Rect in this output's local coordinates.</param>
-    public void AddLayerTestPattern(int layerId, string layerName, Rect2 rect)
+    /// <param name="rotationDegrees">Layer rotation about the rect center (degrees).</param>
+    public void AddLayerTestPattern(int layerId, string layerName, Rect2 rect, float rotationDegrees = 0f)
     {
         Vector2I size = (Vector2I)rect.Size;
         Vector2I pos = (Vector2I)rect.Position;
@@ -1581,11 +1588,11 @@ public partial class VideoOutputDevice : Window, IDisposable
         if (_layerTestPatterns.TryGetValue(layerId, out var existing)
             && existing != null && GodotObject.IsInstanceValid(existing))
         {
-            existing.ApplyLayout(size, pos, layerName);
+            existing.ApplyLayout(size, pos, layerName, rotationDegrees);
             return;
         }
 
-        var tp = new TestPattern(size, pos, layerName);
+        var tp = new TestPattern(size, pos, layerName, rotationDegrees);
         AddChild(tp);
         _layerTestPatterns[layerId] = tp;
     }
