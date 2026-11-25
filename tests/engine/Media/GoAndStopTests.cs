@@ -18,7 +18,7 @@ using static GdUnit4.Assertions;
 namespace Cue2.EngineTests.Media;
 
 /// <summary>
-/// GO, Stop All, multi-select GO with cancelled starts, sequences, standby and video start.
+/// GO, Stop All, multi-select GO with cancelled starts, sequences, standby, solo and video start.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -198,6 +198,51 @@ public class GoAndStopTests
         EngineHarness.Signals.EmitSignal(GlobalSignals.SignalName.Go);
         await EngineHarness.FramesAsync(2);
         AssertThat(ShellSelection.SelectedCues.Single().Id).IsEqual(cues[2].Id);
+        EngineHarness.AssertNoNewErrors(mark);
+    }
+
+    /// <summary>
+    /// Solo Stop all waits until the new cue has opened its media, then fades the cue that was
+    /// already playing. The existing cue must not start fading while the new one is still loading.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task SoloStopAllWaitsUntilTheCueIsReady()
+    {
+        int mark = EngineHarness.ErrorMark();
+        var cues = await ShowBuilder.DropAsync(ShowBuilder.ToneFiles(2, 3.0, "solo"));
+        cues[1].SoloMode = CueSoloMode.StopAll;
+
+        EngineHarness.Data.ShellSelection.SelectIndividualShell(cues[0], false);
+        await EngineHarness.FramesAsync(2);
+        EngineHarness.Signals.EmitSignal(GlobalSignals.SignalName.Go);
+        AssertThat(await EngineHarness.UntilAsync(() =>
+        {
+            var playing = Executor.Find(cues[0].Id);
+            return playing != null && playing.ComponentsReady && !playing.IsStopFading;
+        }, 5000)).OverrideFailureMessage("First cue did not start").IsTrue();
+
+        EngineHarness.Data.ShellSelection.SelectIndividualShell(cues[1], false);
+        await EngineHarness.FramesAsync(2);
+        EngineHarness.Signals.EmitSignal(GlobalSignals.SignalName.Go);
+
+        bool fadedBeforeReady = false;
+        AssertThat(await EngineHarness.UntilAsync(() =>
+        {
+            var first = Executor.Find(cues[0].Id);
+            var second = Executor.Find(cues[1].Id);
+            bool secondIsReady = second != null && second.ComponentsReady;
+            bool firstIsFading = first == null || first.IsStopFading;
+            if (firstIsFading && !secondIsReady)
+                fadedBeforeReady = true;
+            return firstIsFading && secondIsReady;
+        }, 5000)).OverrideFailureMessage("Solo did not fade the first cue after the second was ready").IsTrue();
+
+        AssertThat(fadedBeforeReady)
+            .OverrideFailureMessage("First cue started fading before the solo cue had opened its media")
+            .IsFalse();
+        var solo = Executor.Find(cues[1].Id);
+        AssertThat(solo).IsNotNull();
+        AssertThat(solo.IsStopFading).IsFalse();
         EngineHarness.AssertNoNewErrors(mark);
     }
 

@@ -408,9 +408,6 @@ public partial class CueCommandExecutor : Node
             }
         }
 
-        if (head.SoloMode != CueSoloMode.Off)
-            StopOtherActiveCuesForSolo(head);
-
         var chain = CueSequencePlanner.BuildChain(head, chainStopIds);
         if (chain.Count == 0)
         {
@@ -482,13 +479,11 @@ public partial class CueCommandExecutor : Node
             actives.Add(active);
         }
 
-        // Solo for cues that start later (continue/follow members, group children). The head's
-        // solo already ran above, so its own start is marked as handled.
+        // Solo runs when each instance is ready to start (after media setup), including the GO head.
         for (int mi = 0; mi < actives.Count; mi++)
         {
             actives[mi].ChainPeers = actives;
             actives[mi].SoloStartHandler = ApplySoloForStartingInstance;
-            actives[mi].SoloAppliedAtGo = mi == 0;
         }
 
         // Control GO fade-in applies to the head instance only (not continue/follow peers).
@@ -1302,9 +1297,9 @@ public partial class CueCommandExecutor : Node
     }
 
     /// <summary>
-    /// Solo for a cue that starts after the GO: a continue/follow chain member or a group child.
-    /// Keeps the sequence it belongs to (head and members) and, for a child, its parent group
-    /// and ancestors, which sit under the same top-level instance.
+    /// Solo for a cue that is ready to start: the GO head after media setup, a continue/follow
+    /// chain member, or a group child. Keeps the sequence it belongs to (head and members) and,
+    /// for a child, its parent group and ancestors, which sit under the same top-level instance.
     /// </summary>
     /// <param name="starting">Instance that is starting its own pre-wait or content.</param>
     private void ApplySoloForStartingInstance(ActiveCue starting)
@@ -1334,7 +1329,7 @@ public partial class CueCommandExecutor : Node
     /// Uses the session stop fade. Leaves instances of <paramref name="head"/> itself,
     /// OSC Load standbys, and the instances in <paramref name="keep"/> untouched.
     /// </summary>
-    /// <param name="head">Cue that is about to start.</param>
+    /// <param name="head">Cue that is starting (media ready).</param>
     /// <param name="keep">Top-level instances that must keep playing (the cue's own sequence), or null.</param>
     private void StopOtherActiveCuesForSolo(Cue head, ISet<ActiveCue> keep = null)
     {

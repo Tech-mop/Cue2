@@ -140,6 +140,30 @@ public class AudioBufferTests
         Assert.That(peaks.ComputePeakScale(), Is.EqualTo(0.8f).Within(0.01f));
     }
 
+    /// <summary>Peak extraction is skipped above 8 channels; 7.1 still generates.</summary>
+    [Test]
+    public void WaveformSkipsHighChannelCounts()
+    {
+        Assert.That(WaveformPeaks.MaxWaveformChannels, Is.EqualTo(8));
+        Assert.That(WaveformPeaks.CanGenerateWaveform(1), Is.True);
+        Assert.That(WaveformPeaks.CanGenerateWaveform(2), Is.True);
+        Assert.That(WaveformPeaks.CanGenerateWaveform(8), Is.True);
+        Assert.That(WaveformPeaks.CanGenerateWaveform(9), Is.False);
+        Assert.That(WaveformPeaks.CanGenerateWaveform(64), Is.False);
+        Assert.That(WaveformPeaks.CanGenerateWaveform(0), Is.True, "unknown count still attempts generate");
+        Assert.That(WaveformPeaks.CanGenerateWaveform(-1), Is.True);
+
+        string named = WaveformPeaks.HighChannelCountWarning("/shows/stems/Ambisonics64.wav", 64);
+        Assert.That(named, Does.Contain("64"));
+        Assert.That(named, Does.Contain("Ambisonics64.wav"));
+        Assert.That(named, Does.Contain("waveform").IgnoreCase);
+        Assert.That(named, Does.Not.Contain("Error"));
+
+        string unknown = WaveformPeaks.HighChannelCountWarning("bus.wav", 0);
+        Assert.That(unknown, Does.Contain("bus.wav"));
+        Assert.That(unknown, Does.Not.Contain("(0"));
+    }
+
     /// <summary>Short files keep one bin per chunk instead of stretching.</summary>
     [Test]
     public void WaveformPeaksKeepShortFiles()
@@ -165,6 +189,8 @@ public class AudioBufferTests
         Assert.That(WaveformPeaks.FromBytes(wrongVersion), Is.Null);
         Assert.That(WaveformPeaks.FromBytes(null), Is.Null);
         Assert.That(WaveformPeaks.FromBytes(new byte[3]), Is.Null);
+        Assert.That(WaveformPeaks.FromBytes(Array.Empty<byte>()), Is.Null,
+            "a cue with no peaks must not reuse another file's envelope");
     }
 
     /// <summary>Legacy payloads of raw min/max floats are still read.</summary>

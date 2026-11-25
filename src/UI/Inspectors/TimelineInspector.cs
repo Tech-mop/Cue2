@@ -40,6 +40,7 @@ public partial class TimelineInspector : Control
     private Cue _focusedCue;
 
     private Label _infoLabel;
+    private ScrollContainer _outerScroll;
     private MarginContainer _timeLineContainer;
 
     // Toolbar
@@ -150,6 +151,7 @@ public partial class TimelineInspector : Control
             _historyManager.HistoryRestored += OnHistoryRestored;
 
         _infoLabel = GetNode<Label>("%InfoLabel");
+        _outerScroll = GetNodeOrNull<ScrollContainer>("%OuterScroll");
         _timeLineContainer = GetNode<MarginContainer>("%TimelineContainer");
         if (_infoLabel != null)
             _infoLabel.AddThemeColorOverride("font_color", GlobalStyles.DisabledColor);
@@ -514,6 +516,19 @@ public partial class TimelineInspector : Control
     }
 
     /// <summary>
+    /// Shows or hides the timeline chrome. The outer scroll wraps the canvas so a short or
+    /// narrow inspector still reaches the toolbar, sidebar, and tracks.
+    /// </summary>
+    /// <param name="visible">True to show the timeline; false for the empty-state label.</param>
+    private void SetTimelineUiVisible(bool visible)
+    {
+        if (_outerScroll != null && GodotObject.IsInstanceValid(_outerScroll))
+            _outerScroll.Visible = visible;
+        if (_timeLineContainer != null)
+            _timeLineContainer.Visible = visible;
+    }
+
+    /// <summary>
     /// Reloads and gates process when the Timeline tab is shown or hidden.
     /// </summary>
     private void OnTimelineVisibilityChanged()
@@ -653,7 +668,7 @@ public partial class TimelineInspector : Control
 
         // Align with right edge of the left column (corner + track sidebar).
         Control leftEdge = _trackSidebar;
-        var leftCol = GetNodeOrNull<Control>("TimelineContainer/VBoxContainer/Body/LeftColumn");
+        var leftCol = GetNodeOrNull<Control>("%LeftColumn");
         if (leftCol != null && IsInstanceValid(leftCol))
             leftEdge = leftCol;
         if (leftEdge == null) return;

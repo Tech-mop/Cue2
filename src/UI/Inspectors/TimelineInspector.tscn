@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://5qohosm0xcfy" path="res://src/UI/Inspectors/TimelineInspector.cs" id="1_gt8vh"]
 
 [node name="Timeline" type="Control"]
+clip_contents = true
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -30,29 +31,39 @@ theme_override_font_sizes/font_size = 20
 text = "No shell selected"
 horizontal_alignment = 1
 
-[node name="TimelineContainer" type="MarginContainer" parent="."]
+[node name="OuterScroll" type="ScrollContainer" parent="."]
 unique_name_in_owner = true
 visible = false
+clip_contents = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="TimelineContainer" type="MarginContainer" parent="OuterScroll"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/margin_left = 4
 theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 4
-theme_override_constants/margin_bottom = 4
+theme_override_constants/margin_bottom = 16
 
-[node name="VBoxContainer" type="VBoxContainer" parent="TimelineContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="OuterScroll/TimelineContainer"]
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/separation = 4
 
-[node name="Toolbar" type="HBoxContainer" parent="TimelineContainer/VBoxContainer"]
+[node name="Toolbar" type="HBoxContainer" parent="OuterScroll/TimelineContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="GoToStartButton" type="Button" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="GoToStartButton" type="Button" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
@@ -62,7 +73,7 @@ theme_type_variation = &"AtlasIcons"
 theme_override_constants/icon_max_width = 14
 expand_icon = true
 
-[node name="PlayFromPlayheadButton" type="Button" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="PlayFromPlayheadButton" type="Button" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 28)
 layout_mode = 2
@@ -72,7 +83,7 @@ theme_type_variation = &"AtlasIcons"
 theme_override_constants/icon_max_width = 16
 expand_icon = true
 
-[node name="PlayheadTimeLabel" type="Label" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="PlayheadTimeLabel" type="Label" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
@@ -81,7 +92,7 @@ theme_override_font_sizes/font_size = 13
 text = "0:00.000"
 vertical_alignment = 1
 
-[node name="DurationSummaryLabel" type="Label" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="DurationSummaryLabel" type="Label" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.68, 0.7, 1)
@@ -89,11 +100,11 @@ theme_override_font_sizes/font_size = 11
 text = ""
 vertical_alignment = 1
 
-[node name="ToolbarSpacer" type="Control" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="ToolbarSpacer" type="Control" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="FitButton" type="Button" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="FitButton" type="Button" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 28)
 layout_mode = 2
@@ -102,7 +113,7 @@ tooltip_text = "Fit whole timeline"
 text = "Fit"
 flat = true
 
-[node name="ZoomOutButton" type="Button" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="ZoomOutButton" type="Button" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
@@ -111,7 +122,7 @@ tooltip_text = "Zoom out"
 text = "−"
 flat = true
 
-[node name="ZoomSlider" type="HSlider" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="ZoomSlider" type="HSlider" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
@@ -122,7 +133,7 @@ max_value = 1.0
 step = 0.001
 value = 0.0
 
-[node name="ZoomInButton" type="Button" parent="TimelineContainer/VBoxContainer/Toolbar"]
+[node name="ZoomInButton" type="Button" parent="OuterScroll/TimelineContainer/VBoxContainer/Toolbar"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
@@ -131,49 +142,52 @@ tooltip_text = "Zoom in"
 text = "+"
 flat = true
 
-[node name="Body" type="HBoxContainer" parent="TimelineContainer/VBoxContainer"]
+[node name="Body" type="HBoxContainer" parent="OuterScroll/TimelineContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 160)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 0
 
-[node name="LeftColumn" type="VBoxContainer" parent="TimelineContainer/VBoxContainer/Body"]
+[node name="LeftColumn" type="VBoxContainer" parent="OuterScroll/TimelineContainer/VBoxContainer/Body"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 0
 
-[node name="SidebarRulerCorner" type="Control" parent="TimelineContainer/VBoxContainer/Body/LeftColumn"]
+[node name="SidebarRulerCorner" type="Control" parent="OuterScroll/TimelineContainer/VBoxContainer/Body/LeftColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(156, 26)
 layout_mode = 2
 mouse_filter = 2
 tooltip_text = "Track list"
 
-[node name="TrackSidebar" type="Control" parent="TimelineContainer/VBoxContainer/Body/LeftColumn"]
+[node name="TrackSidebar" type="Control" parent="OuterScroll/TimelineContainer/VBoxContainer/Body/LeftColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(156, 0)
 layout_mode = 2
 size_flags_vertical = 3
 clip_contents = true
 
-[node name="RightColumn" type="VBoxContainer" parent="TimelineContainer/VBoxContainer/Body"]
+[node name="RightColumn" type="VBoxContainer" parent="OuterScroll/TimelineContainer/VBoxContainer/Body"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 0
 
-[node name="RulerHost" type="Control" parent="TimelineContainer/VBoxContainer/Body/RightColumn"]
+[node name="RulerHost" type="Control" parent="OuterScroll/TimelineContainer/VBoxContainer/Body/RightColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(20, 26)
 layout_mode = 2
 mouse_filter = 0
 tooltip_text = "Click or drag to set the playhead"
 
-[node name="TimelineScrollContainer" type="ScrollContainer" parent="TimelineContainer/VBoxContainer/Body/RightColumn"]
+[node name="TimelineScrollContainer" type="ScrollContainer" parent="OuterScroll/TimelineContainer/VBoxContainer/Body/RightColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TimelineArea" type="Control" parent="TimelineContainer/VBoxContainer/Body/RightColumn/TimelineScrollContainer"]
+[node name="TimelineArea" type="Control" parent="OuterScroll/TimelineContainer/VBoxContainer/Body/RightColumn/TimelineScrollContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0

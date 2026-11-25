@@ -483,13 +483,13 @@ public partial class ActiveCue : GodotObject
     public IReadOnlyList<ActiveCue> ChainPeers { get; set; }
 
     /// <summary>
-    /// Called when this instance starts and its cue has Solo on. Set by the executor on
-    /// top-level instances and passed down to group children.
+    /// Called when this instance is ready to start and its cue has Solo on. Set by the executor
+    /// on top-level instances and passed down to group children.
     /// </summary>
     public Action<ActiveCue> SoloStartHandler { get; set; }
 
-    /// <summary>True when Solo already ran for this start at GO time (the GO head).</summary>
-    public bool SoloAppliedAtGo { get; set; }
+    /// <summary>True when Solo already ran for this start (after media was ready).</summary>
+    public bool SoloApplied { get; set; }
 
     /// <summary>Parent instance when this is a group child; null at top level.</summary>
     public ActiveCue ParentActive { get; private set; }

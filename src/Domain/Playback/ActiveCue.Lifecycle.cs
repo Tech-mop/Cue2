@@ -198,24 +198,6 @@ public partial class ActiveCue
             return;
         }
 
-        // Solo applies whenever the cue starts: a continue/follow member when it is armed (or
-        // started early), and a group child when its parent's content starts. The GO head
-        // already ran its solo in the executor.
-        if (!SoloAppliedAtGo && _cue != null && _cue.SoloMode != CueSoloMode.Off)
-        {
-            SoloAppliedAtGo = true;
-            try
-            {
-                SoloStartHandler?.Invoke(this);
-            }
-            catch (Exception ex)
-            {
-                GD.PrintErr($"ActiveCue:StartPlaybackCoreAsync - {_cue.Name}: solo failed: {ex.Message}");
-            }
-            if (_isCleaned || _suppressContentCompleted)
-                return;
-        }
-
         // Preload own media (or finish pending chain preload) before pre-wait / content.
         // Children open their media during this setup too, but start only at content phase.
         // Timing rule (decided): a cue's pre-wait counts from when the cue itself starts,
@@ -259,6 +241,12 @@ public partial class ActiveCue
             TryCleanupAfterStop();
             return;
         }
+
+        // Solo waits until this cue is ready (media open) and is starting pre-wait or content,
+        // so other cues keep playing through the load instead of leaving a silent gap.
+        ApplySoloOnStart();
+        if (_isCleaned || _suppressContentCompleted)
+            return;
 
         bool doPreWait = includePreWait && !_skipPreWait && _cue.PreWait > 0;
         // Anchored cues absorb setup time into the pre-wait. Not while paused (the pre-wait then
@@ -313,6 +301,29 @@ public partial class ActiveCue
 
         HidePreWaitPanel();
         await BeginContentPhaseAsync();
+    }
+
+    /// <summary>
+    /// Stops other playing cues when this instance has Solo on, once media is ready and this cue
+    /// is about to enter pre-wait or content. No-op when already applied or Solo is off.
+    /// Disarmed cues return before this is called, so they do not solo.
+    /// </summary>
+    private void ApplySoloOnStart()
+    {
+        if (SoloApplied)
+            return;
+        if (_cue == null || _cue.SoloMode == CueSoloMode.Off)
+            return;
+
+        SoloApplied = true;
+        try
+        {
+            SoloStartHandler?.Invoke(this);
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"ActiveCue:ApplySoloOnStart - {_cue.Name}: solo failed: {ex.Message}");
+        }
     }
 
     /// <summary>

@@ -64,8 +64,7 @@ public partial class TimelineInspector
 
         if (_infoLabel != null)
             _infoLabel.Visible = false;
-        if (!_timeLineContainer.Visible)
-            _timeLineContainer.Visible = true;
+        SetTimelineUiVisible(true);
 
         var nextItems = new List<TimelineItem>();
         int row = 0;

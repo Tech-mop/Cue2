@@ -73,8 +73,7 @@ public partial class AudioInspector
             _inspectorTimeline?.Sync();
             return;
         }
-        if (_focusedAudioComponent?.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0
-            || _cachedPeaks == null)
+        if (_focusedAudioComponent == null)
         {
             _inspectorTimeline?.Sync();
             return;
@@ -91,6 +90,7 @@ public partial class AudioInspector
         float endNorm = (float)(endTime / duration);
         _waveformZoom.SetSelection(startNorm, endNorm);
 
+        // Null peaks leaves the ruler, fades, and nodes; it must still replace the last cue's envelope.
         _waveformDisplay.SetData(
             _cachedPeaks, startNorm, endNorm,
             _waveformZoom.Viewport.ViewStartNorm,
@@ -125,33 +125,25 @@ public partial class AudioInspector
     private async Task DrawWaveform()
     {
         if (_timelineAccordian == null || _timelineAccordian.Visible == false) return;
-        if (_focusedAudioComponent?.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0)
-        {
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "AudioInspector:DrawWaveform - No waveform data available", 1);
-            return;
-        }
+        if (_focusedAudioComponent == null) return;
 
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
         // Guard: component may have been rebound during the await (undo/redo).
-        if (_focusedAudioComponent?.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0)
-            return;
+        if (_focusedAudioComponent == null) return;
 
-        float width = _waveformPanel.Size.X;
-        if (width < 50)
-            width = Math.Max(0, _inspectorContent.Size.X - 48);
-        if (width < 50)
-            return;
-
-        if (_cachedPeaks == null || !ReferenceEquals(_cachedPeaksSource, _focusedAudioComponent.WaveformData))
+        byte[] data = _focusedAudioComponent.WaveformData;
+        if (data == null || data.Length == 0)
         {
-            _cachedPeaks = WaveformPeaks.FromBytes(_focusedAudioComponent.WaveformData);
-            _cachedPeaksSource = _focusedAudioComponent.WaveformData;
+            _cachedPeaks = null;
+            _cachedPeaksSource = null;
         }
-        if (_cachedPeaks == null)
+        else if (_cachedPeaks == null || !ReferenceEquals(_cachedPeaksSource, data))
         {
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "AudioInspector:DrawWaveform - Invalid waveform payload", 1);
-            return;
+            _cachedPeaks = WaveformPeaks.FromBytes(data);
+            _cachedPeaksSource = data;
+            if (_cachedPeaks == null)
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "AudioInspector:DrawWaveform - Invalid waveform payload", 1);
         }
 
         double duration = _focusedAudioComponent.Metadata?.Duration ?? 0;
@@ -704,9 +696,10 @@ public partial class AudioInspector
         SetSelectFileVisible(true);
         _infoLabel.Text = "";
 
-        // Invalidate display cache while loading
+        // Invalidate display cache while loading so the previous file's envelope is not kept.
         _cachedPeaks = null;
         _cachedPeaksSource = null;
+        RedrawWaveformView();
 
         try
         {
@@ -769,15 +762,8 @@ public partial class AudioInspector
             // Use absolute source for waveform while background copy may still be running
             var wave = await _mediaEngine.GenerateWaveformAsync(resolvedPath, RestartWaveformToken());
             if (_focusedAudioComponent == null) return;
-            if (wave == null || wave.Length == 0)
-            {
-                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                    $"AudioInspector:SetAudioFile - Waveform generation failed for {pathToStore}", 2);
-            }
-            else
-            {
+            if (wave != null && wave.Length > 0)
                 _focusedAudioComponent.WaveformData = wave;
-            }
         }
         catch (OperationCanceledException)
         {
@@ -786,7 +772,7 @@ public partial class AudioInspector
         catch (Exception ex)
         {
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                $"AudioInspector:SetAudioFile - Error generating waveform: {ex.Message}", 2);
+                $"AudioInspector:SetAudioFile - Error generating waveform: {ex.Message}", 1);
         }
 
         UpdateAudioUiFields(pathToStore);

@@ -32,6 +32,13 @@ public sealed class WaveformPeaks
     public const int MaxBinCount = 16384;
 
     /// <summary>
+    /// Highest channel count that peak extraction will attempt.
+    /// Above this, FFmpeg's default-layout downmix to mono fails (Dante, MADI, Ambisonics).
+    /// 8 still covers 7.1; playback of those files is unaffected.
+    /// </summary>
+    public const int MaxWaveformChannels = 8;
+
+    /// <summary>
     /// Included in <see cref="CacheFileName"/> so algorithm changes miss old sparse caches.
     /// </summary>
     public const int CacheKeyVersion = 2;
@@ -223,6 +230,7 @@ public sealed class WaveformPeaks
 
     /// <summary>
     /// Deserializes versioned or legacy raw-float payloads.
+    /// Empty or invalid payloads return null so the display can drop a previous cue's envelope.
     /// </summary>
     public static WaveformPeaks FromBytes(byte[] data)
     {
@@ -288,5 +296,32 @@ public sealed class WaveformPeaks
     {
         if (requested < MinBinCount) return DefaultBinCount;
         return Math.Clamp(requested, MinBinCount, MaxBinCount);
+    }
+
+    /// <summary>
+    /// True when peak extraction should run for this channel count.
+    /// Zero or negative is treated as unknown, so generation is still attempted.
+    /// </summary>
+    /// <param name="channelCount">Audio channel count from the decoder, or 0 when unknown.</param>
+    /// <returns>True when <paramref name="channelCount"/> is at most <see cref="MaxWaveformChannels"/>.</returns>
+    public static bool CanGenerateWaveform(int channelCount)
+    {
+        if (channelCount <= 0)
+            return true;
+        return channelCount <= MaxWaveformChannels;
+    }
+
+    /// <summary>
+    /// User-facing warning when waveform display is skipped for a high channel-count file.
+    /// </summary>
+    /// <param name="mediaPath">Media path; the file name is shown when present.</param>
+    /// <param name="channelCount">Channel count that exceeded <see cref="MaxWaveformChannels"/>.</param>
+    /// <returns>A warning string for the log panel.</returns>
+    public static string HighChannelCountWarning(string mediaPath, int channelCount)
+    {
+        string name = string.IsNullOrEmpty(mediaPath) ? "this file" : Path.GetFileName(mediaPath);
+        if (channelCount <= 0)
+            return $"Can't generate a waveform for \"{name}\". High channel-count files skip waveform display.";
+        return $"Can't generate a waveform for \"{name}\" ({channelCount} channels). High channel-count files skip waveform display.";
     }
 }

@@ -70,12 +70,6 @@ public partial class VideoInspector
 		if (_focusedVideoComponent == null || _focusedVideoComponent.IsImage)
 			return;
 
-		float width = _waveformPanel.Size.X;
-		if (width < 50)
-			width = Math.Max(0, _inspectorContent.Size.X - 48);
-		if (width < 50)
-			return;
-
 		if (_focusedVideoComponent.UseAudio && _focusedVideoComponent.HasAudio
 		    && _focusedVideoComponent.WaveformData != null
 		    && _focusedVideoComponent.WaveformData.Length > 0)

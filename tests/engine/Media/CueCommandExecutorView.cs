@@ -3,6 +3,8 @@
 
 using System.Linq;
 using Cue2.Domain.Commands;
+using Cue2.Domain.Playback;
+using Godot;
 
 namespace Cue2.EngineTests.Media;
 
@@ -22,4 +24,9 @@ internal readonly struct CueCommandExecutorView
     /// <summary>Cue ids of the active cues that are playing or starting.</summary>
     internal int[] CueIds() =>
         _executor.ActiveCues.Where(a => a != null && !a.IsStandbyPreloaded).Select(a => a.Cue.Id).ToArray();
+
+    /// <summary>The live playing (or starting) instance of <paramref name="cueId"/>, or null.</summary>
+    internal ActiveCue Find(int cueId) =>
+        _executor.ActiveCues.FirstOrDefault(a =>
+            a != null && GodotObject.IsInstanceValid(a) && !a.IsStandbyPreloaded && a.Cue?.Id == cueId);
 }

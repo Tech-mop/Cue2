@@ -707,15 +707,8 @@ public partial class VideoInspector
 				var wave = await _mediaEngine.GenerateWaveformAsync(
 					_focusedVideoComponent.VideoFile, RestartWaveformToken());
 				if (_focusedVideoComponent == null) return;
-				if (wave == null || wave.Length == 0)
-				{
-					_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-						$"VideoInspector:SetVideoFile - Waveform generation failed for {_focusedVideoComponent.VideoFile}", 2);
-				}
-				else
-				{
+				if (wave != null && wave.Length > 0)
 					_focusedVideoComponent.WaveformData = wave;
-				}
 			}
 			catch (OperationCanceledException)
 			{
@@ -724,7 +717,7 @@ public partial class VideoInspector
 			catch (Exception ex)
 			{
 				_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-					$"VideoInspector:SetVideoFile - Error generating waveform: {ex.Message}", 2);
+					$"VideoInspector:SetVideoFile - Error generating waveform: {ex.Message}", 1);
 			}
 		}
 
@@ -885,21 +878,17 @@ public partial class VideoInspector
 			{
 				if (_focusedVideoComponent.WaveformData == null || _focusedVideoComponent.WaveformData.Length == 0)
 				{
+					_cachedPeaks = null;
+					_cachedPeaksSource = null;
+					RedrawWaveformView();
 					try
 					{
 						var ct = waveformCt.CanBeCanceled ? waveformCt : RestartWaveformToken();
 						var wave = await _mediaEngine.GenerateWaveformAsync(
 							_focusedVideoComponent.VideoFile, ct);
 						if (_focusedVideoComponent == null) return;
-						if (wave == null || wave.Length == 0)
-						{
-							if (!ct.IsCancellationRequested)
-								_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"VideoInspector:RefreshAudioUiState - Waveform generation failed for {_focusedVideoComponent.VideoFile}", 2);
-						}
-						else
-						{
+						if (wave != null && wave.Length > 0)
 							_focusedVideoComponent.WaveformData = wave;
-						}
 					}
 					catch (OperationCanceledException)
 					{
@@ -907,7 +896,7 @@ public partial class VideoInspector
 					}
 					catch (Exception ex)
 					{
-						_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"VideoInspector:RefreshAudioUiState - Error generating waveform: {ex.Message}", 2);
+						_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"VideoInspector:RefreshAudioUiState - Error generating waveform: {ex.Message}", 1);
 					}
 				}
 			}

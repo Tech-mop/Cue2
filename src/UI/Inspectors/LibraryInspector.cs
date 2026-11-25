@@ -272,11 +272,11 @@ public partial class LibraryInspector : Control
         _contentScroll ??= GetNodeOrNull<ScrollContainer>("%ContentScroll")
                            ?? GetNodeOrNull<ScrollContainer>("RootMargin/ContentScroll");
         _contentVBox ??= GetNodeOrNull<VBoxContainer>("%VBox")
-                         ?? GetNodeOrNull<VBoxContainer>("RootMargin/ContentScroll/VBox");
+                         ?? GetNodeOrNull<VBoxContainer>("RootMargin/ContentScroll/ContentMargin/VBox");
         _mainSplit ??= GetNodeOrNull<HSplitContainer>("%MainSplit")
-                       ?? GetNodeOrNull<HSplitContainer>("RootMargin/ContentScroll/VBox/MainSplit");
+                       ?? GetNodeOrNull<HSplitContainer>("RootMargin/ContentScroll/ContentMargin/VBox/MainSplit");
         _entryList ??= GetNodeOrNull<ItemList>("%EntryList")
-                       ?? GetNodeOrNull<ItemList>("RootMargin/ContentScroll/VBox/MainSplit/RightPane/EntryList");
+                       ?? GetNodeOrNull<ItemList>("RootMargin/ContentScroll/ContentMargin/VBox/MainSplit/RightPane/EntryList");
         _detailLabel ??= GetNodeOrNull<Label>("%DetailLabel");
         _emptyLabel ??= GetNodeOrNull<Label>("%EmptyLabel");
         _insertModeOption ??= GetNodeOrNull<OptionButton>("%InsertModeOption");
@@ -287,7 +287,7 @@ public partial class LibraryInspector : Control
         if (_folderTree == null || !GodotObject.IsInstanceValid(_folderTree))
         {
             _folderTree = GetNodeOrNull<Tree>("%FolderTree")
-                          ?? GetNodeOrNull<Tree>("RootMargin/ContentScroll/VBox/MainSplit/LeftPanel/FolderTree")
+                          ?? GetNodeOrNull<Tree>("RootMargin/ContentScroll/ContentMargin/VBox/MainSplit/LeftPanel/FolderTree")
                           ?? FindChild("FolderTree", recursive: true, owned: false) as Tree;
         }
 
@@ -573,7 +573,7 @@ public partial class LibraryInspector : Control
     {
         if (_mainSplit == null || !GodotObject.IsInstanceValid(_mainSplit))
             _mainSplit = GetNodeOrNull<HSplitContainer>("%MainSplit")
-                         ?? GetNodeOrNull<HSplitContainer>("RootMargin/ContentScroll/VBox/MainSplit");
+                         ?? GetNodeOrNull<HSplitContainer>("RootMargin/ContentScroll/ContentMargin/VBox/MainSplit");
 
         if (_mainSplit == null)
             return;
@@ -681,10 +681,14 @@ public partial class LibraryInspector : Control
             _contentVBox.CustomMinimumSize = new Vector2(widthMin, 0f);
 
         float naturalH = _contentVBox.GetCombinedMinimumSize().Y;
+        float bottomPad = 0f;
+        if (_contentVBox.GetParent() is MarginContainer pad)
+            bottomPad = pad.GetThemeConstant("margin_bottom");
 
         // Expand only when the viewport is taller than natural content; otherwise leave Y min at 0
         // so combined minimums drive scrolling (avoids locking in a stale oversized height).
-        float targetH = naturalH + 0.5f < viewH ? viewH : 0f;
+        // Subtract ContentMargin bottom pad so the fill height does not always create a v-scroll.
+        float targetH = naturalH + 0.5f < viewH ? Math.Max(0f, viewH - bottomPad) : 0f;
         if (Math.Abs(_contentVBox.CustomMinimumSize.Y - targetH) > 0.5f)
             _contentVBox.CustomMinimumSize = new Vector2(widthMin, targetH);
     }

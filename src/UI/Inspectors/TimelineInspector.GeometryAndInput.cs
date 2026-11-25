@@ -589,8 +589,7 @@ public partial class TimelineInspector
 
         if (_infoLabel != null)
             _infoLabel.Visible = false;
-        if (_timeLineContainer != null)
-            _timeLineContainer.Visible = true;
+        SetTimelineUiVisible(true);
 
         PruneCollapseStateToFocusedTree();
         LoadTimeline();
@@ -608,8 +607,7 @@ public partial class TimelineInspector
             _infoLabel.Visible = true;
             _infoLabel.Text = UiLocalizer.T("No shell selected");
         }
-        if (_timeLineContainer != null)
-            _timeLineContainer.Visible = false;
+        SetTimelineUiVisible(false);
         if (_sidebarSeparator != null)
             _sidebarSeparator.Visible = false;
         ClearTimelineVisuals();

@@ -173,10 +173,12 @@ public partial class AudioInspector
         PopulateOutputOptions();
         BuildRoutingMatrix();
         
-        // Generate waveform data if not cached on the component
+        // Generate waveform data if not cached on the component.
+        // Clear the previous cue's envelope immediately so a skip/fail cannot leave it on screen.
         _cachedPeaks = null;
         _cachedPeaksSource = null;
         _waveformZoom?.Reset();
+        RedrawWaveformView();
         if (_focusedAudioComponent.WaveformData == null || _focusedAudioComponent.WaveformData.Length == 0)
         {
             GD.Print("AudioInspector:ShellSelected - No waveform found");
@@ -184,13 +186,8 @@ public partial class AudioInspector
             {
                 var wave = await _mediaEngine.GenerateWaveformAsync(_focusedAudioComponent.AudioFile, waveformCt);
                 if (gen != _shellSelectGeneration || _focusedAudioComponent == null) return;
-                if (wave == null || wave.Length == 0)
-                {
-                    if (!waveformCt.IsCancellationRequested)
-                        _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"AudioInspector:ShellSelected - Waveform generation failed for {_focusedAudioComponent.AudioFile}", 2);
-                    return;
-                }
-                _focusedAudioComponent.WaveformData = wave;
+                if (wave != null && wave.Length > 0)
+                    _focusedAudioComponent.WaveformData = wave;
             }
             catch (OperationCanceledException)
             {
@@ -199,7 +196,7 @@ public partial class AudioInspector
             catch (Exception ex)
             {
                 if (gen != _shellSelectGeneration) return;
-                _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"AudioInspector:ShellSelected - Error generating waveform: {ex.Message}", 2);
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"AudioInspector:ShellSelected - Error generating waveform: {ex.Message}", 1);
             }
         }
         else
@@ -317,6 +314,7 @@ public partial class AudioInspector
         _cachedPeaks = null;
         _cachedPeaksSource = null;
         _waveformZoom?.Reset();
+        RedrawWaveformView();
 
         if (_focusedAudioComponent != null
             && !string.IsNullOrEmpty(_focusedAudioComponent.AudioFile)

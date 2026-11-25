@@ -488,7 +488,10 @@ public partial class MediaEngine : Node
     /// </remarks>
     /// <param name="path">Media file path with an audio stream.</param>
     /// <param name="cancellationToken">Cancels wait / in-flight exclusive decode when possible.</param>
-    /// <returns>Serialized <see cref="WaveformPeaks"/> bytes, or empty on failure/cancel.</returns>
+    /// <returns>
+    /// Serialized <see cref="WaveformPeaks"/> bytes, or empty on failure, cancel, or when the
+    /// file has more than <see cref="WaveformPeaks.MaxWaveformChannels"/> channels (logged as a warning).
+    /// </returns>
     public async Task<byte[]> GenerateWaveformAsync(string path, CancellationToken cancellationToken = default)
     {
         path = ResolveMediaPath(path);
@@ -637,6 +640,30 @@ public partial class MediaEngine : Node
     }
 
     /// <summary>
+    /// True when a failed mono downmix should be logged as a high-channel skip instead of an error.
+    /// Unknown counts (0) use the same warning because custom layouts often omit nb_channels.
+    /// </summary>
+    private static bool ShouldWarnWaveformChannelSkip(int channelCount)
+        => !WaveformPeaks.CanGenerateWaveform(channelCount) || channelCount <= 0;
+
+    /// <summary>
+    /// Logs a warning (not an error) that waveform peaks are skipped for this file.
+    /// Safe to call from the waveform worker thread.
+    /// </summary>
+    private void LogWaveformHighChannelCount(string path, int channelCount)
+    {
+        string msg = WaveformPeaks.HighChannelCountWarning(path, channelCount);
+        GD.Print($"MediaEngine:GenerateWaveformAsync - {msg}");
+        CallDeferred(nameof(DeferredLog), msg, (int)LogType.Warning);
+    }
+
+    /// <summary>Main-thread log emit for work that runs on a background FFmpeg job.</summary>
+    private void DeferredLog(string message, int type)
+    {
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), message, type);
+    }
+
+    /// <summary>
     /// Streaming peak extraction: bin samples as they decode (O(1) memory in sample count).
     /// Reuses a single swr output buffer for the whole decode (no per-frame alloc).
     /// </summary>
@@ -689,6 +716,15 @@ public partial class MediaEngine : Node
             ret = ffmpeg.avcodec_open2(codecCtx, codec, null);
             if (ret < 0) throw new Exception($"Codec open failed: {GetFFmpegError(ret)}");
 
+            int channelCount = codecCtx->ch_layout.nb_channels;
+            if (channelCount <= 0)
+                channelCount = codecPar->ch_layout.nb_channels;
+            if (!WaveformPeaks.CanGenerateWaveform(channelCount))
+            {
+                LogWaveformHighChannelCount(path, channelCount);
+                return Array.Empty<byte>();
+            }
+
             // Prefer actual channel layout from the codec
             ret = ffmpeg.av_channel_layout_copy(&inChLayout, &codecCtx->ch_layout);
             if (ret < 0)
@@ -702,9 +738,25 @@ public partial class MediaEngine : Node
                 &outChLayout, AVSampleFormat.AV_SAMPLE_FMT_FLT, outRate,
                 &inChLayout, codecCtx->sample_fmt, codecCtx->sample_rate,
                 0, null);
-            if (ret < 0 || swrCtx == null) throw new Exception($"Swr alloc failed: {GetFFmpegError(ret)}");
+            if (ret < 0 || swrCtx == null)
+            {
+                if (ShouldWarnWaveformChannelSkip(channelCount))
+                {
+                    LogWaveformHighChannelCount(path, channelCount);
+                    return Array.Empty<byte>();
+                }
+                throw new Exception($"Swr alloc failed: {GetFFmpegError(ret)}");
+            }
             ret = ffmpeg.swr_init(swrCtx);
-            if (ret < 0) throw new Exception($"Swr init failed: {GetFFmpegError(ret)}");
+            if (ret < 0)
+            {
+                if (ShouldWarnWaveformChannelSkip(channelCount))
+                {
+                    LogWaveformHighChannelCount(path, channelCount);
+                    return Array.Empty<byte>();
+                }
+                throw new Exception($"Swr init failed: {GetFFmpegError(ret)}");
+            }
 
             // Audacity-style: summarize into sample chunks while decoding, then reduce
             // chunks → display bins. Short files use 1-sample chunks so the envelope

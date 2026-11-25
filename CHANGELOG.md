@@ -2,7 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- Audio inspector Timeline shows a blank envelope (nodes and fades still draw) when the selected cue has no waveform, instead of keeping the previous cue's peaks.
+- Library Inspector shows scrollbars when the panel is small, so the toolbar and panes stay reachable instead of clipping at the edges.
+- Timeline Inspector stays inside a scroll container when the panel is small, so the toolbar, sidebar, and tracks stay reachable instead of clipping or painting outside the tab.
+- Solo waits until the cue being played has opened its media and is starting before other cues stop to prevent playback jitter.
+
 ### Changed
+- High channel-count audio files skip waveform display with a warning instead of an error.
 - Startup error dialog: Intel Macs get an unsupported-hardware message (Apple Silicon only) instead of a generic native-library failure. Restart is hidden on that path.
 - Audio Input and Timecode channel pickers cap dropdown height and scroll on high channel-count devices.
 - Startup-error Restart uses the normal quit flow and reopens the same show
