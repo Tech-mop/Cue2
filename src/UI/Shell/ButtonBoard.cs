@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Cue2.Domain.Cuelist;
 using Cue2.Domain.Cues;
 using Cue2.Services;
+using Cue2.Media;
 using Cue2.UI.Popups;
 using Cue2.UI.Utilities;
 using Godot;
@@ -475,8 +476,14 @@ public partial class ButtonBoard : Control
         int created = 0;
         foreach (string filePath in files)
         {
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            if (string.IsNullOrEmpty(filePath))
                 continue;
+            if (!File.Exists(filePath))
+            {
+                _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                    FfmpegMediaPath.FormatRejectMessage(filePath, "File not found"), (int)LogType.Error);
+                continue;
+            }
             EnsureEmptySlotFrom(ref row, ref col);
             var cue = CreateMediaCueInCell(row, col, filePath);
             if (cue == null)
@@ -972,8 +979,14 @@ public partial class ButtonBoard : Control
 
     private void ReplaceCueMedia(Cue cue, string filePath)
     {
-        if (cue == null || string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        if (cue == null || string.IsNullOrEmpty(filePath))
             return;
+        if (!File.Exists(filePath))
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+                FfmpegMediaPath.FormatRejectMessage(filePath, "File not found"), (int)LogType.Error);
+            return;
+        }
 
         string ext = Path.GetExtension(filePath).ToLowerInvariant();
         bool isAudio = IsAudioExtension(ext);
@@ -1136,25 +1149,35 @@ public partial class ButtonBoard : Control
                 }
                 else
                 {
-                    // Leave Metadata empty so selecting or playing the cue reads the file again.
-                    _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                        $"Could not read {Path.GetFileName(filePath)} for cue '{cue.Name}': {probe.Error}. The cue will retry when selected or played.",
-                        (int)LogType.Warning);
+                    string msg = FfmpegMediaPath.FormatRejectMessage(filePath, probe.Error);
+                    _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+                    CallDeferred(nameof(RejectUnreadableDroppedMedia), cue.Id);
+                    return;
                 }
             }
             else if (videoComp != null)
             {
                 videoComp.RefreshIsImageFromPath();
                 await DroppedMediaExpansion.ProbeSlots.WaitAsync();
-                VideoFileMetadata meta;
+                MediaEngine.VideoMetadataProbeResult videoProbe;
                 try
                 {
-                    meta = await mediaEngine.GetVideoFileMetadataAsync(filePath);
+                    videoProbe = await mediaEngine.ProbeVideoFileMetadataAsync(filePath);
                 }
                 finally
                 {
                     DroppedMediaExpansion.ProbeSlots.Release();
                 }
+
+                if (videoProbe.Metadata == null)
+                {
+                    string msg = FfmpegMediaPath.FormatRejectMessage(filePath, videoProbe.Error);
+                    _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+                    CallDeferred(nameof(RejectUnreadableDroppedMedia), cue.Id);
+                    return;
+                }
+
+                var meta = videoProbe.Metadata;
                 videoComp.Metadata = meta;
                 if (videoComp.IsImage)
                 {
@@ -1182,10 +1205,46 @@ public partial class ButtonBoard : Control
         }
         catch (Exception ex)
         {
-            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"ButtonBoard: Failed to load metadata for dropped file '{Path.GetFileName(filePath)}': {ex.Message}",
-                (int)LogType.Warning);
+            string msg = FfmpegMediaPath.FormatRejectMessage(filePath, ex.Message);
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+            CallDeferred(nameof(RejectUnreadableDroppedMedia), cue.Id);
         }
+    }
+
+    /// <summary>
+    /// Removes media that FFmpeg could not open. Drops the board cell when that was its only component.
+    /// </summary>
+    private void RejectUnreadableDroppedMedia(int cueId)
+    {
+        var cue = CueList.FetchCueFromId(cueId);
+        if (cue == null)
+            return;
+
+        var audio = cue.GetAudioComponent();
+        if (audio != null)
+            cue.RemoveICueComponent(audio);
+        var video = cue.GetVideoComponent();
+        if (video != null)
+            cue.RemoveICueComponent(video);
+
+        if (cue.Components == null || cue.Components.Count == 0)
+        {
+            ClearCellForCue(cueId);
+            UnregisterCueTree(cueId);
+            ShrinkUnusedEdges();
+            RebuildGrid();
+            NotifyCueCount();
+            if (_globalData != null && _globalData.FocusedCue == cueId)
+                _globalSignals?.EmitSignal(nameof(GlobalSignals.ShellFocused), -1);
+        }
+        else
+        {
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.UpdateShellBar), cue.Id);
+            if (_globalData != null && _globalData.FocusedCue == cueId)
+                _globalSignals?.EmitSignal(nameof(GlobalSignals.ShellFocused), cueId);
+        }
+
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.SyncShellInspector));
     }
 
     private static bool IsAudioExtension(string ext)

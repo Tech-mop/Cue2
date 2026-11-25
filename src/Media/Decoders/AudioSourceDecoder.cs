@@ -429,7 +429,7 @@ public sealed class AudioSourceDecoder : IDisposable
 
         fixed (AVFormatContext** pCtx = &_formatCtx)
         {
-            ret = ffmpeg.avformat_open_input(pCtx, path, null, null);
+            ret = MediaEngine.OpenFormatInput(pCtx, path);
             if (ret < 0)
                 throw new Exception($"AudioSourceDecoder:Open - open_input failed: {MediaEngine.GetFFmpegError(ret)}");
         }

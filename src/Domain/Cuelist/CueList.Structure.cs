@@ -15,6 +15,7 @@ using Cue2.Domain.Cues;
 using Cue2.Domain.Library;
 using Cue2.UI.Shell;
 using Cue2.Services;
+using Cue2.Media;
 using Cue2.UI.Popups;
 using Cue2.UI.Utilities;
 
@@ -346,7 +347,12 @@ public partial class CueList
 						if (batched)
 							inFrame = await YieldBulkFrameIfNeeded(inFrame, done, files.Count, "Importing");
 
-						if (!File.Exists(filePath)) continue;
+						if (!File.Exists(filePath))
+						{
+							_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+								FfmpegMediaPath.FormatRejectMessage(filePath, "File not found"), (int)LogType.Error);
+							continue;
+						}
 
 						string baseName = Path.GetFileNameWithoutExtension(filePath);
 						if (string.IsNullOrWhiteSpace(baseName))
@@ -561,8 +567,14 @@ public partial class CueList
 	/// <returns>The new cue, or null when the path is missing or unsupported.</returns>
 	private Cue TryCreateMediaCueFromFile(string filePath, MediaEngine mediaEngine)
 	{
-		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+		if (string.IsNullOrEmpty(filePath))
 			return null;
+		if (!File.Exists(filePath))
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				FfmpegMediaPath.FormatRejectMessage(filePath, "File not found"), (int)LogType.Error);
+			return null;
+		}
 
 		string baseName = Path.GetFileNameWithoutExtension(filePath);
 		if (string.IsNullOrWhiteSpace(baseName))
@@ -745,25 +757,35 @@ public partial class CueList
 				}
 				else
 				{
-					// Leave Metadata empty so selecting or playing the cue reads the file again.
-					_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-						$"Could not read {Path.GetFileName(filePath)} for cue '{cue.Name}': {probe.Error}. The cue will retry when selected or played.",
-						(int)LogType.Warning);
+					string msg = FfmpegMediaPath.FormatRejectMessage(filePath, probe.Error);
+					_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+					CallDeferred(nameof(RejectUnreadableDroppedMedia), cue.Id);
+					return;
 				}
 			}
 			else if (videoComp != null)
 			{
 				videoComp.RefreshIsImageFromPath();
 				await DroppedMediaExpansion.ProbeSlots.WaitAsync();
-				VideoFileMetadata meta;
+				MediaEngine.VideoMetadataProbeResult videoProbe;
 				try
 				{
-					meta = await mediaEngine.GetVideoFileMetadataAsync(filePath);
+					videoProbe = await mediaEngine.ProbeVideoFileMetadataAsync(filePath);
 				}
 				finally
 				{
 					DroppedMediaExpansion.ProbeSlots.Release();
 				}
+
+				if (videoProbe.Metadata == null)
+				{
+					string msg = FfmpegMediaPath.FormatRejectMessage(filePath, videoProbe.Error);
+					_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+					CallDeferred(nameof(RejectUnreadableDroppedMedia), cue.Id);
+					return;
+				}
+
+				var meta = videoProbe.Metadata;
 				videoComp.Metadata = meta;
 				if (videoComp.IsImage)
 				{
@@ -799,9 +821,36 @@ public partial class CueList
 		}
 		catch (Exception ex)
 		{
-			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				$"CueList: Failed to load metadata for dropped file '{Path.GetFileName(filePath)}': {ex.Message}", (int)LogType.Warning);
+			string msg = FfmpegMediaPath.FormatRejectMessage(filePath, ex.Message);
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+			CallDeferred(nameof(RejectUnreadableDroppedMedia), cue.Id);
 		}
+	}
+
+	/// <summary>
+	/// Removes media that FFmpeg could not open. Drops the cue when that was its only component.
+	/// </summary>
+	private void RejectUnreadableDroppedMedia(int cueId)
+	{
+		var cue = FetchCueFromId(cueId);
+		if (cue == null)
+			return;
+
+		var audio = cue.GetAudioComponent();
+		if (audio != null)
+			cue.RemoveICueComponent(audio);
+		var video = cue.GetVideoComponent();
+		if (video != null)
+			cue.RemoveICueComponent(video);
+
+		if (cue.Components == null || cue.Components.Count == 0)
+			RemoveCue(cue);
+		else
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.UpdateShellBar), cue.Id);
+
+		_globalSignals?.EmitSignal(nameof(GlobalSignals.SyncShellInspector));
+		if (_globalData != null && _globalData.FocusedCue == cueId)
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.ShellFocused), cueId);
 	}
 
 	private void AddCue(Cue cue)

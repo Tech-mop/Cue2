@@ -17,6 +17,7 @@ using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
+using Cue2.Media;
 using Cue2.Media.Audio;
 using Cue2.UI.Utilities;
 using Godot;
@@ -451,10 +452,11 @@ public partial class VideoInspector
 			: (_globalData?.ResolveMediaPath(path) ?? path);
 		if (string.IsNullOrWhiteSpace(path) || !File.Exists(resolved))
 		{
-			GD.Print($"VideoInspector:OnFileUrlSubmitted - File not found: {path}");
-			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				string.IsNullOrWhiteSpace(path) ? "File not found." : $"File not found: {path}",
-				(int)LogType.Error);
+			string msg = string.IsNullOrWhiteSpace(path)
+				? "File not found."
+				: FfmpegMediaPath.FormatRejectMessage(resolved, "File not found");
+			GD.Print($"VideoInspector:OnFileUrlSubmitted - {msg}");
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
 			RestoreSubmittedFileUrl();
 			return;
 		}
@@ -578,10 +580,34 @@ public partial class VideoInspector
 		string resolvedPath = _globalData?.ResolveMediaPath(filePath) ?? filePath;
 		if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(resolvedPath))
 		{
-			GD.Print($"VideoInspector:SetVideoFile - File not found: {filePath}");
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"VideoInspector:File not found: {filePath}", 2);
+			string msg = FfmpegMediaPath.FormatRejectMessage(resolvedPath, "File not found");
+			GD.Print($"VideoInspector:SetVideoFile - {msg}");
+			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+			RestoreSubmittedFileUrl();
 			return;
 		}
+
+		bool isImage = VideoComponent.IsImagePath(resolvedPath);
+		MediaEngine.VideoMetadataProbeResult probe;
+		try
+		{
+			probe = await _mediaEngine.ProbeVideoFileMetadataAsync(resolvedPath);
+		}
+		catch (Exception ex)
+		{
+			probe = new MediaEngine.VideoMetadataProbeResult { Error = ex.Message };
+		}
+
+		if (probe.Metadata == null)
+		{
+			string msg = FfmpegMediaPath.FormatRejectMessage(resolvedPath, probe.Error);
+			GD.PrintErr($"VideoInspector:SetVideoFile - {msg}");
+			_globalSignals.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+			RestoreSubmittedFileUrl();
+			return;
+		}
+
+		VideoFileMetadata fileMetadata = probe.Metadata;
 
 		// Show-local media gets its show-relative path. External media keeps its own path while a
 		// background copy runs, and is switched to the relative path when the copy has landed.
@@ -599,26 +625,6 @@ public partial class VideoInspector
 		catch (Exception ex)
 		{
 			GD.PrintErr($"VideoInspector:SetVideoFile - Media backup: {ex.Message}");
-		}
-
-		bool isImage = VideoComponent.IsImagePath(resolvedPath);
-		VideoFileMetadata fileMetadata = null;
-		try
-		{
-			fileMetadata = await _mediaEngine.GetVideoFileMetadataAsync(resolvedPath);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"VideoInspector:SetVideoFile - Metadata error: {ex.Message}");
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-				$"VideoInspector:SetVideoFile - Metadata error: {ex.Message}", 2);
-			return;
-		}
-		if (fileMetadata == null)
-		{
-			_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-				$"VideoInspector:SetVideoFile - Failed to read metadata for {Path.GetFileName(filePath)}", 2);
-			return;
 		}
 
 		if (multi)

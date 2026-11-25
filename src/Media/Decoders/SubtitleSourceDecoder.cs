@@ -149,7 +149,7 @@ public sealed unsafe class SubtitleSourceDecoder : IDisposable
 
         try
         {
-            int ret = ffmpeg.avformat_open_input(&formatCtx, path, null, null);
+            int ret = MediaEngine.OpenFormatInput(&formatCtx, path);
             if (ret < 0)
                 throw new Exception($"open_input failed: {MediaEngine.GetFFmpegError(ret)}");
 

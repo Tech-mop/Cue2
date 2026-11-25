@@ -18,6 +18,7 @@ using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
+using Cue2.Media;
 using Cue2.Media.Audio;
 using Cue2.UI.Utilities;
 
@@ -426,10 +427,11 @@ public partial class AudioInspector
             : (_globalData?.ResolveMediaPath(path) ?? path);
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(resolved))
         {
-            GD.Print($"AudioInspector:OnFileUrlSubmitted - File not found: {path}");
-            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                string.IsNullOrWhiteSpace(path) ? "File not found." : $"File not found: {path}",
-                (int)LogType.Error);
+            string msg = string.IsNullOrWhiteSpace(path)
+                ? "File not found."
+                : FfmpegMediaPath.FormatRejectMessage(resolved, "File not found");
+            GD.Print($"AudioInspector:OnFileUrlSubmitted - {msg}");
+            _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
             RestoreSubmittedFileUrl();
             return;
         }
@@ -569,8 +571,29 @@ public partial class AudioInspector
         string resolvedPath = _globalData?.ResolveMediaPath(filePath) ?? filePath;
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(resolvedPath))
         {
-            GD.Print($"AudioInspector:SetAudioFile - File not found: {filePath}");
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"AudioInspector:File not found: {filePath}", 2);
+            string msg = FfmpegMediaPath.FormatRejectMessage(resolvedPath, "File not found");
+            GD.Print($"AudioInspector:SetAudioFile - {msg}");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+            RestoreSubmittedFileUrl();
+            return;
+        }
+
+        MediaEngine.AudioMetadataProbeResult probe;
+        try
+        {
+            probe = await _mediaEngine.ProbeAudioFileMetadataAsync(resolvedPath);
+        }
+        catch (Exception ex)
+        {
+            probe = new MediaEngine.AudioMetadataProbeResult { Error = ex.Message };
+        }
+
+        if (probe.Metadata == null)
+        {
+            string msg = FfmpegMediaPath.FormatRejectMessage(resolvedPath, probe.Error);
+            GD.PrintErr($"AudioInspector:SetAudioFile - {msg}");
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log), msg, (int)LogType.Error);
+            RestoreSubmittedFileUrl();
             return;
         }
 
@@ -589,6 +612,8 @@ public partial class AudioInspector
             GD.PrintErr($"AudioInspector:SetAudioFile - Media backup: {ex.Message}");
         }
 
+        AudioFileMetadata sharedMeta = probe.Metadata;
+
         if (multi)
         {
             bool anyNew = multiCues.Any(c => c.GetAudioComponent() == null);
@@ -598,16 +623,6 @@ public partial class AudioInspector
                 multiCues[^1],
                 anyNew ? "Add audio component" : "Change audio file",
                 anyNew ? "Multi-add audio components" : "Multi-edit audio file");
-
-            AudioFileMetadata sharedMeta = null;
-            try
-            {
-                sharedMeta = await _mediaEngine.GetAudioFileMetadataAsync(resolvedPath);
-            }
-            catch (Exception ex)
-            {
-                GD.PrintErr($"AudioInspector:SetAudioFile multi - Metadata: {ex.Message}");
-            }
 
             foreach (var cue in multiCues)
             {
@@ -703,14 +718,7 @@ public partial class AudioInspector
 
         try
         {
-            var fileMetadata = await _mediaEngine.GetAudioFileMetadataAsync(resolvedPath);
-            if (fileMetadata == null)
-            {
-                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                    $"AudioInspector:SetAudioFile - Failed to read metadata for {Path.GetFileName(filePath)}", 2);
-                return;
-            }
-
+            var fileMetadata = sharedMeta;
             _focusedAudioComponent.Metadata = fileMetadata;
             var fileDuration = fileMetadata.Duration > 0 ? fileMetadata.Duration : 0.0;
 

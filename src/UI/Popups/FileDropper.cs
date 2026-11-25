@@ -18,6 +18,7 @@ using Cue2.Domain.Connections;
 using Cue2.Domain.Library;
 using Cue2.Domain.Commands;
 using Cue2.Services;
+using Cue2.Media;
 using Cue2.UI.Inspectors;
 using Cue2.UI.Popups;
 using Cue2.UI.Shell;
@@ -276,13 +277,21 @@ public partial class FileDropper : Control
             {
                 _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "FileDropper: Audio URL drop needs a file, not a folder", (int)LogType.Warning);
             }
-            else if (IsSupportedMediaFile(files[0]))
+            else if (GlobalData.MediaExtensions.IsSupported(files[0]))
             {
-                var cue2Base = GetTree().Root.GetNode("Cue2Base");
-                var audioInspector = cue2Base?.GetNode<AudioInspector>("%Audio");
-                if (audioInspector != null)
+                if (!File.Exists(files[0]))
                 {
-                    audioInspector.SetAudioFileUrlFromDrop(files[0]);
+                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                        FfmpegMediaPath.FormatRejectMessage(files[0], "File not found"), (int)LogType.Error);
+                }
+                else
+                {
+                    var cue2Base = GetTree().Root.GetNode("Cue2Base");
+                    var audioInspector = cue2Base?.GetNode<AudioInspector>("%Audio");
+                    if (audioInspector != null)
+                    {
+                        audioInspector.SetAudioFileUrlFromDrop(files[0]);
+                    }
                 }
             }
             return;
@@ -299,14 +308,22 @@ public partial class FileDropper : Control
             {
                 _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "FileDropper: Video URL drop needs a file, not a folder", (int)LogType.Warning);
             }
-            else if (IsSupportedMediaFile(files[0]))
+            else if (GlobalData.MediaExtensions.IsSupported(files[0]))
             {
-                var cue2Base = GetTree().Root.GetNode("Cue2Base");
-                // Tab node was renamed Video → Visual; component type remains Video.
-                var videoInspector = cue2Base?.GetNode<VideoInspector>("%Visual");
-                if (videoInspector != null)
+                if (!File.Exists(files[0]))
                 {
-                    videoInspector.SetVideoFileUrlFromDrop(files[0]);
+                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                        FfmpegMediaPath.FormatRejectMessage(files[0], "File not found"), (int)LogType.Error);
+                }
+                else
+                {
+                    var cue2Base = GetTree().Root.GetNode("Cue2Base");
+                    // Tab node was renamed Video → Visual; component type remains Video.
+                    var videoInspector = cue2Base?.GetNode<VideoInspector>("%Visual");
+                    if (videoInspector != null)
+                    {
+                        videoInspector.SetVideoFileUrlFromDrop(files[0]);
+                    }
                 }
             }
             return;
@@ -819,11 +836,4 @@ public partial class FileDropper : Control
 
     /// <summary>Every supported media glob (built once, shared with drop import).</summary>
     private static IEnumerable<string> AllMediaGlobs() => GlobalData.MediaExtensions.Globs;
-
-    private static bool IsSupportedMediaFile(string path)
-    {
-        return !string.IsNullOrEmpty(path)
-               && GlobalData.MediaExtensions.IsSupported(path)
-               && File.Exists(path);
-    }
 }

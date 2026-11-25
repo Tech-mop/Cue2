@@ -388,8 +388,7 @@ public partial class MediaEngine : Node
 
                 try 
                 { 
-                    // Open input 
-                    int ret = ffmpeg.avformat_open_input(&formatCtx, path, null, null); 
+                    int ret = OpenFormatInput(&formatCtx, path);
                     if (ret < 0) throw new Exception($"Failed to open file: {GetFFmpegError(ret)}");
                     opened = true;
 
@@ -456,8 +455,9 @@ public partial class MediaEngine : Node
                 catch (Exception ex) 
                 { 
                     GD.PrintErr($"MediaEngine:GetAudioFileMetadataAsync - Error: {ex.Message}");
-                    // Null metadata on failure: callers leave the component empty and retry later.
-                    return new AudioMetadataProbeResult { Error = ex.Message, CanRetry = !opened };
+                    // Retry only while a copy may still be landing. Over-long names will not appear later.
+                    bool canRetry = !opened && !FfmpegMediaPath.IsLikelyTooLong(path);
+                    return new AudioMetadataProbeResult { Error = ex.Message, CanRetry = canRetry };
                 } 
                 finally 
                 { 
@@ -687,7 +687,7 @@ public partial class MediaEngine : Node
         {
             ct.ThrowIfCancellationRequested();
 
-            int ret = ffmpeg.avformat_open_input(&formatCtx, path, null, null);
+            int ret = OpenFormatInput(&formatCtx, path);
             if (ret < 0) throw new Exception($"Open failed: {GetFFmpegError(ret)}");
 
             ret = ffmpeg.avformat_find_stream_info(formatCtx, null);
@@ -965,17 +965,36 @@ public partial class MediaEngine : Node
     /// <summary>
     /// Gets metadata for a video file using FFmpeg (duration, width, height, frame rate, codec/format, and audio metadata if present).
     /// Fast extraction without full decoding; supports broad formats (MP4, AVI, etc.).
-    /// Returns default-initialized metadata on failure.
     /// </summary>
     /// <param name="path">Video file path.</param>
-    /// <returns>VideoFileMetadata with extracted values.</returns>
+    /// <returns>Extracted metadata, or null when the file could not be read.</returns>
     public async Task<VideoFileMetadata> GetVideoFileMetadataAsync(string path)
+    {
+        var result = await ProbeVideoFileMetadataAsync(path);
+        return result.Metadata;
+    }
+
+    /// <summary>Outcome of a video/image metadata probe.</summary>
+    public sealed class VideoMetadataProbeResult
+    {
+        /// <summary>Extracted metadata, or null on failure.</summary>
+        public VideoFileMetadata Metadata { get; init; }
+
+        /// <summary>Why the probe failed, or null on success.</summary>
+        public string Error { get; init; }
+    }
+
+    /// <summary>
+    /// Probes a video or still-image file. Returns null metadata when FFmpeg cannot open it
+    /// so callers can refuse the file instead of storing an empty record.
+    /// </summary>
+    public async Task<VideoMetadataProbeResult> ProbeVideoFileMetadataAsync(string path)
     {
         path = ResolveMediaPath(path);
         if (!File.Exists(path))
         {
             GD.PrintErr("MediaEngine:GetVideoFileMetadataAsync - File not found.");
-            return new VideoFileMetadata(); // Default empty on fail
+            return new VideoMetadataProbeResult { Error = "File not found" };
         }
 
         GD.Print("MediaEngine:GetVideoFileMetadataAsync - Extracting metadata.");
@@ -990,8 +1009,7 @@ public partial class MediaEngine : Node
 
                 try
                 {
-                    // Open input
-                    int ret = ffmpeg.avformat_open_input(&formatCtx, path, null, null);
+                    int ret = OpenFormatInput(&formatCtx, path);
                     if (ret < 0) throw new Exception($"Failed to open file: {GetFFmpegError(ret)}");
 
                     ret = ffmpeg.avformat_find_stream_info(formatCtx, null);
@@ -1134,12 +1152,12 @@ public partial class MediaEngine : Node
                         $"MediaEngine:GetVideoFileMetadataAsync - Metadata extracted successfully. " +
                         $"streams=[{typeSummary}] subtitles={metadata.SubtitleTracks.Count} " +
                         $"text={metadata.HasTextSubtitles}");
-                    return metadata;
+                    return new VideoMetadataProbeResult { Metadata = metadata };
                 }
                 catch (Exception ex)
                 {
                     GD.PrintErr($"MediaEngine:GetVideoFileMetadataAsync - Error: {ex.Message}");
-                    return new VideoFileMetadata(); // Default on fail
+                    return new VideoMetadataProbeResult { Error = ex.Message };
                 }
                 finally
                 {
@@ -1386,6 +1404,39 @@ public partial class MediaEngine : Node
                || idName.Contains("DVD_SUBTITLE", StringComparison.OrdinalIgnoreCase)
                || idName.Contains("DVB_SUBTITLE", StringComparison.OrdinalIgnoreCase)
                || idName.Contains("XSUB", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Opens a local media file for demux. Uses a <c>file:</c> URL and
+    /// <c>pattern_type=none</c> so <c>%</c>, <c>#</c>, and <c>?</c> in the name stay literal.
+    /// </summary>
+    /// <param name="formatCtx">Destination format context pointer.</param>
+    /// <param name="filesystemPath">Absolute filesystem path (not an FFmpeg URL).</param>
+    /// <returns>FFmpeg return code from <c>avformat_open_input</c>.</returns>
+    internal static unsafe int OpenFormatInput(AVFormatContext** formatCtx, string filesystemPath)
+    {
+        AVDictionary* opts = null;
+        try
+        {
+            return OpenFormatInput(formatCtx, filesystemPath, &opts);
+        }
+        finally
+        {
+            if (opts != null)
+                ffmpeg.av_dict_free(&opts);
+        }
+    }
+
+    /// <summary>
+    /// Opens a local media file, merging <c>pattern_type=none</c> into
+    /// <paramref name="extraOptions"/>. The caller owns that dictionary.
+    /// </summary>
+    internal static unsafe int OpenFormatInput(
+        AVFormatContext** formatCtx, string filesystemPath, AVDictionary** extraOptions)
+    {
+        string url = FfmpegMediaPath.ToOpenUrl(filesystemPath);
+        ffmpeg.av_dict_set(extraOptions, "pattern_type", "none", 0);
+        return ffmpeg.avformat_open_input(formatCtx, url, null, extraOptions);
     }
 
     /// <summary>

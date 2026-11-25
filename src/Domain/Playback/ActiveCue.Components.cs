@@ -261,6 +261,12 @@ public partial class ActiveCue
                 GD.Print($"ActiveCue:SetupAudioComponent - Start timing {_cue.Name}: metadata read {Cue2.Media.Decoders.DecoderOpenTimes.Since(metadataStart):F0} ms");
                 if (!IsSetupStillValid())
                     return;
+                if (audioComponent.Metadata == null)
+                {
+                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                        $"Cannot play audio in {_cue.Name}: could not read the file ({audioComponent.AudioFile}).", 2);
+                    return;
+                }
             }
 
             playback = new ActiveAudioPlayback(audioComponent, _audioDevices);
@@ -544,6 +550,12 @@ public partial class ActiveCue
                 GD.Print($"ActiveCue:SetupVideoComponent - Start timing {_cue.Name}: metadata read {Cue2.Media.Decoders.DecoderOpenTimes.Since(metadataStart):F0} ms");
                 if (!IsSetupStillValid())
                     return;
+                if (videoComponent.Metadata == null)
+                {
+                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                        $"Cannot play video in {_cue.Name}: could not read the file ({videoComponent.VideoFile}).", 2);
+                    return;
+                }
             }
 
             if (videoComponent.IsImage)

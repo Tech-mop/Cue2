@@ -761,7 +761,7 @@ public sealed class VideoSourceDecoder : IDisposable
             ffmpeg.av_dict_set(&options, "fflags", "+genpts", 0);
             fixed (AVFormatContext** pCtx = &_formatCtx)
             {
-                ret = ffmpeg.avformat_open_input(pCtx, path, null, &options);
+                ret = MediaEngine.OpenFormatInput(pCtx, path, &options);
                 if (ret < 0)
                     throw new Exception($"VideoSourceDecoder:Open - open_input failed: {MediaEngine.GetFFmpegError(ret)}");
             }
