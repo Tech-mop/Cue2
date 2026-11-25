@@ -162,4 +162,62 @@ public static class MediaPaths
             return path.Replace('\\', '/').Trim();
         }
     }
+
+    /// <summary>
+    /// Parent directory of a file path, using forward slashes. Empty when the path has no directory.
+    /// </summary>
+    /// <param name="filePath">Absolute or relative file path.</param>
+    /// <returns>Directory path, or empty.</returns>
+    public static string DirectoryOf(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return string.Empty;
+
+        try
+        {
+            string full;
+            try
+            {
+                full = Path.GetFullPath(filePath.Trim());
+            }
+            catch
+            {
+                full = filePath.Trim();
+            }
+
+            string dir = Path.GetDirectoryName(full);
+            if (string.IsNullOrEmpty(dir))
+                return string.Empty;
+            return dir.Replace('\\', '/').TrimEnd('/');
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Folder the media Select File dialog should open in.
+    /// Prefers the directory of the file already on the cue, then the last folder the user picked.
+    /// </summary>
+    /// <param name="currentStoredPath">Path currently on the component (absolute or show-relative).</param>
+    /// <param name="lastBrowseDirectory">Persisted last media folder, or empty.</param>
+    /// <param name="sessionDir">Show session directory used to resolve show-relative paths.</param>
+    /// <returns>An existing directory, or empty to leave the OS default.</returns>
+    public static string ResolveBrowseDirectory(
+        string currentStoredPath, string lastBrowseDirectory, string sessionDir)
+    {
+        string fromCurrent = DirectoryOf(Resolve(currentStoredPath, sessionDir));
+        if (!string.IsNullOrEmpty(fromCurrent) && Directory.Exists(fromCurrent))
+            return fromCurrent;
+
+        if (!string.IsNullOrWhiteSpace(lastBrowseDirectory))
+        {
+            string last = lastBrowseDirectory.Trim().Replace('\\', '/').TrimEnd('/');
+            if (!string.IsNullOrEmpty(last) && Directory.Exists(last))
+                return last;
+        }
+
+        return string.Empty;
+    }
 }

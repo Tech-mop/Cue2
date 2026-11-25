@@ -10,6 +10,7 @@
 - Solo waits until the cue being played has opened its media and is starting before other cues stop to prevent playback jitter.
 
 ### Changed
+- Audio and video Select File dialogs open in the folder of the current file, or the last media folder you accepted (kept in Cue2 Preferences).
 - High channel-count audio files skip waveform display with a warning instead of an error.
 - Startup error dialog: Intel Macs get an unsupported-hardware message (Apple Silicon only) instead of a generic native-library failure. Restart is hidden on that path.
 - Audio Input and Timecode channel pickers cap dropdown height and scroll on high channel-count devices.

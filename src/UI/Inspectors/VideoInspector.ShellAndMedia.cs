@@ -421,10 +421,30 @@ public partial class VideoInspector
 		// Add filters from GlobalData
 		_fileDialog.AddFilter(string.Join(",", GlobalData.VideoFileFilters), "Video Files");
 		_fileDialog.AddFilter(string.Join(",", GlobalData.ImageFileFilters), "Image Files");
-		
+		ApplyMediaFileDialogStartDirectory(_fileDialog, _focusedVideoComponent?.VideoFile);
+
 		AddChild(_fileDialog);
 		_fileDialog.PopupCentered();
 		_fileDialog.Canceled += ClearFileDialog;
+	}
+
+	/// <summary>
+	/// Opens Select File in the current media folder, or the last folder a media file was accepted from.
+	/// </summary>
+	private void ApplyMediaFileDialogStartDirectory(FileDialog dialog, string currentStoredPath)
+	{
+		if (dialog == null)
+			return;
+
+		string dir = MediaPaths.ResolveBrowseDirectory(
+			currentStoredPath,
+			_globalData?.UserDataManager?.LastMediaBrowseDirectory,
+			_globalData?.SessionDir);
+		if (string.IsNullOrEmpty(dir))
+			return;
+
+		dialog.CurrentDir = dir;
+		GD.Print($"VideoInspector:OpenFileDialog - CurrentDir={dir}");
 	}
 	
 	
@@ -606,6 +626,8 @@ public partial class VideoInspector
 			RestoreSubmittedFileUrl();
 			return;
 		}
+
+		_globalData?.UserDataManager?.RememberMediaBrowsePath(resolvedPath);
 
 		VideoFileMetadata fileMetadata = probe.Metadata;
 

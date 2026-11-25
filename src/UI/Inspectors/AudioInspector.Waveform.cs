@@ -388,6 +388,7 @@ public partial class AudioInspector
         _fileDialog.Title = UiLocalizer.T("Open an Audio File");
         _fileDialog.UseNativeDialog = true;
         _fileDialog.AddFilter(string.Join(",", GlobalData.AudioFileFilters), "Audio Files");
+        ApplyMediaFileDialogStartDirectory(_fileDialog, _focusedAudioComponent?.AudioFile);
         AddChild(_fileDialog);
         _fileDialog.PopupCentered();
         _fileDialog.Canceled += ClearFileDialog;
@@ -597,6 +598,8 @@ public partial class AudioInspector
             return;
         }
 
+        _globalData?.UserDataManager?.RememberMediaBrowsePath(resolvedPath);
+
         // Show-local media gets its show-relative path. External media keeps its own path while a
         // background copy runs, and is switched to the relative path when the copy has landed.
         string pathToStore = filePath;
@@ -800,6 +803,25 @@ public partial class AudioInspector
         ApplyFileUrlMissingStyleFromHealth();
         if (_deleteAudioComponentButton != null)
             _deleteAudioComponentButton.Visible = true;
+    }
+
+    /// <summary>
+    /// Opens Select File in the current media folder, or the last folder a media file was accepted from.
+    /// </summary>
+    private void ApplyMediaFileDialogStartDirectory(FileDialog dialog, string currentStoredPath)
+    {
+        if (dialog == null)
+            return;
+
+        string dir = MediaPaths.ResolveBrowseDirectory(
+            currentStoredPath,
+            _globalData?.UserDataManager?.LastMediaBrowseDirectory,
+            _globalData?.SessionDir);
+        if (string.IsNullOrEmpty(dir))
+            return;
+
+        dialog.CurrentDir = dir;
+        GD.Print($"AudioInspector:OpenFileDialog - CurrentDir={dir}");
     }
 
     /// <summary>

@@ -109,6 +109,41 @@ public class HelperErrorPathTests
         Assert.That(_errors, Is.Empty);
     }
 
+    /// <summary>Select File starts in the current file's folder, then the last used folder.</summary>
+    [Test]
+    public void MediaBrowseDirectoryPrefersCurrentFileThenLastUsed()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "cue2-browse-" + Guid.NewGuid().ToString("N"));
+        string session = Path.Combine(root, "show");
+        string currentDir = Path.Combine(session, "Audio");
+        string lastDir = Path.Combine(root, "last");
+        Directory.CreateDirectory(currentDir);
+        Directory.CreateDirectory(lastDir);
+        try
+        {
+            Assert.That(
+                MediaPaths.DirectoryOf(Path.Combine(currentDir, "song.wav")).Replace('\\', '/'),
+                Does.EndWith("/Audio"));
+
+            string fromCurrent = MediaPaths.ResolveBrowseDirectory(
+                "Audio/song.wav", lastDir, session);
+            Assert.That(Path.GetFullPath(fromCurrent), Is.EqualTo(Path.GetFullPath(currentDir)));
+
+            string fromLast = MediaPaths.ResolveBrowseDirectory(
+                "Audio/missing.wav", lastDir, Path.Combine(root, "empty-show"));
+            Assert.That(Path.GetFullPath(fromLast), Is.EqualTo(Path.GetFullPath(lastDir)));
+
+            Assert.That(
+                MediaPaths.ResolveBrowseDirectory(null, Path.Combine(root, "gone"), null),
+                Is.Empty);
+            Assert.That(_errors, Is.Empty);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { /* leftover temp */ }
+        }
+    }
+
     private int Count()
     {
         lock (_errors)

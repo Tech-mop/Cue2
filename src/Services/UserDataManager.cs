@@ -71,6 +71,9 @@ public partial class UserDataManager : Node
 	/// <summary>Last folder used by Add Theme file dialog.</summary>
 	private string _lastThemeBrowseDirectory = string.Empty;
 
+	/// <summary>Last folder used by inspector Select File (audio / video / image).</summary>
+	private string _lastMediaBrowseDirectory = string.Empty;
+
 	/// <summary>Peak high (warm) accent override for the current theme.</summary>
 	private Color _themeHighColor = GlobalStyles.DefaultHighColor;
 
@@ -351,6 +354,12 @@ public partial class UserDataManager : Node
 	/// Last folder the Add Theme dialog opened in (empty until the user picks a file).
 	/// </summary>
 	public string LastThemeBrowseDirectory => _lastThemeBrowseDirectory ?? string.Empty;
+
+	/// <summary>
+	/// Last folder the audio/video Select File dialog opened in (empty until a media file is accepted).
+	/// </summary>
+	/// <value>Absolute directory path, or empty.</value>
+	public string LastMediaBrowseDirectory => _lastMediaBrowseDirectory ?? string.Empty;
 
 	/// <summary>
 	/// Peak high (warm) accent used by <see cref="GlobalStyles.HighColor"/>.
@@ -971,6 +980,39 @@ public partial class UserDataManager : Node
 	}
 
 	/// <summary>
+	/// Records the last inspector Select File directory from a media file that was accepted.
+	/// </summary>
+	/// <param name="filePath">Absolute path of the file the user opened.</param>
+	/// <param name="persistImmediately">When true, writes user_data.json now.</param>
+	public void RememberMediaBrowsePath(string filePath, bool persistImmediately = true)
+	{
+		SetLastMediaBrowseDirectory(MediaPaths.DirectoryOf(filePath), persistImmediately);
+	}
+
+	/// <summary>
+	/// Records the last inspector Select File directory.
+	/// </summary>
+	/// <param name="directory">Absolute directory.</param>
+	/// <param name="persistImmediately">When true, writes user_data.json now.</param>
+	public void SetLastMediaBrowseDirectory(string directory, bool persistImmediately = true)
+	{
+		if (string.IsNullOrWhiteSpace(directory))
+			return;
+
+		string trimmed = directory.Trim().Replace('\\', '/').TrimEnd('/');
+		if (string.IsNullOrEmpty(trimmed))
+			return;
+
+		if (string.Equals(_lastMediaBrowseDirectory, trimmed, StringComparison.Ordinal))
+			return;
+
+		_lastMediaBrowseDirectory = trimmed;
+		GD.Print($"UserDataManager:SetLastMediaBrowseDirectory - {trimmed}");
+		if (persistImmediately)
+			SaveUserData();
+	}
+
+	/// <summary>
 	/// Adds the specified show file path to the top of the recent files list.
 	/// Duplicates are moved to the top rather than added again. The list is trimmed
 	/// to MaxRecentShowFiles.
@@ -1147,6 +1189,7 @@ public partial class UserDataManager : Node
 		_themeId = GlobalStyles.DefaultThemeId;
 		_userThemes.Clear();
 		_lastThemeBrowseDirectory = string.Empty;
+		_lastMediaBrowseDirectory = string.Empty;
 		_themeHighColor = GlobalStyles.DefaultHighColor;
 		_themeLowColor = GlobalStyles.DefaultLowColor;
 		_checkForUpdatesOnStartup = true;
@@ -1558,6 +1601,16 @@ public partial class UserDataManager : Node
 			else
 				_lastThemeBrowseDirectory = string.Empty;
 
+			if (data.TryGetValue("LastMediaBrowseDirectory", out var mediaDirVal))
+			{
+				string mediaDir = mediaDirVal.AsString();
+				_lastMediaBrowseDirectory = string.IsNullOrWhiteSpace(mediaDir)
+					? string.Empty
+					: mediaDir.Trim().Replace('\\', '/').TrimEnd('/');
+			}
+			else
+				_lastMediaBrowseDirectory = string.Empty;
+
 			if (data.TryGetValue("ThemeId", out var themeIdVal))
 				_themeId = ResolveThemeId(themeIdVal.AsString());
 			else
@@ -1693,6 +1746,7 @@ public partial class UserDataManager : Node
 			data["ThemeHighColor"] = _themeHighColor.ToHtml(false);
 			data["ThemeLowColor"] = _themeLowColor.ToHtml(false);
 			data["LastThemeBrowseDirectory"] = _lastThemeBrowseDirectory ?? string.Empty;
+			data["LastMediaBrowseDirectory"] = _lastMediaBrowseDirectory ?? string.Empty;
 			var userThemesArray = new Godot.Collections.Array();
 			foreach (var theme in _userThemes)
 			{
