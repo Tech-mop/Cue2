@@ -84,7 +84,7 @@ public partial class CueLibraryManager : Node
         catch (Exception ex)
         {
             GD.PrintErr($"CueLibraryManager:EnsureLibraryInitialized - {ex.Message}");
-            Log($"Library: failed to initialize — {ex.Message}", LogType.Error);
+            Log($"Library: failed to initialize: {ex.Message}", LogType.Error);
         }
     }
 
@@ -646,7 +646,7 @@ public partial class CueLibraryManager : Node
     public LibraryResult LoadEntry(string entryRelativePath, LibraryLoadOptions options = null)
     {
         if (_globalData?.Settings?.IsCueEditingLocked == true)
-            return LibraryResult.Fail("Show Mode is active — turn it off to load library cues into the cuelist.");
+            return LibraryResult.Fail("Show Mode is active. Turn it off to load library cues into the cuelist.");
 
         EnsureLibraryInitialized();
         options ??= new LibraryLoadOptions();
@@ -851,7 +851,7 @@ public partial class CueLibraryManager : Node
             string resolved = MediaPaths.Resolve(storedPath, sessionDir);
             if (string.IsNullOrEmpty(resolved) || !File.Exists(resolved))
             {
-                Log($"Library: media missing, not packaged — {storedPath}", LogType.Warning);
+                Log($"Library: media missing, not packaged: {storedPath}", LogType.Warning);
                 return false;
             }
 

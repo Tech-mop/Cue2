@@ -231,25 +231,102 @@ public partial class Cue2Base : Control
 		GD.Print("Cue2Base:OnStartupFaultContinue - Continuing with unavailable system features.");
 	}
 
+	/// <summary>How long Restart waits for a loading showfile before giving up.</summary>
+	private const double StartupRestartWaitSeconds = 120.0;
+
+	/// <summary>Poll interval while Restart waits for a loading showfile.</summary>
+	private const double StartupRestartPollSeconds = 0.25;
+
+	private bool _startupRestartWaiting;
+	private double _startupRestartWaited;
+
 	/// <summary>
-	/// Relaunches Cue2 with the same user command-line args, then quits this process.
+	/// Restart from the startup-error overlay. Goes through the normal quit flow (prompts,
+	/// recents written) and relaunches with the same command line and the show that is open.
+	/// When a showfile is still opening, waits for it to finish first.
 	/// </summary>
 	private void OnStartupFaultRestart()
 	{
+		var saveManager = GetNodeOrNull<SaveManager>("/root/SaveManager");
+		if (saveManager == null)
+		{
+			// No quit flow available (should not happen): fall back to a plain restart.
+			if (ScheduleStartupRestart())
+				GetTree()?.Quit();
+			return;
+		}
+
+		if (saveManager.IsOpenBusy)
+		{
+			if (_startupRestartWaiting)
+				return;
+			_startupRestartWaiting = true;
+			_startupRestartWaited = 0;
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				"Cue2 will restart when the showfile has finished loading.", (int)LogType.Info);
+			GetTree().CreateTimer(StartupRestartPollSeconds).Timeout += OnStartupRestartPoll;
+			return;
+		}
+
+		saveManager.RequestQuitForRestart(ScheduleStartupRestart);
+	}
+
+	private void OnStartupRestartPoll()
+	{
+		if (!IsInsideTree())
+			return;
+		var saveManager = GetNodeOrNull<SaveManager>("/root/SaveManager");
+		if (saveManager != null && saveManager.IsOpenBusy)
+		{
+			_startupRestartWaited += StartupRestartPollSeconds;
+			if (_startupRestartWaited < StartupRestartWaitSeconds)
+			{
+				GetTree().CreateTimer(StartupRestartPollSeconds).Timeout += OnStartupRestartPoll;
+				return;
+			}
+
+			_startupRestartWaiting = false;
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				"The showfile is taking too long to load, so Cue2 did not restart. Restart it yourself when it has finished.",
+				(int)LogType.Warning);
+			return;
+		}
+
+		_startupRestartWaiting = false;
+		if (saveManager == null)
+		{
+			if (ScheduleStartupRestart())
+				GetTree()?.Quit();
+			return;
+		}
+
+		saveManager.RequestQuitForRestart(ScheduleStartupRestart);
+	}
+
+	/// <summary>
+	/// Arms the relaunch: same engine args, then <c>--</c> and the user args, with the open show
+	/// (if any) as the showfile to reopen. Called only once quitting is certain.
+	/// </summary>
+	/// <returns>True when the relaunch is armed.</returns>
+	private bool ScheduleStartupRestart()
+	{
 		try
 		{
-			string[] args = OS.GetCmdlineUserArgs() ?? Array.Empty<string>();
+			string[] args = ShowfileLaunchArgs.BuildRestartArgs(
+				OS.GetCmdlineArgs(),
+				OS.GetCmdlineUserArgs(),
+				_globalData?.SessionPath);
 			OS.SetRestartOnExit(true, args);
-			GD.Print("Cue2Base:OnStartupFaultRestart - Restart on exit set.");
+			GD.Print("Cue2Base:ScheduleStartupRestart - Restart on exit set.");
+			return true;
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Cue2Base:OnStartupFaultRestart - {ex.Message}");
+			GD.PrintErr($"Cue2Base:ScheduleStartupRestart - {ex.Message}");
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
 				$"Could not schedule a restart: {ex.Message}", (int)LogType.Error);
+			return false;
 		}
-
-		GetTree()?.Quit();
 	}
 
 	private void ScaleUI(float uiScale)

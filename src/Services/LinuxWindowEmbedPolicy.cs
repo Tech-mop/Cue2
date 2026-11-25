@@ -56,7 +56,7 @@ public static class LinuxWindowEmbedPolicy
 
     /// <summary>
     /// True when <paramref name="windowId"/> is the process main viewport
-    /// (<see cref="MainWindowId"/>, which is 0 — a valid id, not "missing").
+    /// (<see cref="MainWindowId"/>, which is 0: a valid id, not "missing").
     /// </summary>
     /// <param name="windowId">DisplayServer window id from <see cref="Window.GetWindowId"/>.</param>
     /// <returns>True when the id is the operator UI window.</returns>

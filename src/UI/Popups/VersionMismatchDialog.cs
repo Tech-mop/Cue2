@@ -150,7 +150,7 @@ public partial class VersionMismatchDialog : Window
 				"The showfile format is newer than this version of Cue2 understands. " +
 				"Opening may fail, drop settings, or behave unexpectedly. " +
 				"Cue2 will not re-label the file as this version’s format, and will not " +
-				"overwrite the original on Save — use Save As if you need a copy this app can own."));
+				"overwrite the original on Save. Use Save As if you need a copy this app can own."));
 		}
 		else if (!fileVersion.MatchesCurrentApp)
 		{

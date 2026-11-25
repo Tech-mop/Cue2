@@ -55,12 +55,20 @@ public static class VideoDiagnostics
         try { cpus = OS.GetProcessorCount(); } catch { /* host log is best-effort */ }
 
         int godotScreens = -1;
-        int sdlScreens = -1;
+        string sdlScreens = "-1";
         try { godotScreens = DisplayServer.GetScreenCount(); } catch { /* ignore */ }
         try
         {
-            SDL.GetDisplays(out int sdlCount);
-            sdlScreens = sdlCount;
+            var globalData = (Engine.GetMainLoop() as SceneTree)?.Root?.GetNodeOrNull<GlobalData>("/root/GlobalData");
+            if (globalData != null && !globalData.SdlVideoInitialized)
+            {
+                sdlScreens = "off";
+            }
+            else
+            {
+                SDL.GetDisplays(out int sdlCount);
+                sdlScreens = sdlCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
         catch
         {

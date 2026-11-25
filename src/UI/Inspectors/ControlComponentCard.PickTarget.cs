@@ -87,7 +87,7 @@ public partial class ControlComponentCard
 
         UpdatePickCursorAndBadge();
         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-            "Control: pick a cue — release over a shell (Esc to cancel)", (int)LogType.Info);
+            "Control: pick a cue, then release over a shell (Esc to cancel)", (int)LogType.Info);
     }
 
     /// <summary>

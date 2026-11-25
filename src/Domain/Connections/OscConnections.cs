@@ -158,7 +158,7 @@ public partial class OscConnections : Node
         var node = Engine.GetMainLoop() is SceneTree tree
             ? tree.Root.GetNodeOrNull<OscConnections>("/root/OscConnections")
             : null;
-        node?.NotifyConnectionsChanged($"— Connection created: {connection.Name} → {connection.Address}:{connection.Port}");
+        node?.NotifyConnectionsChanged($"- Connection created: {connection.Name} → {connection.Address}:{connection.Port}");
         return connection;
     }
 
@@ -184,7 +184,7 @@ public partial class OscConnections : Node
         var node = Engine.GetMainLoop() is SceneTree tree
             ? tree.Root.GetNodeOrNull<OscConnections>("/root/OscConnections")
             : null;
-        node?.NotifyConnectionsChanged($"— Connection deleted: {label}");
+        node?.NotifyConnectionsChanged($"- Connection deleted: {label}");
         return true;
     }
 

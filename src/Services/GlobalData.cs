@@ -207,6 +207,12 @@ public partial class GlobalData : Node
 	public bool SdlInitialized { get; private set; }
 
 	/// <summary>
+	/// True when the SDL video subsystem started (only used for display names). False on machines
+	/// with no display for SDL, or when SDL itself did not start; display names then come from Godot.
+	/// </summary>
+	public bool SdlVideoInitialized { get; private set; }
+
+	/// <summary>
 	/// Records a boot-time system fault for the startup-error overlay. Duplicate ids are ignored.
 	/// </summary>
 	/// <param name="id">Stable id (for example <c>ffmpeg</c>, <c>sdl</c>, <c>midi</c>).</param>
@@ -390,6 +396,15 @@ public partial class GlobalData : Node
 	/// </summary>
 	public static readonly string AllSupportedFileFilters = string.Join(",", VideoFileFilters.Concat(ImageFileFilters).Concat(AudioFileFilters));
 
+	private static readonly System.Lazy<MediaExtensionMap> MediaExtensionsLazy =
+		new(() => MediaExtensionMap.Create(AudioFileFilters, VideoFileFilters, ImageFileFilters));
+
+	/// <summary>
+	/// Extension to media kind lookup built once from <see cref="AudioFileFilters"/>,
+	/// <see cref="VideoFileFilters"/> and <see cref="ImageFileFilters"/>. Used by drop import.
+	/// </summary>
+	public static MediaExtensionMap MediaExtensions => MediaExtensionsLazy.Value;
+
 	/// <summary>
 	/// List of input actions whose bindings can be customized by the user and persisted in user preferences
 	/// (<c>user://user_data.json</c>), not in the showfile.
@@ -496,15 +511,20 @@ public partial class GlobalData : Node
 				GD.Print("GlobalData:_Ready - " + errorMsg);
 				ReportStartupFault("sdl", "SDL", errorMsg, "Audio playback", "Audio devices");
 			}
-			else if (!SDL.InitSubSystem(SDL.InitFlags.Video))
+			else
 			{
-				GD.Print("GlobalData:_Ready - SDL video unavailable, display names come from Godot only: "
-					+ SDL.GetError());
+				SdlVideoInitialized = SDL.InitSubSystem(SDL.InitFlags.Video);
+				if (!SdlVideoInitialized)
+				{
+					GD.Print("GlobalData:_Ready - SDL video unavailable, display names come from Godot only: "
+						+ SDL.GetError());
+				}
 			}
 		}
 		catch (System.Exception ex)
 		{
 			SdlInitialized = false;
+			SdlVideoInitialized = false;
 			GD.PrintErr($"GlobalData:_Ready - SDL Init threw: {ex.Message}");
 			ReportStartupFault("sdl", "SDL", ex.Message, "Audio playback", "Audio devices");
 		}
@@ -598,7 +618,7 @@ public partial class GlobalData : Node
 						UserDataManager.RemoveRecentShowFile(lastPath);
 						GD.PrintErr("GlobalData:_Ready - Last showfile is missing; starting a new session: " + lastPath);
 						_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-							$"Last showfile not found — started a new session: {lastPath}",
+							$"Last showfile not found, started a new session: {lastPath}",
 							(int)LogType.Error);
 					}
 				}

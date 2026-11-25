@@ -423,7 +423,7 @@ public partial class SettingsOscConnections : ScrollContainer
         {
             var empty = new Label
             {
-                Text = "No OSC connections — create one above.",
+                Text = "No OSC connections. Create one above.",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             empty.AddThemeFontSizeOverride("font_size", 11);

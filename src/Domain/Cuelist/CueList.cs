@@ -599,13 +599,13 @@ public partial class CueList : Control
 		if (_globalData?.IsSessionLoading == true)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				$"Please wait — a showfile is still loading. Cannot {actionLabel}.", (int)LogType.Info);
+				$"Please wait: a showfile is still loading. Cannot {actionLabel}.", (int)LogType.Info);
 			return true;
 		}
 		if (!_bulkOpInProgress)
 			return false;
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-			$"Please wait — a cuelist operation is in progress. Cannot {actionLabel}.", (int)LogType.Info);
+			$"Please wait: a cuelist operation is in progress. Cannot {actionLabel}.", (int)LogType.Info);
 		return true;
 	}
 

@@ -1017,7 +1017,7 @@ public partial class ShellBar : PanelContainer
 			{
 				_memoLineEdit.Text = FlattenNotesForShell(_cue?.Notes);
 				_memoLineEdit.TooltipText = string.IsNullOrEmpty(_cue?.Notes)
-					? UiLocalizer.T("Memo cue — double-click to edit notes.")
+					? UiLocalizer.T("Memo cue: double-click to edit notes.")
 					: _cue.Notes;
 			}
 		}
@@ -1039,7 +1039,7 @@ public partial class ShellBar : PanelContainer
 			return;
 		_memoLineEdit.Text = FlattenNotesForShell(notes);
 		_memoLineEdit.TooltipText = string.IsNullOrEmpty(notes)
-			? UiLocalizer.T("Memo cue — double-click to edit notes.")
+			? UiLocalizer.T("Memo cue: double-click to edit notes.")
 			: notes;
 	}
 

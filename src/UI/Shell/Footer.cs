@@ -103,7 +103,7 @@ public partial class Footer : Control
         _syncHotkeys();
         
         _totalCuesLabel = GetNodeOrNull<Label>("%TotalCuesLabel");
-        // Formatted at runtime ("{0} total cues") — do not let LocalizeTree capture "0 total cues".
+        // Formatted at runtime ("{0} total cues"); do not let LocalizeTree capture "0 total cues".
         _totalCuesLabel?.SetMeta(MetaSkip, true);
         _cpuUsageLabel = GetNode<Label>("%CpuUsageLabel");
         _memoryUsageLabel = GetNode<Label>("%MemoryUsageLabel");
@@ -741,7 +741,7 @@ public partial class Footer : Control
             if (!midiEnabled)
             {
                 // Intentionally closed while MIDI is off — not a fault.
-                sb.AppendLine($"  ⚪ {entry.Key} ({T("session — MIDI off")})");
+                sb.AppendLine($"  ⚪ {entry.Key} ({T("session, MIDI off")})");
                 continue;
             }
 

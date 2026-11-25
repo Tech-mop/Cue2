@@ -667,7 +667,7 @@ public partial class AudioDevices : Node
 
 		    string ratePart = device.SampleRate > 0 ? $"{device.SampleRate} Hz" : "rate ?";
 		    string depthPart = FormatSampleDepth(device);
-		    lines.Add($"{device.Name} — {ratePart}, {depthPart}, out {outCh}, {bufferPart}");
+		    lines.Add($"{device.Name}: {ratePart}, {depthPart}, out {outCh}, {bufferPart}");
 	    }
 
 	    return lines;

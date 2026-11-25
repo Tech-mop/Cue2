@@ -126,7 +126,7 @@ public partial class SaveManager
 				{
 					_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
 						$"Showfile app version differs ({fileVersion.AppVersion} → {Cue2.Version.SemanticVersionString}); " +
-						$"format {fileVersion.FormatVersion} matches — opening without prompt.",
+						$"format {fileVersion.FormatVersion} matches, opening without prompt.",
 						0);
 				}
 
@@ -334,7 +334,7 @@ public partial class SaveManager
 			if (_openedFromNewerFormat)
 			{
 				_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-					"Opened a newer showfile format. Saving will not overwrite this file — use Save As " +
+					"Opened a newer showfile format. Saving will not overwrite this file. Use Save As " +
 					"to create a copy this version of Cue2 can own.",
 					(int)LogType.Warning);
 			}
@@ -439,7 +439,7 @@ public partial class SaveManager
 			?.CallDeferred("UpdateTitle");
 
 		_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-			$"Failed to open showfile — session reset to empty (not added to recents): {reason}", 2);
+			$"Failed to open showfile. Session reset to empty (not added to recents): {reason}", 2);
 	}
 
 	/// <summary>

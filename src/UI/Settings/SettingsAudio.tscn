@@ -203,14 +203,14 @@ layout_mode = 2
 [node name="MasterMuteLabel" type="Label" parent="VBoxContainer/MasterMuteRow" unique_id=961462202]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-tooltip_text = "Silences all cue audio immediately without changing master volume. Runtime only — not saved with the showfile."
+tooltip_text = "Silences all cue audio immediately without changing master volume. Runtime only, not saved with the showfile."
 text = "Master mute"
 vertical_alignment = 1
 
 [node name="MasterMuteCheckBox" type="CheckBox" parent="VBoxContainer/MasterMuteRow" unique_id=781261302]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Silences all cue audio immediately without changing master volume. Runtime only — not saved with the showfile."
+tooltip_text = "Silences all cue audio immediately without changing master volume. Runtime only, not saved with the showfile."
 focus_mode = 0
 text = "Mute all outputs"
 
@@ -229,7 +229,7 @@ text = "Output protection"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
 theme_override_font_sizes/font_size = 11
-text = "Applied after mixing each cue path (standalone and video audio). Max level hard-clamps peaks to avoid digital overload; min level zeros near-silence (noise gate). Concurrent cues still sum on the device — leave master headroom for dense stacks."
+text = "Applied after mixing each cue path (standalone and video audio). Max level hard-clamps peaks to avoid digital overload; min level zeros near-silence (noise gate). Concurrent cues still sum on the device, so leave master headroom for dense stacks."
 autowrap_mode = 3
 
 [node name="OutputMaxRow" type="HBoxContainer" parent="VBoxContainer"]

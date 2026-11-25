@@ -79,14 +79,14 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Documentation — docs.cue2.live"
+text = "Documentation: docs.cue2.live"
 uri = "https://docs.cue2.live/"
 
 [node name="WebsiteLinkButton" type="LinkButton" parent="MarginContainer/VBoxContainer/LinksVBox" unique_id=2093275794]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Website — cue2.live"
+text = "Website: cue2.live"
 uri = "https://www.cue2.live/"
 
 [node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=1377832129]

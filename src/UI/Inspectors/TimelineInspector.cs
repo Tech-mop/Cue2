@@ -1182,7 +1182,7 @@ public partial class TimelineInspector : Control
         if (playable >= 0 && bodyTime >= playable - 1e-4)
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"Timeline: Playhead is past the end of \"{_focusedCue.Name}\" — nothing to play", 1);
+                $"Timeline: Playhead is past the end of \"{_focusedCue.Name}\", nothing to play", 1);
             GD.Print(
                 $"TimelineInspector:OnPlayFromPlayheadPressed - past end body={bodyTime:F3}s playable={playable:F3}s");
             return;

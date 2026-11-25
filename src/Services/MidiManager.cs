@@ -327,7 +327,7 @@ public partial class MidiManager : Node
     {
         _isCapturing = true;
         GD.Print("MidiManager:StartCapture - Waiting for next MIDI message…");
-        EnqueueMonitorLine("— Capture armed: waiting for MIDI…");
+        EnqueueMonitorLine("- Capture armed: waiting for MIDI…");
         EmitSignal(SignalName.MidiStateChanged);
     }
 
@@ -338,7 +338,7 @@ public partial class MidiManager : Node
     {
         if (!_isCapturing) return;
         _isCapturing = false;
-        EnqueueMonitorLine("— Capture cancelled");
+        EnqueueMonitorLine("- Capture cancelled");
         EmitSignal(SignalName.MidiStateChanged);
     }
 
@@ -579,7 +579,7 @@ public partial class MidiManager : Node
 
             GD.PrintErr($"MidiManager:EnsureNativeLibraryLoaded - {error}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"MIDI: native library not found — {error}", (int)LogType.Error);
+                $"MIDI: native library not found: {error}", (int)LogType.Error);
             _globalData?.ReportStartupFault(
                 "midi",
                 "MIDI",
@@ -592,7 +592,7 @@ public partial class MidiManager : Node
         {
             GD.PrintErr($"MidiManager:EnsureNativeLibraryLoaded - {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"MIDI: failed to load native library — {ex.Message}", (int)LogType.Error);
+                $"MIDI: failed to load native library: {ex.Message}", (int)LogType.Error);
             _globalData?.ReportStartupFault(
                 "midi",
                 "MIDI",
@@ -649,9 +649,9 @@ public partial class MidiManager : Node
                          $"(available={stillAvailable}, healthy={healthy})");
                 if (!stillAvailable)
                 {
-                    EnqueueMonitorLine($"— Input offline: {openName}");
+                    EnqueueMonitorLine($"- Input offline: {openName}");
                     _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                        $"MIDI: input offline — {openName}", (int)LogType.Warning);
+                        $"MIDI: input offline: {openName}", (int)LogType.Warning);
                 }
                 CloseInput(openName, removeFromSession: false, logNotice: stillAvailable);
             }
@@ -668,9 +668,9 @@ public partial class MidiManager : Node
                 GD.Print($"MidiManager:ReconcileSessionDevices[{reason}] - Closing output '{openName}'");
                 if (!stillAvailable)
                 {
-                    EnqueueMonitorLine($"— Output offline: {openName}");
+                    EnqueueMonitorLine($"- Output offline: {openName}");
                     _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                        $"MIDI: output offline — {openName}", (int)LogType.Warning);
+                        $"MIDI: output offline: {openName}", (int)LogType.Warning);
                 }
                 CloseOutput(openName, removeFromSession: false, logNotice: stillAvailable);
             }
@@ -695,7 +695,7 @@ public partial class MidiManager : Node
                     if (reason != "poll" || !previousOpenIn.Contains(sessionName))
                     {
                         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                            $"MIDI: input reconnected — {sessionName}", (int)LogType.Info);
+                            $"MIDI: input reconnected: {sessionName}", (int)LogType.Info);
                     }
                 }
             }
@@ -716,7 +716,7 @@ public partial class MidiManager : Node
                     if (reason != "poll" || !previousOpenOut.Contains(sessionName))
                     {
                         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                            $"MIDI: output reconnected — {sessionName}", (int)LogType.Info);
+                            $"MIDI: output reconnected: {sessionName}", (int)LogType.Info);
                     }
                 }
             }
@@ -765,7 +765,7 @@ public partial class MidiManager : Node
         {
             GD.PrintErr($"MidiManager:EnumerateAvailableDevices - {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"MIDI: failed to list devices — {ex.Message}", (int)LogType.Warning);
+                $"MIDI: failed to list devices: {ex.Message}", (int)LogType.Warning);
         }
     }
 
@@ -1065,7 +1065,7 @@ public partial class MidiManager : Node
         if (!_nativeReady && !(_nativeReady = EnsureNativeLibraryLoaded()))
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                "MIDI: cannot open inputs — native library not loaded.", (int)LogType.Error);
+                "MIDI: cannot open inputs, native library not loaded.", (int)LogType.Error);
             return;
         }
 
@@ -1121,14 +1121,14 @@ public partial class MidiManager : Node
             _openOutputs[deviceName] = device;
 
             GD.Print($"MidiManager:OpenOutput - Opened '{deviceName}'.");
-            EnqueueMonitorLine($"— Opened output: {deviceName}");
+            EnqueueMonitorLine($"- Opened output: {deviceName}");
             return true;
         }
         catch (Exception ex)
         {
             GD.PrintErr($"MidiManager:OpenOutput - {deviceName}: {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"MIDI: failed to open output '{deviceName}' — {ex.Message}", (int)LogType.Warning);
+                $"MIDI: failed to open output '{deviceName}': {ex.Message}", (int)LogType.Warning);
             return false;
         }
     }
@@ -1151,7 +1151,7 @@ public partial class MidiManager : Node
             }
 
             if (logNotice)
-                EnqueueMonitorLine($"— Closed output: {deviceName}");
+                EnqueueMonitorLine($"- Closed output: {deviceName}");
         }
 
         // Cancel pending note-offs for this device.
@@ -1327,7 +1327,7 @@ public partial class MidiManager : Node
                 GD.PrintErr($"MidiManager:PanicAllOutputs - {kvp.Key}: {ex.Message}");
             }
         }
-        EnqueueMonitorLine("— Panic: All Notes/Sound Off on all outputs");
+        EnqueueMonitorLine("- Panic: All Notes/Sound Off on all outputs");
         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
             "MIDI panic: All Notes Off / All Sound Off sent", (int)LogType.Info);
     }
@@ -1367,14 +1367,14 @@ public partial class MidiManager : Node
             _openDevices[deviceName] = device;
 
             GD.Print($"MidiManager:OpenInput - Listening on '{deviceName}'.");
-            EnqueueMonitorLine($"— Opened input: {deviceName}");
+            EnqueueMonitorLine($"- Opened input: {deviceName}");
             return true;
         }
         catch (Exception ex)
         {
             GD.PrintErr($"MidiManager:OpenInput - {deviceName}: {ex.Message}");
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"MIDI: failed to open '{deviceName}' — {ex.Message}", (int)LogType.Warning);
+                $"MIDI: failed to open '{deviceName}': {ex.Message}", (int)LogType.Warning);
             return false;
         }
     }
@@ -1403,7 +1403,7 @@ public partial class MidiManager : Node
             }
 
             if (logNotice)
-                EnqueueMonitorLine($"— Closed input: {deviceName}");
+                EnqueueMonitorLine($"- Closed input: {deviceName}");
         }
 
         if (removeFromSession)
@@ -1545,7 +1545,7 @@ public partial class MidiManager : Node
             {
                 if (capturedOutput && _openOutputs.ContainsKey(capturedName))
                 {
-                    EnqueueMonitorLine($"— Device error / offline: {capturedName}");
+                    EnqueueMonitorLine($"- Device error / offline: {capturedName}");
                     CloseOutput(capturedName, removeFromSession: false, logNotice: false);
                     EmitSignal(SignalName.MidiStateChanged);
                     return;
@@ -1553,7 +1553,7 @@ public partial class MidiManager : Node
 
                 if (!capturedOutput && _openDevices.ContainsKey(capturedName))
                 {
-                    EnqueueMonitorLine($"— Device error / offline: {capturedName}");
+                    EnqueueMonitorLine($"- Device error / offline: {capturedName}");
                     CloseInput(capturedName, removeFromSession: false, logNotice: false);
                     EmitSignal(SignalName.MidiStateChanged);
                     return;

@@ -403,7 +403,7 @@ public partial class ShellBar
 			// Restore display from model; do not record during undo/redo or Show Mode.
 			_memoLineEdit.Text = flatCurrent;
 			_memoLineEdit.TooltipText = string.IsNullOrEmpty(_cue.Notes)
-				? UiLocalizer.T("Memo cue — double-click to edit notes.")
+				? UiLocalizer.T("Memo cue: double-click to edit notes.")
 				: _cue.Notes;
 			if (releaseFocus && _memoLineEdit.HasFocus())
 				_memoLineEdit.CallDeferred(Control.MethodName.ReleaseFocus);
@@ -424,7 +424,7 @@ public partial class ShellBar
 		}
 
 		_memoLineEdit.TooltipText = string.IsNullOrEmpty(_cue.Notes)
-			? UiLocalizer.T("Memo cue — double-click to edit notes.")
+			? UiLocalizer.T("Memo cue: double-click to edit notes.")
 			: _cue.Notes;
 
 		if (releaseFocus && _memoLineEdit.HasFocus())

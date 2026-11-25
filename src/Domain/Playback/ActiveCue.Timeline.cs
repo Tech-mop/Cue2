@@ -185,7 +185,7 @@ public partial class ActiveCue
         if (atContentStart && _finishedChildCueIds.Count > 0)
         {
             GD.Print(
-                $"ActiveCue:SeekIntoContentRegion - {_cue?.Name}: content t≈0 — clearing {_finishedChildCueIds.Count} finished child id(s)");
+                $"ActiveCue:SeekIntoContentRegion - {_cue?.Name}: content t≈0, clearing {_finishedChildCueIds.Count} finished child id(s)");
             _finishedChildCueIds.Clear();
         }
 

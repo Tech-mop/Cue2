@@ -614,7 +614,7 @@ public partial class SettingsOscListen : ScrollContainer
         else
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                "OSC session prefix cleared — unprefixed paths accepted",
+                "OSC session prefix cleared: unprefixed paths accepted",
                 (int)LogType.Info);
         }
     }

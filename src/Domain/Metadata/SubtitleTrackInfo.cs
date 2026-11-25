@@ -53,14 +53,14 @@ public class SubtitleTrackInfo
             if (IsExternal && !string.IsNullOrEmpty(title))
                 return $"{title} ({codec})";
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(lang))
-                return $"{title} ({lang}) — {codec}";
+                return $"{title} ({lang}) - {codec}";
             if (!string.IsNullOrEmpty(title))
-                return $"{title} — {codec}";
+                return $"{title} - {codec}";
             if (!string.IsNullOrEmpty(lang))
-                return $"{lang} — {codec} [{source}]";
+                return $"{lang} - {codec} [{source}]";
             if (IsExternal)
                 return $"{codec} [sidecar]";
-            return $"Stream {StreamIndex} — {codec}";
+            return $"Stream {StreamIndex} - {codec}";
         }
     }
 }

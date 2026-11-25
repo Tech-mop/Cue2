@@ -171,9 +171,9 @@ public partial class SettingsTimecode : ScrollContainer
 
             _timecodeManager.RefreshLtcPlaybackConflictWarnings(force: true);
             RebuildEndpointCards(_sessionInputsList, _timecodeManager.Inputs,
-                UiLocalizer.T("No inputs in session — add one above."));
+                UiLocalizer.T("No inputs in session. Add one above."));
             RebuildEndpointCards(_sessionOutputsList, _timecodeManager.Outputs,
-                UiLocalizer.T("No outputs in session — add one above."));
+                UiLocalizer.T("No outputs in session. Add one above."));
             RebuildDisplayRows();
             UpdateStatusLabel();
         }
@@ -273,7 +273,7 @@ public partial class SettingsTimecode : ScrollContainer
         {
             var empty = new Label
             {
-                Text = UiLocalizer.T("No timecode registered — add an input or output above."),
+                Text = UiLocalizer.T("No timecode registered. Add an input or output above."),
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             empty.AddThemeFontSizeOverride("font_size", 11);

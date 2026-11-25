@@ -105,6 +105,64 @@ public static class ShowfileLaunchArgs
 		return null;
 	}
 
+	/// <summary>
+	/// Argument list for relaunching Cue2 with <see cref="OS.SetRestartOnExit"/>: the engine args
+	/// as given (minus a leading executable path), then <c>--</c> and the user args. When a show is
+	/// open, its path replaces any showfile path on the command line so the relaunch reopens what is
+	/// on screen, including a show that came from "open last showfile".
+	/// </summary>
+	/// <param name="engineArgs">From <see cref="OS.GetCmdlineArgs"/>.</param>
+	/// <param name="userArgs">From <see cref="OS.GetCmdlineUserArgs"/> (after <c>--</c>).</param>
+	/// <param name="openShowPath">The show on screen, or null or empty for none.</param>
+	public static string[] BuildRestartArgs(string[] engineArgs, string[] userArgs, string openShowPath)
+	{
+		engineArgs ??= Array.Empty<string>();
+		userArgs ??= Array.Empty<string>();
+		bool replaceShow = !string.IsNullOrWhiteSpace(openShowPath);
+
+		var result = new List<string>(engineArgs.Length + userArgs.Length + 2);
+		if (replaceShow)
+			result.Add(openShowPath);
+
+		for (int i = 0; i < engineArgs.Length; i++)
+		{
+			string arg = engineArgs[i];
+			if (arg == null)
+				continue;
+			if (i == 0 && LooksLikeExecutable(arg) && !HasShowfileExtension(arg))
+				continue;
+			if (arg.Length > 0 && arg[0] == '-')
+			{
+				result.Add(arg);
+				if (FlagsWithValue.Contains(arg) && i + 1 < engineArgs.Length)
+					result.Add(engineArgs[++i]);
+				continue;
+			}
+
+			if (replaceShow && HasShowfileExtension(arg))
+				continue;
+			result.Add(arg);
+		}
+
+		var user = new List<string>(userArgs.Length);
+		foreach (string arg in userArgs)
+		{
+			if (arg == null)
+				continue;
+			if (replaceShow && HasShowfileExtension(arg))
+				continue;
+			user.Add(arg);
+		}
+
+		if (user.Count > 0)
+		{
+			result.Add("--");
+			result.AddRange(user);
+		}
+
+		return result.ToArray();
+	}
+
 	private static bool LooksLikeExecutable(string arg)
 	{
 		if (string.IsNullOrEmpty(arg))

@@ -55,6 +55,9 @@ public partial class SaveManager : Node
 	/// </summary>
 	public bool IsSessionLoading { get; private set; }
 
+	/// <summary>True while a showfile open or apply is running (quit and restart are refused).</summary>
+	public bool IsOpenBusy => IsSessionLoading || _isOpenInProgress;
+
 	/// <summary>
 	/// True when GO may fire. False from apply start until cue models exist (or apply ends).
 	/// First viewport bind and deferred housekeeping do not keep this false.
@@ -124,7 +127,8 @@ public partial class SaveManager : Node
 		OpenDialog,
 		OpenPath,
 		Quit,
-		UpdateRestart
+		UpdateRestart,
+		AppRestart
 	}
 
 	private PendingCloseKind _pendingClose;
@@ -137,6 +141,9 @@ public partial class SaveManager : Node
 
 	/// <summary>Starts the update helper once an Install and Restart quit is certain.</summary>
 	private Func<bool> _updateRestartStarter;
+
+	/// <summary>Schedules the relaunch once a startup-error Restart quit is certain.</summary>
+	private Func<bool> _appRestartScheduler;
 
 	/// <summary>
 	/// True when cue / cuelist / show-settings data has changed since the last save or load.
@@ -252,7 +259,7 @@ public partial class SaveManager : Node
 
 		string pathPart = string.IsNullOrEmpty(path) ? string.Empty : $" ({path})";
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-			$"Could not open last showfile{pathPart} — started a new session. {reason}",
+			$"Could not open last showfile{pathPart}. Started a new session. {reason}",
 			(int)LogType.Error);
 		FinishLoadTimer("missing");
 	}
@@ -352,7 +359,7 @@ public partial class SaveManager : Node
 		if (!IsSessionLoading && !_isOpenInProgress)
 			return false;
 		_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-			$"Please wait — a showfile is still loading. Cannot {actionLabel}.", (int)LogType.Info);
+			$"Please wait: a showfile is still loading. Cannot {actionLabel}.", (int)LogType.Info);
 		return true;
 	}
 
@@ -537,7 +544,7 @@ public partial class SaveManager : Node
 		if (IsSessionLoading || _isOpenInProgress)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				"Please wait — a showfile is still loading. Cannot quit.", (int)LogType.Info);
+				"Please wait: a showfile is still loading. Cannot quit.", (int)LogType.Info);
 			return;
 		}
 
@@ -573,6 +580,50 @@ public partial class SaveManager : Node
 		if (!ConfirmIfUnsaved(PendingCloseKind.UpdateRestart))
 			return;
 		BeginUpdateRestart(_updateRestartStarter);
+	}
+
+	/// <summary>
+	/// Restart from the startup-error overlay. Runs the same prompts as Quit (show still loading,
+	/// running background task, unsaved changes). When quitting is certain, calls
+	/// <paramref name="scheduleRestart"/> (which sets the relaunch arguments) and quits only when it
+	/// returns true, so a refused or cancelled restart never leaves a relaunch armed.
+	/// </summary>
+	/// <param name="scheduleRestart">Arms the relaunch; returns false when it could not.</param>
+	/// <returns>False when the restart was refused straight away (show still loading, or a quit is
+	/// already under way); true when it is quitting or waiting on a prompt.</returns>
+	public bool RequestQuitForRestart(Func<bool> scheduleRestart)
+	{
+		if (scheduleRestart == null || _quitStarted)
+			return false;
+		if (IsUnsavedDialogOpen || _pendingClose != PendingCloseKind.None)
+			return false;
+		if (IsSessionLoading || _isOpenInProgress)
+		{
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+				"A showfile is still loading. Restart Cue2 when it has finished.", (int)LogType.Info);
+			return false;
+		}
+
+		_appRestartScheduler = scheduleRestart;
+		if (!ConfirmIfBackgroundTask(PendingCloseKind.AppRestart))
+			return true;
+		if (!ConfirmIfUnsaved(PendingCloseKind.AppRestart))
+			return true;
+		BeginAppRestart(_appRestartScheduler);
+		return true;
+	}
+
+	/// <summary>Arms the relaunch, then quits. Stays open when it could not be armed.</summary>
+	private void BeginAppRestart(Func<bool> scheduleRestart)
+	{
+		_appRestartScheduler = null;
+		if (scheduleRestart == null || !scheduleRestart())
+		{
+			GD.Print("SaveManager:BeginAppRestart - Restart could not be scheduled; Cue2 stays open.");
+			return;
+		}
+
+		BeginQuit();
 	}
 
 	/// <summary>Starts the update helper, then quits. Stays open when the helper did not start.</summary>
@@ -794,6 +845,7 @@ public partial class SaveManager : Node
 		PendingCloseKind kind = _pendingClose;
 		string path = _pendingOpenPath;
 		Func<bool> updateStarter = _updateRestartStarter;
+		Func<bool> restartScheduler = _appRestartScheduler;
 		ClearPendingClose();
 
 		switch (kind)
@@ -814,6 +866,9 @@ public partial class SaveManager : Node
 			case PendingCloseKind.UpdateRestart:
 				BeginUpdateRestart(updateStarter);
 				break;
+			case PendingCloseKind.AppRestart:
+				BeginAppRestart(restartScheduler);
+				break;
 		}
 	}
 
@@ -825,6 +880,7 @@ public partial class SaveManager : Node
 		_pendingBackgroundTaskPrompt = false;
 		_pendingBackgroundTaskName = null;
 		_updateRestartStarter = null;
+		_appRestartScheduler = null;
 	}
 
 	private void PopupOpenDialog()
@@ -955,7 +1011,7 @@ public partial class SaveManager : Node
 		ConfigureAutosave();
 
 		if (logAsNewSession)
-			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "New session — show data reset to defaults.", 0);
+			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log), "New session: show data reset to defaults.", 0);
 		GD.Print("SaveManager:ResetSession - Full session reset complete.");
 	}
 	

@@ -247,9 +247,6 @@ public partial class CueCommandExecutor
         return cue;
     }
 
-    /// <summary>
-    /// Counts the cue and everything nested under it, stopping once <paramref name="limit"/> is reached.
-    /// </summary>
     /// <summary>Counts a cue and its descendants, stopping at <paramref name="limit"/>.</summary>
     /// <param name="root">Cue to start from.</param>
     /// <param name="limit">Count at which to stop walking.</param>

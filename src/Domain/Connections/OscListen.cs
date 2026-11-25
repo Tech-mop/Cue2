@@ -364,7 +364,7 @@ public partial class OscListen : Node
     public void StartCapture()
     {
         _isCapturing = true;
-        EnqueueMonitorLine("— Capture armed: waiting for OSC…");
+        EnqueueMonitorLine("- Capture armed: waiting for OSC…");
         EmitSignal(SignalName.OscStateChanged);
     }
 
@@ -372,7 +372,7 @@ public partial class OscListen : Node
     {
         if (!_isCapturing) return;
         _isCapturing = false;
-        EnqueueMonitorLine("— Capture cancelled");
+        EnqueueMonitorLine("- Capture cancelled");
         EmitSignal(SignalName.OscStateChanged);
     }
 
@@ -608,7 +608,7 @@ public partial class OscListen : Node
         if (target?.Address == null || target.Port <= 0)
         {
             if (_monitorEnabled)
-                EnqueueMonitorLine($"— Reply skipped (no remote origin): {message.Address}");
+                EnqueueMonitorLine($"- Reply skipped (no remote origin): {message.Address}");
             return;
         }
 
@@ -636,7 +636,7 @@ public partial class OscListen : Node
         catch (Exception ex)
         {
             GD.PrintErr($"OscListen:SendReply - {ex.Message}");
-            EnqueueMonitorLine($"— Reply failed: {ex.Message}");
+            EnqueueMonitorLine($"- Reply failed: {ex.Message}");
         }
     }
 
@@ -712,7 +712,7 @@ public partial class OscListen : Node
         if (!IsOriginAllowed(origin))
         {
             string src = origin?.Address?.ToString() ?? "?";
-            EnqueueMonitorLine($"— Rejected (allowlist): {src}");
+            EnqueueMonitorLine($"- Rejected (allowlist): {src}");
             return;
         }
 
@@ -741,7 +741,7 @@ public partial class OscListen : Node
             _receiver = new OscReceiver(_port);
             _receiver.Connect();
             GD.Print($"OscListen:StartListening - UDP on port {_port}");
-            EnqueueMonitorLine($"— Listening UDP port {_port}");
+            EnqueueMonitorLine($"- Listening UDP port {_port}");
             udpOk = true;
         }
         catch (Exception ex)
@@ -760,7 +760,7 @@ public partial class OscListen : Node
                 _tcpListener = new TcpListener(IPAddress.Any, _tcpPort);
                 _tcpListener.Start();
                 GD.Print($"OscListen:StartListening - TCP on port {_tcpPort}");
-                EnqueueMonitorLine($"— Listening TCP port {_tcpPort} (binary OSC)");
+                EnqueueMonitorLine($"- Listening TCP port {_tcpPort} (binary OSC)");
                 tcpOk = true;
             }
             catch (Exception ex)
@@ -827,7 +827,7 @@ public partial class OscListen : Node
         _thread = null;
         _tcpListener = null;
         _tcpAcceptThread = null;
-        EnqueueMonitorLine("— Listener stopped");
+        EnqueueMonitorLine("- Listener stopped");
     }
 
     private void RestartReceiver()
@@ -850,7 +850,7 @@ public partial class OscListen : Node
 
                 if (packet.Error != OscPacketError.None)
                 {
-                    EnqueueMonitorLine($"— UDP parse error: {packet.ErrorMessage}");
+                    EnqueueMonitorLine($"- UDP parse error: {packet.ErrorMessage}");
                     continue;
                 }
 
@@ -875,7 +875,7 @@ public partial class OscListen : Node
 
                 // Transient wait/parse errors must not kill the UDP listener for the session.
                 GD.PrintErr($"OscListen:ReceiveLoopUdp - {ex.Message}");
-                EnqueueMonitorLine($"— UDP receive error: {ex.Message}");
+                EnqueueMonitorLine($"- UDP receive error: {ex.Message}");
                 try { Thread.Sleep(25); } catch { /* ignore */ }
             }
         }
@@ -902,13 +902,13 @@ public partial class OscListen : Node
 
                 if (!IsOriginAllowed(remote))
                 {
-                    EnqueueMonitorLine($"— TCP rejected (allowlist): {remote?.Address}");
+                    EnqueueMonitorLine($"- TCP rejected (allowlist): {remote?.Address}");
                     try { client.Close(); } catch { /* ignore */ }
                     continue;
                 }
 
                 _tcpClients.Add(client);
-                EnqueueMonitorLine($"— TCP client connected: {remote?.Address}:{remote?.Port}");
+                EnqueueMonitorLine($"- TCP client connected: {remote?.Address}:{remote?.Port}");
 
                 var thread = new Thread(() =>
                 {
@@ -921,7 +921,7 @@ public partial class OscListen : Node
                     }
                     finally
                     {
-                        EnqueueMonitorLine($"— TCP client disconnected: {remote?.Address}");
+                        EnqueueMonitorLine($"- TCP client disconnected: {remote?.Address}");
                     }
                 })
                 {
@@ -938,7 +938,7 @@ public partial class OscListen : Node
             {
                 if (!_running) break;
                 GD.PrintErr($"OscListen:TcpAcceptLoop - {ex.Message}");
-                EnqueueMonitorLine($"— TCP accept error: {ex.Message}");
+                EnqueueMonitorLine($"- TCP accept error: {ex.Message}");
                 break;
             }
         }
@@ -1095,6 +1095,6 @@ public partial class OscListen : Node
         GD.Print($"OscListen:BuiltIn - {message}");
         _globalSignals?.EmitSignal(nameof(GlobalSignals.Log), $"OSC {message}", (int)type);
         if (_monitorEnabled)
-            EnqueueMonitorLine($"— {message}");
+            EnqueueMonitorLine($"- {message}");
     }
 }

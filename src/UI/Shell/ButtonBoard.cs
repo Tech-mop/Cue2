@@ -1109,7 +1109,18 @@ public partial class ButtonBoard : Control
 
             if (audioComp != null)
             {
-                var probe = await mediaEngine.ProbeAudioFileMetadataWithRetryAsync(filePath);
+                // Drop probes share a few slots so a big import cannot flood the thread pool.
+                await DroppedMediaExpansion.ProbeSlots.WaitAsync();
+                MediaEngine.AudioMetadataProbeResult probe;
+                try
+                {
+                    probe = await mediaEngine.ProbeAudioFileMetadataWithRetryAsync(filePath);
+                }
+                finally
+                {
+                    DroppedMediaExpansion.ProbeSlots.Release();
+                }
+
                 if (probe.Metadata != null)
                 {
                     audioComp.Metadata = probe.Metadata;
@@ -1134,7 +1145,16 @@ public partial class ButtonBoard : Control
             else if (videoComp != null)
             {
                 videoComp.RefreshIsImageFromPath();
-                var meta = await mediaEngine.GetVideoFileMetadataAsync(filePath);
+                await DroppedMediaExpansion.ProbeSlots.WaitAsync();
+                VideoFileMetadata meta;
+                try
+                {
+                    meta = await mediaEngine.GetVideoFileMetadataAsync(filePath);
+                }
+                finally
+                {
+                    DroppedMediaExpansion.ProbeSlots.Release();
+                }
                 videoComp.Metadata = meta;
                 if (videoComp.IsImage)
                 {

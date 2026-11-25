@@ -1165,7 +1165,7 @@ public partial class LibraryInspector : Control
         if (!result.Success)
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"Library: save failed — {result.Message}", (int)LogType.Error);
+                $"Library: save failed: {result.Message}", (int)LogType.Error);
             return;
         }
 
@@ -1205,7 +1205,7 @@ public partial class LibraryInspector : Control
         if (!result.Success)
         {
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                $"Library: load failed — {result.Message}", (int)LogType.Error);
+                $"Library: load failed: {result.Message}", (int)LogType.Error);
         }
     }
 

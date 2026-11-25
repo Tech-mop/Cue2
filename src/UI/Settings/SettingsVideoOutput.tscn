@@ -211,7 +211,7 @@ layout_mode = 2
 [node name="PreviewLabel" type="Label" parent="VBoxContainer/PreviewRow" unique_id=882011856]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-tooltip_text = "Inspector video previewer only — never affects house outputs. Saved with the showfile."
+tooltip_text = "Inspector video previewer only. Never affects house outputs. Saved with the showfile."
 text = "Preview quality"
 vertical_alignment = 1
 
@@ -220,7 +220,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Inspector video previewer only — never affects house outputs. Saved with the showfile."
+tooltip_text = "Inspector video previewer only. Never affects house outputs. Saved with the showfile."
 focus_mode = 0
 selected = 0
 item_count = 3

@@ -1469,7 +1469,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         {
             GD.Print(
                 $"ActiveVideoPlayback:OnOutputDeviceLost - Device {logicalDeviceId} lost; " +
-                "no audio streams remain — continuing video on wall clock.");
+                "no audio streams remain, continuing video on wall clock.");
             // Avoid double-notify: streams for this device already untracked; remaining empty.
             DisableEmbeddedAudio();
         }

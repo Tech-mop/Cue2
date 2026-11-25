@@ -211,7 +211,7 @@ public static class CueResourceUsage
 			{
 				string num = FormatCueNumber(c);
 				string name = c.Name ?? string.Empty;
-				return string.IsNullOrWhiteSpace(name) ? num : $"{num} — {name}";
+				return string.IsNullOrWhiteSpace(name) ? num : $"{num} - {name}";
 			})
 			.ToList();
 

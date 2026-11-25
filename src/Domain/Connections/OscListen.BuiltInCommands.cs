@@ -190,7 +190,7 @@ public partial class OscListen
         }
         catch (Exception ex)
         {
-            LogBuiltIn($"{cmd}: error — {ex.Message}", LogType.Error);
+            LogBuiltIn($"{cmd} error: {ex.Message}", LogType.Error);
             return true;
         }
     }

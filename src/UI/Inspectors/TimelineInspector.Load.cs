@@ -348,7 +348,7 @@ public partial class TimelineInspector
         numLabel.Size = new Vector2(remaining, 16f);
         nameLabel.Size = new Vector2(remaining, 16f);
 
-        row.TooltipText = $"{cue.CueNum} — {cue.Name}";
+        row.TooltipText = $"{cue.CueNum} - {cue.Name}";
 
         _sidebarContent.AddChild(row);
         _cueToSidebarRow[cue] = row;

@@ -66,7 +66,7 @@ public partial class SaveManager
 			{
 				_globalSignals.EmitSignal(nameof(GlobalSignals.Log),
 					"This show was opened from a newer Cue2 format. Use Save As to write a copy " +
-					"this version can own — overwriting the original is blocked.",
+					"this version can own. Overwriting the original is blocked.",
 					(int)LogType.Warning);
 			}
 

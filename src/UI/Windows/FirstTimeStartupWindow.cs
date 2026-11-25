@@ -163,9 +163,9 @@ public partial class FirstTimeStartupWindow : Window
 			_getStartedButton.Text = T("FIRST_TIME_GET_STARTED");
 
 		if (_docsLinkButton != null)
-			_docsLinkButton.Text = T("Documentation — docs.cue2.live");
+			_docsLinkButton.Text = T("Documentation: docs.cue2.live");
 		if (_websiteLinkButton != null)
-			_websiteLinkButton.Text = T("Website — cue2.live");
+			_websiteLinkButton.Text = T("Website: cue2.live");
 
 		string languageLabel = T("FIRST_TIME_LANGUAGE");
 		string languageTooltip = T("SETTINGS_LANGUAGE_TOOLTIP");

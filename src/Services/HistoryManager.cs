@@ -465,7 +465,7 @@ public partial class HistoryManager : Node
 		if (_globalData?.IsSessionLoading == true)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				"Please wait — a showfile is still loading. Cannot undo.", (int)LogType.Info);
+				"Please wait: a showfile is still loading. Cannot undo.", (int)LogType.Info);
 			return;
 		}
 
@@ -534,7 +534,7 @@ public partial class HistoryManager : Node
 		if (_globalData?.IsSessionLoading == true)
 		{
 			_globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-				"Please wait — a showfile is still loading. Cannot redo.", (int)LogType.Info);
+				"Please wait: a showfile is still loading. Cannot redo.", (int)LogType.Info);
 			return;
 		}
 

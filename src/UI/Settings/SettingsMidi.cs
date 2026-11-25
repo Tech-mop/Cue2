@@ -228,7 +228,7 @@ public partial class SettingsMidi : ScrollContainer
         {
             var empty = new Label
             {
-                Text = "No inputs in session — add one below.",
+                Text = "No inputs in session. Add one below.",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             empty.AddThemeFontSizeOverride("font_size", 11);
@@ -428,7 +428,7 @@ public partial class SettingsMidi : ScrollContainer
         {
             var empty = new Label
             {
-                Text = "No outputs in session — add one below.",
+                Text = "No outputs in session. Add one below.",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             empty.AddThemeFontSizeOverride("font_size", 11);

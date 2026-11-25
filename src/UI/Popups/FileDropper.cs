@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Godot;
 using Cue2.Domain.Cuelist;
 using Cue2.Domain.Playback;
@@ -19,6 +21,7 @@ using Cue2.Services;
 using Cue2.UI.Inspectors;
 using Cue2.UI.Popups;
 using Cue2.UI.Shell;
+using Cue2.UI.Utilities;
 
 namespace Cue2.UI.Popups;
 
@@ -216,6 +219,7 @@ public partial class FileDropper : Control
     public override void _ExitTree()
     {
         GetWindow().FilesDropped -= OnFilesDropped;
+        _folderWalkCancel?.Cancel();
         CloseActivePopup();
     }
 
@@ -233,6 +237,15 @@ public partial class FileDropper : Control
         ClearPendingBoard();
     }
 
+    /// <summary>Wait before the footer shows folder-walk progress, so quick walks do not flash it.</summary>
+    private const ulong FolderWalkProgressDelayMs = 200;
+
+    /// <summary>Gap between footer updates while a folder walk runs.</summary>
+    private const ulong FolderWalkProgressIntervalMs = 100;
+
+    private CancellationTokenSource _folderWalkCancel;
+    private bool _folderWalkInProgress;
+
     private void OnFilesDropped(string[] files)
     {
         GD.Print("FileDropper:OnFilesDropped - Files dropped");
@@ -240,21 +253,16 @@ public partial class FileDropper : Control
         if (files == null || files.Length == 0)
             return;
 
-        var expansion = DroppedMediaExpansion.Expand(files, AllMediaGlobs());
-
-        if (TryOpenDroppedShowfile(files, expansion))
-            return;
-
-        // Show Mode: media drops create or replace cue media — block all drop editing paths.
-        if (_globalData?.Settings?.IsCueEditingLocked == true)
-        {
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                "Show Mode: file drops are disabled. Turn off Show Mode to add or change media.", (int)LogType.Info);
-            return;
-        }
-
         var dropInfo = GetDropTarget(GetGlobalMousePosition());
-        GD.Print($"FileDropper:OnFilesDropped - targetType={dropInfo.TargetType}, files={files.Length}, expanded={expansion.FileCount}, targetCueId={dropInfo.TargetCueId}");
+
+        // Showfile first: only the dropped paths are checked here, never a folder walk.
+        if (TryOpenDroppedShowfile(files, DroppedMediaExpansion.MayContainMedia(files, AllMediaGlobs()), dropInfo))
+            return;
+
+        // Show Mode: media drops create or replace cue media, so block all drop editing paths.
+        // Checked before any folder walk so a big accidental drop is refused at once.
+        if (IsDropEditingLocked())
+            return;
 
         // --- Inspector URL targets (single file only, direct, no popup) ---
         if (dropInfo.TargetType == FileDropTargetType.FileUrlAudio)
@@ -304,8 +312,136 @@ public partial class FileDropper : Control
             return;
         }
 
+        // Loose files only: no walk, stays instant. Folders are walked off the main thread.
+        if (!DroppedMediaExpansion.ContainsFolder(files))
+        {
+            ContinueDrop(files, DroppedMediaExpansion.Expand(files, AllMediaGlobs()), dropInfo);
+            return;
+        }
+
+        TaskUtil.Run(() => ExpandFolderDropAsync(files, dropInfo), "FileDropper.ExpandFolderDrop");
+    }
+
+    /// <summary>Logs and returns true when Show Mode blocks drop editing.</summary>
+    private bool IsDropEditingLocked()
+    {
+        if (_globalData?.Settings?.IsCueEditingLocked != true)
+            return false;
+        _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+            "Show Mode: file drops are disabled. Turn off Show Mode to add or change media.", (int)LogType.Info);
+        return true;
+    }
+
+    /// <summary>
+    /// Walks dropped folders on a worker thread (bounded by file count and depth), shows footer
+    /// progress when it takes a while, then carries on with the drop on the main thread.
+    /// </summary>
+    private async Task ExpandFolderDropAsync(string[] files, DropTarget dropInfo)
+    {
+        if (_folderWalkInProgress)
+        {
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                "Still reading the last dropped folder. Drop again when it has finished.", (int)LogType.Info);
+            return;
+        }
+
+        _folderWalkInProgress = true;
+        var cancel = new CancellationTokenSource();
+        _folderWalkCancel = cancel;
+        var progress = new DroppedMediaWalkProgress();
+        var globs = AllMediaGlobs();
+        bool showedProgress = false;
+        ulong started = Time.GetTicksMsec();
+        ulong lastProgress = 0;
+
+        try
+        {
+            var walk = Task.Run(() => DroppedMediaExpansion.Expand(
+                files,
+                globs,
+                DroppedMediaExpansion.DefaultMaxFiles,
+                DroppedMediaExpansion.DefaultMaxDepth,
+                progress,
+                cancel.Token));
+
+            while (!walk.IsCompleted)
+            {
+                var tree = IsInsideTree() ? GetTree() : null;
+                if (tree == null)
+                {
+                    cancel.Cancel();
+                    break;
+                }
+
+                await ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+                ulong now = Time.GetTicksMsec();
+                if (now - started >= FolderWalkProgressDelayMs && now - lastProgress >= FolderWalkProgressIntervalMs)
+                {
+                    showedProgress = true;
+                    lastProgress = now;
+                    EmitFolderWalkProgress(progress.FilesFound);
+                }
+            }
+
+            DroppedMediaResult expansion = await walk;
+            if (expansion.Cancelled || !IsInstanceValid(this) || !IsInsideTree())
+                return;
+
+            if (expansion.UnreadableFolderCount > 0)
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"Could not read {expansion.UnreadableFolderCount} folder(s) in the drop; their media was skipped.",
+                    (int)LogType.Warning);
+            }
+
+            if (expansion.Truncated)
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"The dropped folders are very large or deeply nested, so only the first {expansion.FileCount} media files (up to {DroppedMediaExpansion.DefaultMaxDepth} folder levels) are included.",
+                    (int)LogType.Warning);
+            }
+
+            // Show Mode may have been turned on while the walk ran.
+            if (IsDropEditingLocked())
+                return;
+
+            ContinueDrop(files, expansion, dropInfo);
+        }
+        finally
+        {
+            if (showedProgress)
+            {
+                _globalSignals?.EmitSignal(nameof(GlobalSignals.BackgroundProcessProgress),
+                    100f, false, UiLocalizer.T("Done"), string.Empty, 1, 1);
+                _globalSignals?.EmitSignal(nameof(GlobalSignals.BackgroundProcessCompleted));
+            }
+
+            if (_folderWalkCancel == cancel)
+                _folderWalkCancel = null;
+            cancel.Dispose();
+            _folderWalkInProgress = false;
+        }
+    }
+
+    private void EmitFolderWalkProgress(int filesFound)
+    {
+        float percent = Math.Clamp(filesFound * 100f / DroppedMediaExpansion.DefaultMaxFiles, 0f, 99f);
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.BackgroundProcessProgress),
+            percent, true, UiLocalizer.Tf("Reading dropped folders: {0} files", filesFound), string.Empty, filesFound, 0);
+    }
+
+    /// <summary>
+    /// Rest of the drop once the media list is known: list, shell or board targets.
+    /// </summary>
+    private void ContinueDrop(string[] files, DroppedMediaResult expansion, DropTarget dropInfo)
+    {
+        GD.Print($"FileDropper:ContinueDrop - targetType={dropInfo.TargetType}, files={files.Length}, expanded={expansion.FileCount}, targetCueId={dropInfo.TargetCueId}");
+
         if (expansion.FileCount == 0)
         {
+            // A showfile dropped with folders that held no media: open it as if dropped alone.
+            if (TryOpenDroppedShowfile(files, mediaAlso: false, dropInfo))
+                return;
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log), "FileDropper: No supported media files in drop (supported: audio, video, images).", (int)LogType.Warning);
             return;
         }
@@ -491,7 +627,10 @@ public partial class FileDropper : Control
     /// <summary>
     /// Opens a dropped <c>.c2</c> when the drop is on window chrome, or on the cuelist with no media files.
     /// </summary>
-    private bool TryOpenDroppedShowfile(string[] files, DroppedMediaResult expansion)
+    /// <param name="files">Dropped paths.</param>
+    /// <param name="mediaAlso">True when the drop also holds media (or folders that may hold media).</param>
+    /// <param name="dropInfo">Where the drop landed.</param>
+    private bool TryOpenDroppedShowfile(string[] files, bool mediaAlso, DropTarget dropInfo)
     {
         if (files == null || files.Length == 0)
             return false;
@@ -510,8 +649,6 @@ public partial class FileDropper : Control
         if (show == null)
             return false;
 
-        var dropInfo = GetDropTarget(GetGlobalMousePosition());
-        bool mediaAlso = (expansion?.FileCount ?? 0) > 0;
         bool openShow = dropInfo.TargetType == FileDropTargetType.None
                         || ((dropInfo.TargetType == FileDropTargetType.CueList
                              || dropInfo.TargetType == FileDropTargetType.ButtonBoard) && !mediaAlso);
@@ -680,27 +817,13 @@ public partial class FileDropper : Control
         return new DroppedMediaResult(files, Array.Empty<DroppedMediaNode>(), false, 0);
     }
 
-    private static IEnumerable<string> AllMediaGlobs()
-    {
-        return GlobalData.AudioFileFilters
-            .Concat(GlobalData.VideoFileFilters)
-            .Concat(GlobalData.ImageFileFilters);
-    }
+    /// <summary>Every supported media glob (built once, shared with drop import).</summary>
+    private static IEnumerable<string> AllMediaGlobs() => GlobalData.MediaExtensions.Globs;
 
-    private bool IsSupportedMediaFile(string path)
+    private static bool IsSupportedMediaFile(string path)
     {
-        return DroppedMediaExpansion.IsSupportedMediaFile(path, AllMediaGlobs());
-    }
-
-    /// <summary>
-    /// Returns a description of the media type for a file.
-    /// </summary>
-    private string GetMediaTypeForFile(string path)
-    {
-        string ext = Path.GetExtension(path).ToLowerInvariant();
-        if (GlobalData.AudioFileFilters.Any(e => e.TrimStart('*').Equals(ext, StringComparison.OrdinalIgnoreCase))) return "Audio";
-        if (GlobalData.VideoFileFilters.Any(e => e.TrimStart('*').Equals(ext, StringComparison.OrdinalIgnoreCase))) return "Video";
-        if (GlobalData.ImageFileFilters.Any(e => e.TrimStart('*').Equals(ext, StringComparison.OrdinalIgnoreCase))) return "Image";
-        return "Media";
+        return !string.IsNullOrEmpty(path)
+               && GlobalData.MediaExtensions.IsSupported(path)
+               && File.Exists(path);
     }
 }

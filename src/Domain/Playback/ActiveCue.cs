@@ -233,7 +233,7 @@ public partial class ActiveCue : GodotObject
         if (playable >= 0 && timelineSeconds >= playable - 1e-4)
         {
             GD.Print(
-                $"ActiveCue:ApplyCueTimelineSeek - {_cue?.Name}: {timelineSeconds:F3}s past end {playable:F3}s — finishing");
+                $"ActiveCue:ApplyCueTimelineSeek - {_cue?.Name}: {timelineSeconds:F3}s past end {playable:F3}s, finishing");
             // Not running yet: remember past-end so Start path finishes immediately without firing.
             if (!_contentStarted && !_timelineStarted)
             {

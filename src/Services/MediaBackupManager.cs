@@ -993,7 +993,7 @@ public partial class MediaBackupManager : Node
                 else
                 {
                     CallDeferred(nameof(DeferredLog),
-                        $"Media backup failed: {Path.GetFileName(result.SourcePath)} — {result.Error}",
+                        $"Media backup failed: {Path.GetFileName(result.SourcePath)} ({result.Error})",
                         2);
                     CallDeferred(nameof(DeferredReleaseReservations), job.SourceKey ?? string.Empty, epoch,
                         result.SourcePath ?? string.Empty);

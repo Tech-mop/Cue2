@@ -1069,13 +1069,13 @@ public partial class SettingsWindow : Window
 		SetTreeItemTooltip(tiCue2Preferences, 0, "Showfile-independent preferences (stored per user)");
 		TreeItem tiTheme = _setTree.CreateItem(tiCue2Preferences);
 		SetTreeItemText(tiTheme, 0, SettingsTheme.MenuKey);
-		SetTreeItemTooltip(tiTheme, 0, "UI theme and high/low accent colours — saved with Cue2 Preferences, not the show");
+		SetTreeItemTooltip(tiTheme, 0, "UI theme and high/low accent colours. Saved with Cue2 Preferences, not the show");
 		TreeItem tiInputMap = _setTree.CreateItem(tiCue2Preferences);
 		SetTreeItemText(tiInputMap, 0, SettingsInputMap.MenuKey);
-		SetTreeItemTooltip(tiInputMap, 0, "Keyboard shortcuts — saved with Cue2 Preferences, not the show");
+		SetTreeItemTooltip(tiInputMap, 0, "Keyboard shortcuts. Saved with Cue2 Preferences, not the show");
 		TreeItem tiUpdates = _setTree.CreateItem(tiCue2Preferences);
 		SetTreeItemText(tiUpdates, 0, SettingsUpdates.MenuKey);
-		SetTreeItemTooltip(tiUpdates, 0, "Check for Cue2 updates — saved with Cue2 Preferences, not the show");
+		SetTreeItemTooltip(tiUpdates, 0, "Check for Cue2 updates. Saved with Cue2 Preferences, not the show");
 	}
 
 	/// <summary>

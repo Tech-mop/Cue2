@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Cue2.Domain.Cuelist;
+using Cue2.Services;
 using Cue2.EngineTests.Fixtures;
 using Cue2.UI.Popups;
 using GdUnit4;
@@ -87,6 +88,64 @@ public class FolderDropTests
         AssertThat(CueList.FetchCueFromId(act2Cue.ChildCues[0]).Name).IsEqual("gamma");
         AssertThat(EngineHarness.AllCues().Any(c => c.Name == "hidden" || c.Name == "Empty" || c.Name == "notes"))
             .IsFalse();
+
+        // Folder groups pick up their children's length once the media has been read, at every level.
+        bool groupsTimed = await EngineHarness.UntilAsync(
+            () => nestedCue.Duration > 0.15 && act1Cue.Duration > 0.15 && act2Cue.Duration > 0.15 && show.Duration > 0.15,
+            5000);
+        AssertThat(groupsTimed)
+            .OverrideFailureMessage($"Group durations stayed stale: Show {show.Duration}, Act1 {act1Cue.Duration}, Nested {nestedCue.Duration}, Act2 {act2Cue.Duration}")
+            .IsTrue();
+        EngineHarness.AssertNoNewErrors(mark);
+    }
+
+    /// <summary>
+    /// A large folder import is built over several frames as one bulk step, every cue gets its
+    /// length, and one Undo removes the whole import.
+    /// </summary>
+    [TestCase(Timeout = 60000)]
+    public async Task LargeFolderImportRunsOverFramesAndUndoesInOneStep()
+    {
+        int mark = EngineHarness.ErrorMark();
+        string bigDir = Path.Combine(EngineHarness.WorkDir, "folderdrop-large", "Big");
+        string partA = Path.Combine(bigDir, "PartA");
+        string partB = Path.Combine(bigDir, "PartB");
+        Directory.CreateDirectory(partA);
+        Directory.CreateDirectory(partB);
+        const int perFolder = 30;
+        for (int i = 0; i < perFolder; i++)
+        {
+            MediaFixtures.WriteToneWav(Path.Combine(partA, $"a{i:00}.wav"), 0.05, 220);
+            MediaFixtures.WriteToneWav(Path.Combine(partB, $"b{i:00}.wav"), 0.05, 330);
+        }
+
+        var globs = GlobalData.AudioFileFilters
+            .Concat(GlobalData.VideoFileFilters)
+            .Concat(GlobalData.ImageFileFilters);
+        var expansion = DroppedMediaExpansion.Expand(new[] { bigDir }, globs);
+        AssertThat(expansion.FileCount).IsEqual(perFolder * 2);
+        AssertThat(expansion.IsLargeImport).IsTrue();
+
+        var list = EngineHarness.Data.Cuelist;
+        list.CreateCuesFromDroppedFiles(expansion, -1, DropInsertMode.AtEnd, MultiFileDropMode.PreserveFolderTree);
+        AssertThat(list.IsBulkOpInProgress)
+            .OverrideFailureMessage("A large import should run as a bulk step over several frames")
+            .IsTrue();
+
+        bool ready = await EngineHarness.UntilAsync(() =>
+        {
+            if (list.IsBulkOpInProgress)
+                return false;
+            var media = EngineHarness.AllCues().Where(c => c.Components.Count > 0).ToList();
+            return media.Count == perFolder * 2 && media.All(c => c.Duration > 0);
+        }, 45000);
+        AssertThat(ready).OverrideFailureMessage("Large folder import did not finish with every length known").IsTrue();
+        AssertThat(list.RootOrder.Count).IsEqual(1);
+        AssertThat(EngineHarness.AllCues().Length).IsEqual(perFolder * 2 + 3);
+
+        EngineHarness.Data.HistoryManager.Undo();
+        bool undone = await EngineHarness.UntilAsync(() => EngineHarness.AllCues().Length == 0, 5000);
+        AssertThat(undone).OverrideFailureMessage("One Undo should remove the whole import").IsTrue();
         EngineHarness.AssertNoNewErrors(mark);
     }
 }

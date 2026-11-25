@@ -73,7 +73,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 placeholder_text = "/command/path or /jump 2"
-tooltip_text = "OSC address path (must start with /). You can include args after a space, e.g. /jump 2 — they move into the args field."
+tooltip_text = "OSC address path (must start with /). You can include args after a space, e.g. /jump 2, and they move into the args field."
 
 [node name="ArgsTextEdit" type="LineEdit" parent="MarginContainer/VBoxContainer"]
 unique_name_in_owner = true

@@ -143,14 +143,14 @@ public partial class SettingsCanvasEditor
             _outputResolutionLabel.RemoveThemeColorOverride("font_color");
             if (screen.IsVirtual)
             {
-                _outputResolutionLabel.Text = UiLocalizer.T("Virtual Output — not shown on a physical display");
+                _outputResolutionLabel.Text = UiLocalizer.T("Virtual Output: not shown on a physical display");
             }
             else if (screen.IsWindow)
             {
                 if (screen.IsWindowDismissed)
                 {
                     _outputResolutionLabel.Text =
-                        "Window closed — change size/position or reselect Window to show again";
+                        "Window closed. Change size/position or reselect Window to show again";
                 }
                 else
                 {

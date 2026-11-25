@@ -191,6 +191,13 @@ public partial class FileDropPopup : Window
 			container.AddChild(CreateWrappingLabel(FormatLargeImportWarning(_expansion)));
 		}
 
+		if (_expansion?.Truncated == true)
+		{
+			container.AddChild(CreateWrappingLabel(UiLocalizer.Tf(
+				"The dropped folders are very large or deeply nested, so only the first {0} files are included.",
+				_expansion.FileCount)));
+		}
+
 		// Multi-file options
 		if (_files.Length > 1)
 		{
@@ -293,7 +300,7 @@ public partial class FileDropPopup : Window
 						? cue.Id.ToString()
 						: cue.CueNum.Trim();
 					string cueName = cue.Name ?? string.Empty;
-					return UiLocalizer.Tf("Drop Location: Button Board — Cue Number: {0} - Name: {1}", cueNum, cueName);
+					return UiLocalizer.Tf("Drop Location: Button Board, Cue Number: {0} - Name: {1}", cueNum, cueName);
 				}
 			}
 

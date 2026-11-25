@@ -258,13 +258,13 @@ public partial class HeaderUI : Control
 			if (_globalSignals != null &&
 			    _globalSignals.IsGoDisabledBy(GlobalSignals.GoDisableReasonSessionLoad))
 			{
-				_goButton.TooltipText = T("GO disabled — showfile is still loading.");
+				_goButton.TooltipText = T("GO disabled: showfile is still loading.");
 			}
 			else
 			{
 				float sec = _globalSignals?.GoDisableDurationSeconds ?? 0f;
 				_goButton.TooltipText = sec > 0.0001f
-					? Tf("GO disabled — double-go protection ({0:0.#}s)", sec)
+					? Tf("GO disabled: double-go protection ({0:0.#}s)", sec)
 					: T("GO disabled");
 			}
 		}
@@ -489,7 +489,7 @@ public partial class HeaderUI : Control
 		{
 			DetachTrackedStandbyCue();
 			string multi = $"Multiple cues selected ({selected.Count})";
-			SetStandbyFields(multi, string.Empty, multi, "Multiple cues selected — notes not shown.");
+			SetStandbyFields(multi, string.Empty, multi, "Multiple cues selected. Notes not shown.");
 			return;
 		}
 

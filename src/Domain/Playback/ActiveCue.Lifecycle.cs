@@ -342,7 +342,7 @@ public partial class ActiveCue
             {
                 GD.Print(
                     $"ActiveCue:BeginContentPhaseAsync - {_cue?.Name}: start-at past end " +
-                    $"({_pendingTimelineSeekSeconds.Value:F3}s ≥ {playable:F3}s) — finishing without play");
+                    $"({_pendingTimelineSeekSeconds.Value:F3}s ≥ {playable:F3}s) , finishing without play");
                 _pendingTimelineSeekSeconds = null;
                 _isFinished = true;
                 HandleNaturalContentFinished();

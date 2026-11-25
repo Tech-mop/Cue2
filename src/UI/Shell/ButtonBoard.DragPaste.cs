@@ -516,7 +516,7 @@ public partial class ButtonBoard
         var occupying = FetchCellCue(row, col);
         string summary = occupying == null
             ? UiLocalizer.Tf("Drop Location: Row {0}, Column {1}", row + 1, col + 1)
-            : UiLocalizer.Tf("Drop Location: Row {0}, Column {1} — Cue Number: {2} - Name: {3}",
+            : UiLocalizer.Tf("Drop Location: Row {0}, Column {1}, Cue Number: {2} - Name: {3}",
                 row + 1, col + 1,
                 string.IsNullOrWhiteSpace(occupying.CueNum) ? occupying.Id.ToString() : occupying.CueNum,
                 occupying.Name ?? string.Empty);

@@ -115,7 +115,7 @@ public partial class DisplaysManager : Node
                 output.ForceHideForDisable();
             }
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                "DisplaysManager: Output disabled — all display windows closed.", 1);
+                "DisplaysManager: Output disabled, all display windows closed.", 1);
         }
         else
         {
@@ -132,7 +132,7 @@ public partial class DisplaysManager : Node
             }
             ApplyOutputPresentationState();
             _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
-                "DisplaysManager: Output re-enabled — display windows restored.", 0);
+                "DisplaysManager: Output re-enabled, display windows restored.", 0);
         }
 
         EmitOutputControlChanged();
@@ -438,8 +438,8 @@ public partial class DisplaysManager : Node
         {
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
                 $"DisplaysManager: Screen '{output.OutputName}' assigned to {dest}. "
-                + "This display server cannot place windows on a specific monitor — "
-                + "drag the output window onto the house display.", 1);
+                + "This display server cannot place windows on a specific monitor. "
+                + "Drag the output window onto the house display.", 1);
         }
         else
         {
@@ -1119,42 +1119,16 @@ public partial class DisplaysManager : Node
         var displays = new List<DisplayInfo>();
         try
         {
-            // Calculate display position offset
-            var gPrimI = DisplayServer.GetPrimaryScreen();
-            var gPrimPos = DisplayServer.ScreenGetPosition(gPrimI);
-            var sPrimI = SDL.GetPrimaryDisplay();
-            SDL.GetDisplayBounds(sPrimI, out SDL.Rect sPrimRect);
-
-            var offsetX = gPrimPos.X - sPrimRect.X;
-            var offsetY = gPrimPos.Y - sPrimRect.Y;
-
             int screenCount = DisplayServer.GetScreenCount();
 
-            var displayIDs = SDL.GetDisplays(out var sdlCount);
-            if (sdlCount != screenCount)
-            {
-                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                    $"Mismatch in display counts: Godot {screenCount}, SDL {sdlCount}. Using Godot count.", 1);
-                GD.Print($"{SDL.GetError()}");
-            }
-
-            // Get SDL display data
+            // SDL is only used for real display names. With SDL video down (no display for SDL,
+            // a headless run) skip it entirely: names fall back to "Display N" without warnings.
             var sdlDisplays = new List<(uint ID, Vector2I Position, Vector2I Size)>();
-            for (int j = 0; j < sdlCount; j++)
-            {
-                var id = displayIDs[j];
-                if (SDL.GetDisplayBounds(id, out SDL.Rect bounds) != true)
-                {
-                    _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                        $"SDL_GetDisplayBounds failed for SDL index {j}: {SDL.GetError()}", 2);
-                    continue;
-                }
-
-                Vector2I pos = new Vector2I(bounds.X, bounds.Y);
-                Vector2I size = new Vector2I(bounds.W, bounds.H);
-
-                sdlDisplays.Add((id, pos, size));
-            }
+            int offsetX = 0;
+            int offsetY = 0;
+            _globalData ??= GetNodeOrNull<GlobalData>("/root/GlobalData");
+            if (_globalData?.SdlVideoInitialized == true)
+                ReadSdlDisplays(screenCount, sdlDisplays, out offsetX, out offsetY);
 
             // Compare SDL displays to Godot and name
             for (int i = 0; i < screenCount; i++)
@@ -1192,7 +1166,7 @@ public partial class DisplaysManager : Node
                     else
                     {
                         _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                            $"SDL_GetDisplayName failed for display {i}: {SDL.GetError()}", 1);
+                            $"SDL_GetDisplayName failed for display {i}: {SDL.GetError()}", (int)LogType.Warning);
                     }
                 }
 
@@ -1210,12 +1184,65 @@ public partial class DisplaysManager : Node
         catch (Exception ex)
         {
             _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                $"Error getting available displays: {ex.Message}", 2);
+                $"Error getting available displays: {ex.Message}", (int)LogType.Error);
         }
 
         _cachedDisplays = displays;
         _cachedDisplaysMs = now;
         return displays;
+    }
+
+    /// <summary>
+    /// Reads SDL display bounds for name matching, plus the offset between the SDL and Godot
+    /// desktop origins. Leaves <paramref name="sdlDisplays"/> empty when SDL cannot report the
+    /// primary display, so every screen keeps its "Display N" name.
+    /// </summary>
+    private void ReadSdlDisplays(
+        int screenCount,
+        List<(uint ID, Vector2I Position, Vector2I Size)> sdlDisplays,
+        out int offsetX,
+        out int offsetY)
+    {
+        offsetX = 0;
+        offsetY = 0;
+
+        var sPrimI = SDL.GetPrimaryDisplay();
+        if (sPrimI == 0 || !SDL.GetDisplayBounds(sPrimI, out SDL.Rect sPrimRect))
+        {
+            GD.Print($"DisplaysManager:ReadSdlDisplays - SDL primary display unavailable, using Godot names: {SDL.GetError()}");
+            return;
+        }
+
+        var gPrimPos = DisplayServer.ScreenGetPosition(DisplayServer.GetPrimaryScreen());
+        offsetX = gPrimPos.X - sPrimRect.X;
+        offsetY = gPrimPos.Y - sPrimRect.Y;
+
+        var displayIDs = SDL.GetDisplays(out var sdlCount);
+        if (sdlCount != screenCount)
+        {
+            string sdlError = SDL.GetError();
+            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                string.IsNullOrEmpty(sdlError)
+                    ? $"Mismatch in display counts: Godot {screenCount}, SDL {sdlCount}. Using Godot count."
+                    : $"Mismatch in display counts: Godot {screenCount}, SDL {sdlCount} ({sdlError}). Using Godot count.",
+                (int)LogType.Warning);
+        }
+
+        if (displayIDs == null)
+            return;
+
+        for (int j = 0; j < sdlCount && j < displayIDs.Length; j++)
+        {
+            var id = displayIDs[j];
+            if (SDL.GetDisplayBounds(id, out SDL.Rect bounds) != true)
+            {
+                _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
+                    $"SDL_GetDisplayBounds failed for SDL index {j}: {SDL.GetError()}", (int)LogType.Error);
+                continue;
+            }
+
+            sdlDisplays.Add((id, new Vector2I(bounds.X, bounds.Y), new Vector2I(bounds.W, bounds.H)));
+        }
     }
 
     /// <summary>
