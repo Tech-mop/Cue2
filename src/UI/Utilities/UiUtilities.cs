@@ -1139,6 +1139,15 @@ public partial class UiUtilities : Node
     /// <summary>Metadata: <see cref="BindTransientPopupScale"/> already wired on this popup.</summary>
     public const string MetaPopupScaleBound = "cue2_popup_scale_bound";
 
+    /// <summary>Metadata: <see cref="CapOptionPopupMaxHeight"/> already wired on this popup.</summary>
+    public const string MetaOptionPopupHeightCapped = "cue2_option_popup_height_capped";
+
+    /// <summary>
+    /// Default max height in unscaled content units for long OptionButton lists
+    /// (device channel pickers). About a dozen rows; longer lists scroll.
+    /// </summary>
+    public const int DefaultOptionPopupMaxHeight = 280;
+
     /// <summary>
     /// Window whose <see cref="Window.ContentScaleFactor"/> a popup should copy.
     /// <see cref="Window.GetWindow"/> on a PopupPanel is the popup itself — use an anchor
@@ -1320,6 +1329,88 @@ public partial class UiUtilities : Node
             Callable.From(() => FitPopupPixelSizeToContentScale(popup)).CallDeferred();
         };
         popup.PopupHide += () => ClearPopupScaleFit(popup);
+    }
+
+    /// <summary>
+    /// Caps an OptionButton dropdown so long lists (64-channel devices, etc.) scroll instead of
+    /// filling the screen. Idempotent. Height is content-driven up to
+    /// <paramref name="maxUnscaledHeight"/> × UI scale, and never taller than the usable screen.
+    /// </summary>
+    /// <param name="button">OptionButton whose popup should scroll when it is long.</param>
+    /// <param name="maxUnscaledHeight">Max height in unscaled content units.</param>
+    public static void CapOptionPopupMaxHeight(OptionButton button, int maxUnscaledHeight = DefaultOptionPopupMaxHeight)
+    {
+        if (button == null || !GodotObject.IsInstanceValid(button))
+            return;
+
+        PopupMenu popup = button.GetPopup();
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+        if (popup.HasMeta(MetaOptionPopupHeightCapped) && popup.GetMeta(MetaOptionPopupHeightCapped).AsBool())
+            return;
+
+        int cap = Math.Max(64, maxUnscaledHeight);
+        popup.SetMeta(MetaOptionPopupHeightCapped, true);
+        int maxW = popup.MaxSize.X > 0 ? popup.MaxSize.X : 16384;
+        popup.MaxSize = new Vector2I(maxW, cap);
+
+        popup.AboutToPopup += () =>
+        {
+            ApplyOptionPopupHeightCap(button, popup, cap);
+            // OptionButton may ResetSize after AboutToPopup; re-assert once shown.
+            Callable.From(() => ApplyOptionPopupHeightCap(button, popup, cap)).CallDeferred();
+        };
+    }
+
+    /// <summary>
+    /// Pixel height for a capped OptionButton menu: the smaller of content height, the scaled
+    /// max, and the usable screen (with a small margin).
+    /// </summary>
+    /// <param name="contentHeightPixels">Full list height in pixels.</param>
+    /// <param name="maxUnscaledHeight">Cap in unscaled content units.</param>
+    /// <param name="scale">Popup <see cref="Window.ContentScaleFactor"/>.</param>
+    /// <param name="usableHeightPixels">Usable screen/embedder height; 0 skips the screen clamp.</param>
+    /// <returns>Height to apply to <see cref="Window.Size"/> and <see cref="Window.MaxSize"/>.</returns>
+    internal static int ClampOptionPopupHeightPixels(
+        int contentHeightPixels,
+        int maxUnscaledHeight,
+        float scale,
+        int usableHeightPixels)
+    {
+        if (scale < 0.01f)
+            scale = 1f;
+
+        int maxH = Math.Max(1, (int)Math.Ceiling(Math.Max(64, maxUnscaledHeight) * (double)scale));
+        if (usableHeightPixels > 0)
+            maxH = Math.Min(maxH, Math.Max(80, usableHeightPixels - 48));
+
+        return Math.Min(Math.Max(1, contentHeightPixels), maxH);
+    }
+
+    private static void ApplyOptionPopupHeightCap(OptionButton button, PopupMenu popup, int maxUnscaledHeight)
+    {
+        if (popup == null || !GodotObject.IsInstanceValid(popup))
+            return;
+
+        float scale = ApplyPopupContentScale(popup, button);
+        int usableH = GetPopupUsableRect(popup).Size.Y;
+        int maxH = ClampOptionPopupHeightPixels(int.MaxValue, maxUnscaledHeight, scale, usableH);
+        int maxW = popup.MaxSize.X > 0 ? popup.MaxSize.X : 16384;
+        popup.MaxSize = new Vector2I(maxW, maxH);
+
+        Vector2 content = popup.GetContentsMinimumSize();
+        if (content.Y <= 0f)
+            return;
+
+        int contentH = Math.Max(1, Mathf.CeilToInt(content.Y * scale));
+        int height = ClampOptionPopupHeightPixels(contentH, maxUnscaledHeight, scale, usableH);
+
+        int width = Math.Max(1, Mathf.CeilToInt(Math.Max(content.X, 1f) * scale));
+        if (button != null && GodotObject.IsInstanceValid(button))
+            width = Math.Max(width, Mathf.CeilToInt(button.Size.X * scale));
+
+        popup.Size = new Vector2I(width, height);
+        popup.SetMeta(MetaPopupFittedScale, scale);
     }
 
     /// <summary>

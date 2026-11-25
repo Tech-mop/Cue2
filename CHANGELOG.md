@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Startup error dialog: Intel Macs get an unsupported-hardware message (Apple Silicon only) instead of a generic native-library failure. Restart is hidden on that path.
+- Audio Input and Timecode channel pickers cap dropdown height and scroll on high channel-count devices.
+- Startup-error Restart uses the normal quit flow and reopens the same show
+- Folder drops are read off the main thread and big imports no longer freeze the UI
+- Group cues update their length when their children's media has been read
+- No display-count warnings when SDL video is not available
+
 ## [0.2.0-rc.1] - 2026-10-26
 
 First 0.2 release candidate (Heaviside).

@@ -11,7 +11,8 @@ using Godot;
 namespace Cue2.UI.Popups;
 
 /// <summary>
-/// Modal overlay shown when a system dependency failed while Cue2 was starting.
+/// Modal overlay shown when a system dependency failed while Cue2 was starting, or when the
+/// host is unsupported hardware (Intel Mac).
 /// </summary>
 /// <remarks>
 /// Same <see cref="Control"/> overlay pattern as <see cref="UnsavedChangesDialog"/>: a child
@@ -34,8 +35,17 @@ public partial class StartupErrorDialog : Control
 	private Label _titleLabel;
 	private Label _bodyLabel;
 	private Label _detailsLabel;
+	private ScrollContainer _contentScroll;
+	private VBoxContainer _contentVBox;
+	private Control _actionBar;
 	private Button _continueButton;
 	private Button _restartButton;
+
+	/// <summary>Space left above and below the card so it never fills the operator window.</summary>
+	private const float ViewportPadding = 48f;
+
+	/// <summary>Card margin + VBox gaps around the scroll (16+16 margins, 12+12 separations).</summary>
+	private const float CardChromePadding = 56f;
 
 	private bool _signalsConnected;
 	private bool _choiceMade;
@@ -64,6 +74,14 @@ public partial class StartupErrorDialog : Control
 		ConnectUiSignals();
 		UiLocalizer.LocalizeTree(this);
 		ApplyLocalizedCopy();
+		CallDeferred(nameof(FitContentScroll));
+	}
+
+	/// <inheritdoc />
+	public override void _Notification(int what)
+	{
+		if (what == NotificationResized)
+			FitContentScroll();
 	}
 
 	/// <inheritdoc />
@@ -134,6 +152,7 @@ public partial class StartupErrorDialog : Control
 		MouseFilter = MouseFilterEnum.Stop;
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MoveToFront();
+		CallDeferred(nameof(FitContentScroll));
 		_continueButton?.GrabFocus();
 	}
 
@@ -147,8 +166,14 @@ public partial class StartupErrorDialog : Control
 
 	private void ApplyLocalizedCopy()
 	{
+		bool unsupportedHardware = HostHardware.HasUnsupportedMacIntelFault(_faults);
+
 		if (_titleLabel != null)
-			_titleLabel.Text = UiLocalizer.T("Startup error");
+		{
+			_titleLabel.Text = unsupportedHardware
+				? UiLocalizer.T("Unsupported hardware")
+				: UiLocalizer.T("Startup error");
+		}
 
 		if (_bodyLabel != null)
 			_bodyLabel.Text = BuildBodyText();
@@ -163,11 +188,69 @@ public partial class StartupErrorDialog : Control
 		if (_continueButton != null)
 			_continueButton.Text = UiLocalizer.T("Continue");
 		if (_restartButton != null)
+		{
 			_restartButton.Text = UiLocalizer.T("Restart");
+			_restartButton.Visible = !unsupportedHardware;
+		}
+
+		CallDeferred(nameof(FitContentScroll));
+	}
+
+	/// <summary>
+	/// Caps the message scroll so the card stays on screen and the action buttons remain visible.
+	/// Short copy still hugs its height.
+	/// </summary>
+	private void FitContentScroll()
+	{
+		if (_contentScroll == null || !GodotObject.IsInstanceValid(_contentScroll))
+			return;
+
+		float hostHeight = Size.Y;
+		if (hostHeight <= 1f)
+			return;
+
+		float maxCardHeight = Mathf.Max(200f, hostHeight - ViewportPadding);
+		float chrome = CardChromePadding;
+		if (_titleLabel != null && GodotObject.IsInstanceValid(_titleLabel))
+			chrome += _titleLabel.GetCombinedMinimumSize().Y;
+		if (_actionBar != null && GodotObject.IsInstanceValid(_actionBar))
+			chrome += _actionBar.GetCombinedMinimumSize().Y;
+
+		float maxScroll = Mathf.Max(64f, maxCardHeight - chrome);
+		float contentHeight = 0f;
+		if (_contentVBox != null && GodotObject.IsInstanceValid(_contentVBox))
+			contentHeight = _contentVBox.GetCombinedMinimumSize().Y;
+
+		if (contentHeight <= 0f)
+			return;
+
+		float scrollHeight = Mathf.Min(contentHeight, maxScroll);
+		float width = _contentScroll.CustomMinimumSize.X;
+		if (width <= 0f)
+			width = 420f;
+
+		var next = new Vector2(width, scrollHeight);
+		if (!Mathf.IsEqualApprox(_contentScroll.CustomMinimumSize.X, next.X)
+			|| !Mathf.IsEqualApprox(_contentScroll.CustomMinimumSize.Y, next.Y))
+		{
+			_contentScroll.CustomMinimumSize = next;
+		}
 	}
 
 	private string BuildBodyText()
 	{
+		if (HostHardware.HasUnsupportedMacIntelFault(_faults))
+		{
+			var hardware = new StringBuilder();
+			hardware.Append(UiLocalizer.T(
+				"Cue2 for macOS requires Apple Silicon (M1 or later). This Mac uses an Intel processor, which is not supported."));
+			hardware.AppendLine();
+			hardware.AppendLine();
+			hardware.Append(UiLocalizer.T(
+				"You can continue, but audio, video, MIDI, and other native features will not work."));
+			return hardware.ToString();
+		}
+
 		var sb = new StringBuilder();
 		sb.Append(UiLocalizer.T("An error occurred during startup that will affect:"));
 		sb.AppendLine();
@@ -223,6 +306,9 @@ public partial class StartupErrorDialog : Control
 		_titleLabel ??= GetNodeOrNull<Label>("%TitleLabel");
 		_bodyLabel ??= GetNodeOrNull<Label>("%BodyLabel");
 		_detailsLabel ??= GetNodeOrNull<Label>("%DetailsLabel");
+		_contentScroll ??= GetNodeOrNull<ScrollContainer>("%ContentScroll");
+		_contentVBox ??= GetNodeOrNull<VBoxContainer>("%ContentVBox");
+		_actionBar ??= GetNodeOrNull<Control>("%ActionBar");
 		_continueButton ??= GetNodeOrNull<Button>("%ContinueButton");
 		_restartButton ??= GetNodeOrNull<Button>("%RestartButton");
 	}

@@ -486,6 +486,18 @@ public partial class GlobalData : Node
 		GD.Print("GlobalData:_Ready - Godot user:// resolves to full path: " + GodotUserDataPath);
 		_globalSignals.EmitSignal(nameof(GlobalSignals.Log), $"Godot user:// full path: {GodotUserDataPath}", 0);
 
+		// Universal macOS .app can launch on Intel; natives are Apple Silicon only.
+		if (HostHardware.IsUnsupportedMacIntel())
+		{
+			ReportStartupFault(
+				HostHardware.UnsupportedMacIntelId,
+				"Hardware",
+				HostHardware.UnsupportedMacIntelDetail,
+				"Audio playback",
+				"Video playback",
+				"MIDI input and output");
+		}
+
 		// Library is pure filesystem I/O — create before SDL so inspectors never race a late null.
 		CueLibraryManager = new CueLibraryManager();
 		CueLibraryManager.Name = nameof(CueLibraryManager);

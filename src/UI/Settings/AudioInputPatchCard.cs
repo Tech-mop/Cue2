@@ -275,6 +275,7 @@ public partial class AudioInputPatchCard : PanelContainer
         UiLocalizer.SetTooltip(row.ChannelOption, "Input on the selected device. Numbering starts at 1.");
         row.ChannelOption.ItemSelected += _ => OnChannelSelected(row);
         box.AddChild(row.ChannelOption);
+        UiUtilities.CapOptionPopupMaxHeight(row.ChannelOption);
 
         row.Meter = new LevelMeter();
         UiLocalizer.SetTooltip(row.Meter, "Live level of this device channel, before trim");

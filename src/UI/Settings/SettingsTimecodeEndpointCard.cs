@@ -89,7 +89,10 @@ public partial class SettingsTimecodeEndpointCard : HBoxContainer
             _sourceLineEdit.TextSubmitted += OnSourceTextSubmitted;
         }
         if (_channelOption != null)
+        {
             _channelOption.ItemSelected += OnChannelSelected;
+            UiUtilities.CapOptionPopupMaxHeight(_channelOption);
+        }
         if (_headerCheck != null)
             _headerCheck.Toggled += OnHeaderCheckToggled;
 

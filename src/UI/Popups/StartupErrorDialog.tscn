@@ -56,25 +56,43 @@ theme_override_font_sizes/font_size = 16
 text = "Startup error"
 horizontal_alignment = 1
 
-[node name="BodyLabel" type="Label" parent="Center/Card/CardMargin/VBox"]
+[node name="ContentScroll" type="ScrollContainer" parent="Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 80)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ContentVBox" type="VBoxContainer" parent="Center/Card/CardMargin/VBox/ContentScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="BodyLabel" type="Label" parent="Center/Card/CardMargin/VBox/ContentScroll/ContentVBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 0
 text = "An error occurred during startup that will affect some Cue2 features. You can restart Cue2 to try again, or continue with these features unavailable."
 autowrap_mode = 3
 
-[node name="DetailsLabel" type="Label" parent="Center/Card/CardMargin/VBox"]
+[node name="DetailsLabel" type="Label" parent="Center/Card/CardMargin/VBox/ContentScroll/ContentVBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.7, 0.72, 0.74, 1)
 theme_override_font_sizes/font_size = 12
 autowrap_mode = 3
 
 [node name="ActionBar" type="HBoxContainer" parent="Center/Card/CardMargin/VBox"]
+unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 0
 theme_override_constants/separation = 6
 alignment = 2
 
