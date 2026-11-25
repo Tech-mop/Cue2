@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Typing in a LineEdit no longer also fires show shortcuts that collide with text editing (Copy, Paste, Cut, Select All, Duplicate, Undo, Redo).
 - Media files FFmpeg cannot open (over-long names or paths, or names with %, #, ?) log an error and are not kept on the cue. Inspectors restore the previous path. Drops remove the unreadable media, and remove the new cue when it has nothing else. Local files are opened as a `file:` URL so those characters in a name stay literal.
 - Audio inspector Timeline shows a blank envelope (nodes and fades still draw) when the selected cue has no waveform, instead of keeping the previous cue's peaks.
 - Library Inspector shows scrollbars when the panel is small, so the toolbar and panes stay reachable instead of clipping at the edges.

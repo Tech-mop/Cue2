@@ -578,7 +578,13 @@ public partial class GlobalSignals : Node
 			return false;
 		if (!GodotObject.IsInstanceValid(focus) || !focus.IsVisibleInTree())
 			return false;
-		return !IsInsidePopupMenu(focus);
+		if (IsInsidePopupMenu(focus))
+			return false;
+		// Godot 4 LineEdit can be the focus owner before FocusEntered has run, or
+		// stay in edit mode after a missed focus_exited. Either must pause InputMap.
+		if (focus is LineEdit lineEdit)
+			return lineEdit.HasFocus() || lineEdit.IsEditing();
+		return focus.HasFocus();
 	}
 
 	/// <summary>

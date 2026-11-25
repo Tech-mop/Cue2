@@ -18,7 +18,9 @@ namespace Cue2.Services;
 /// <summary>
 /// Listens for project InputMap actions, cue hotkey triggers, and wall-clock cue triggers.
 /// Pauses plain-key shortcuts while text fields or OptionButton dropdowns have focus.
-/// Modifier shortcuts (Cmd/Ctrl) keep working, including from the Settings window.
+/// File/window Cmd/Ctrl shortcuts (Save, Open) keep working. Cue-edit chords
+/// (Copy, Paste, Cut, Select All) and document Undo/Redo stay off so they do not
+/// also hit the cuelist or show history while Godot is editing the field.
 /// </summary>
 public partial class InputActionsListener : Node
 {
@@ -103,7 +105,8 @@ public partial class InputActionsListener : Node
         Register("ExpandOneLayer", nameof(GlobalSignals.CuelistExpandOneLayer), "Expand One Group Layer", true);
         Register("CollapseOneLayer", nameof(GlobalSignals.CuelistCollapseOneLayer), "Collapse One Group Layer", true);
         Register("ToggleExpandAll", nameof(GlobalSignals.ToggleExpandAll), "Toggle Expand/Collapse Groups", true);
-        // Undo/Redo are handled separately so they still work while a LineEdit/SpinBox has focus.
+        Register("Undo", nameof(GlobalSignals.Undo), "Undo", true);
+        Register("Redo", nameof(GlobalSignals.Redo), "Redo", true);
     }
 
     private void Register(string action, string signalName, string logName, bool exact)
@@ -117,9 +120,8 @@ public partial class InputActionsListener : Node
 
     /// <summary>
     /// Invokes the same handler as the keyboard InputMap for <paramref name="actionName"/>
-    /// (used by MIDI / OSC Input Map bindings). Undo/Redo always fire even when typing-focused.
-    /// Other actions respect the text-field listen gate unless <paramref name="ignoreFocusGate"/> is true
-    /// (OSC show control should always work).
+    /// (used by MIDI / OSC Input Map bindings). Actions respect the text-field listen
+    /// gate unless <paramref name="ignoreFocusGate"/> is true (OSC show control).
     /// </summary>
     /// <param name="actionName">Project InputMap action name (e.g. "Go").</param>
     /// <param name="ignoreFocusGate">When true, fire even if a LineEdit has focus (OSC).</param>
@@ -128,21 +130,7 @@ public partial class InputActionsListener : Node
     {
         if (string.IsNullOrEmpty(actionName)) return false;
 
-        // Undo/Redo always available (same as keyboard path).
-        if (actionName == "Undo")
-        {
-            GD.Print("InputActionsListener:TryTriggerAction - External Action: Undo");
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Undo));
-            return true;
-        }
-        if (actionName == "Redo")
-        {
-            GD.Print("InputActionsListener:TryTriggerAction - External Action: Redo");
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Redo));
-            return true;
-        }
-
-        if (!ignoreFocusGate && !_listenForInput) return false;
+        if (!ignoreFocusGate && IsShortcutPaused()) return false;
 
         if (_actionMap.TryGetValue(actionName, out var entry))
         {
@@ -156,31 +144,19 @@ public partial class InputActionsListener : Node
     public override void _Process(double delta)
     {
         // Poll the Input singleton instead of _UnhandledKeyInput. LineEdits consume
-        // Ctrl+Z, and separate OS windows (Settings, Log) never deliver keys to this
+        // keys, and separate OS windows (Settings, Log) never deliver keys to this
         // node. IsActionJustPressed still sees those presses.
         if (!Input.IsAnythingPressed())
             return;
 
-        if (Input.IsActionJustPressed("Undo", true))
-        {
-            GD.Print("InputActionsListener:Actions - Input Action: Undo");
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Undo));
-            return;
-        }
-        if (Input.IsActionJustPressed("Redo", true))
-        {
-            GD.Print("InputActionsListener:Actions - Input Action: Redo");
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Redo));
-            return;
-        }
-
         // Text fields and open dropdowns pause plain keys (Space = Go, Delete, …).
-        // Modifier shortcuts such as Cmd+S still run: they are not typed characters,
-        // and Settings is a separate window where a field is often focused.
-        if (_listenForInput)
+        // File/window Cmd/Ctrl shortcuts such as Save still run. Cue-edit chords
+        // (Copy, Paste, Cut, Select All) and document Undo/Redo stay off so Godot's
+        // LineEdit history handles those keys.
+        if (!IsShortcutPaused())
             TryHandleInputMapActions(exactOnly: false);
         else if (IsCommandModifierHeld())
-            TryHandleInputMapActions(exactOnly: true);
+            TryHandleInputMapActions(exactOnly: true, typingSafeOnly: true);
     }
 
     /// <summary>
@@ -238,15 +214,32 @@ public partial class InputActionsListener : Node
     /// When true, skip actions registered with inexact matching (Go, Stop All).
     /// Used while a text field or dropdown has focus so only modifier shortcuts run.
     /// </param>
-    private void TryHandleInputMapActions(bool exactOnly)
+    /// <param name="typingSafeOnly">
+    /// When true, skip chords that collide with LineEdit editing (copy/paste/select-all
+    /// and document undo/redo).
+    /// </param>
+    private void TryHandleInputMapActions(bool exactOnly, bool typingSafeOnly = false)
     {
         foreach (var kvp in _actionMap)
         {
             if (exactOnly && !kvp.Value.exact)
                 continue;
+            if (typingSafeOnly && !InputMapFocusGate.AllowWhileTextFieldFocused(kvp.Key))
+                continue;
             if (Input.IsActionJustPressed(kvp.Key, kvp.Value.exact))
                 kvp.Value.handler();
         }
+    }
+
+    /// <summary>
+    /// True while shortcuts should stay paused: a text field or OptionButton list has
+    /// focus, or the focus-enter signal already turned listening off.
+    /// </summary>
+    private bool IsShortcutPaused()
+    {
+        if (!_listenForInput)
+            return true;
+        return _globalSignals != null && _globalSignals.IsInputMapPaused();
     }
 
     /// <summary>
@@ -269,7 +262,7 @@ public partial class InputActionsListener : Node
         if (@event is not InputEventKey keyEvent || !keyEvent.Pressed || keyEvent.Echo) return;
 
         // App shortcuts are polled in _Process so they work from other OS windows.
-        if (!_listenForInput) return;
+        if (IsShortcutPaused()) return;
         if (IsModifierOnlyKey(keyEvent.Keycode)) return;
 
         if (CueList.CueIndex == null || CueList.CueIndex.Count == 0) return;
