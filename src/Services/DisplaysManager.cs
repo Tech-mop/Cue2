@@ -839,6 +839,47 @@ public partial class DisplaysManager : Node
     }
 
     /// <summary>
+    /// Applies layer output rotation without logging (spinner ticks, Alt/Option+drag).
+    /// Emits <see cref="GlobalSignals.LayerGeometryChanged"/> so canvas editors and
+    /// inspector previews follow. Discrete commits use <see cref="UpdateLayerRotation"/>.
+    /// </summary>
+    /// <param name="layerId">The layer ID.</param>
+    /// <param name="rotationDegrees">The new rotation in degrees.</param>
+    public void ApplyLayerRotationLive(int layerId, float rotationDegrees)
+    {
+        var layer = Layers.Find(l => l.LayerId == layerId);
+        if (layer == null)
+            return;
+
+        float wrapped = VideoTargetLayer.NormalizeRotation(rotationDegrees);
+        if (Mathf.IsEqualApprox(layer.Rotation, wrapped))
+            return;
+
+        layer.Rotation = wrapped;
+        UpdateLayerTestPatterns(layerId);
+        UpdateLayerDisplayRectsOnOutputs(layerId);
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.LayerGeometryChanged), layerId);
+    }
+
+    /// <summary>
+    /// Updates the output rotation of a layer (degrees, clockwise, about the layer center)
+    /// and logs the change. This only rotates where the layer lands on the canvas: the
+    /// input content mapping (expand/stretch) is unchanged.
+    /// </summary>
+    /// <param name="layerId">The layer ID.</param>
+    /// <param name="rotationDegrees">The new rotation in degrees.</param>
+    public void UpdateLayerRotation(int layerId, float rotationDegrees)
+    {
+        var layer = Layers.Find(l => l.LayerId == layerId);
+        if (layer == null)
+            return;
+
+        ApplyLayerRotationLive(layerId, rotationDegrees);
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+            $"Updated layer rotation to {Mathf.RoundToInt(layer.Rotation)} degrees.", 0);
+    }
+
+    /// <summary>
     /// Applies layer size and/or canvas position without logging (for animated control fades).
     /// Emits <see cref="GlobalSignals.LayerGeometryChanged"/> so open canvas editors can follow.
     /// </summary>
@@ -1028,7 +1069,8 @@ public partial class DisplaysManager : Node
                 Rect2 clippedRect = canvasRect.Intersection(outputRect);
                 // Layer origin in this output's local space (full layer size; pattern may extend past clip).
                 Vector2 localPos = layer.CanvasPosition - clippedRect.Position;
-                output.AddLayerTestPattern(layer.LayerId, layer.LayerName, new Rect2(localPos, layer.Size));
+                output.AddLayerTestPattern(layer.LayerId, layer.LayerName,
+                    new Rect2(localPos, layer.Size), layer.Rotation);
             }
             else
             {
@@ -1513,10 +1555,13 @@ public partial class DisplaysManager : Node
             Canvas.LoadFromData(canvasData);
         }
 
-        Layers.Clear();
         // Reset id allocator before reloading so LoadFromData can advance it cleanly.
         VideoTargetLayer.SetNextLayerId(0);
 
+        // Parse into a temporary list and swap only after every entry parsed, a single
+        // bad layer must never leave the canvas empty mid-restore (undo aborted halfway
+        // used to clear Layers before the parse, deleting every layer on a load error).
+        var loadedLayers = new System.Collections.Generic.List<VideoTargetLayer>();
         if (data.ContainsKey("Layers"))
         {
             var layersData = data["Layers"].AsGodotArray();
@@ -1530,9 +1575,13 @@ public partial class DisplaysManager : Node
                 var layerData = layerVar.AsGodotDictionary();
                 var layer = new VideoTargetLayer();
                 layer.LoadFromData(layerData);
-                Layers.Add(layer);
+                loadedLayers.Add(layer);
             }
         }
+
+        Layers.Clear();
+        foreach (var layer in loadedLayers)
+            Layers.Add(layer);
 
         if (Layers.Count == 0)
         {

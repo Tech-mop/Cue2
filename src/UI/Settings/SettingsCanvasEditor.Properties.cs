@@ -285,6 +285,7 @@ public partial class SettingsCanvasEditor
             _layerNameLineEdit.Text = layer.LayerName;
             _layerPosXLineEdit.Text = layer.CanvasPosition.X.ToString();
             _layerPosYLineEdit.Text = layer.CanvasPosition.Y.ToString();
+            _layerRotationSpinBox.Value = layer.Rotation;
             _layerSizeXLineEdit.Text = layer.Size.X.ToString();
             _layerSizeYLineEdit.Text = layer.Size.Y.ToString();
             _layerKeepAspectCheckBox.ButtonPressed = layer.KeepAspect;
@@ -305,6 +306,7 @@ public partial class SettingsCanvasEditor
 
     private static readonly Vector2I DefaultCanvasPosition = Vector2I.Zero;
     private static readonly Vector2I DefaultDisplayOffset = Vector2I.Zero;
+    private const float DefaultRotation = 0f;
     private const bool DefaultKeepAspect = false;
     private const bool DefaultTransparent = false;
     private const bool DefaultTestPattern = false;
@@ -347,6 +349,8 @@ public partial class SettingsCanvasEditor
             UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_layerPosResetButton, layer.CanvasPosition != DefaultCanvasPosition,
             UiLocalizer.T("Reset to default: 0×0"));
+        SetResetVisible(_layerRotationResetButton, layer.Rotation != DefaultRotation,
+            UiLocalizer.T("Reset to default: 0°"));
         SetResetVisible(_layerTransparentResetButton, layer.Transparent != DefaultTransparent,
             UiLocalizer.T("Reset to default: Off"));
         SetResetVisible(_layerTestPatternResetButton, layer.TestPatternEnabled != DefaultTestPattern,
@@ -465,6 +469,16 @@ public partial class SettingsCanvasEditor
             return;
         RecordDisplaysHistory("Reset layer position");
         _displaysManager.UpdateLayerCanvasPosition(_selectedLayerId, DefaultCanvasPosition);
+        LoadLayerProps();
+        UpdateCanvasGizmos();
+    }
+
+    private void OnLayerRotationResetPressed()
+    {
+        if (_selectionKind != SelectionKind.Layer)
+            return;
+        RecordDisplaysHistory("Reset layer rotation");
+        _displaysManager.UpdateLayerRotation(_selectedLayerId, DefaultRotation);
         LoadLayerProps();
         UpdateCanvasGizmos();
     }

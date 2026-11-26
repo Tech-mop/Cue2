@@ -203,6 +203,48 @@ public partial class SettingsCanvasEditor
         _layerPosYLineEdit.ReleaseFocus();
     }
 
+    private void OnLayerRotationValueChanged(double value)
+    {
+        if (_isUpdatingProps || _selectionKind != SelectionKind.Layer)
+            return;
+        if (_historyManager?.IsRestoring == true)
+            return;
+
+        var layer = DisplaysManager.GetLayerById(_selectedLayerId);
+        if (layer == null)
+            return;
+
+        float rotation = (float)value;
+        if (Mathf.IsEqualApprox(rotation, layer.Rotation))
+            return;
+
+        // Consecutive spinner edits coalesce into a single undo step; sealed on focus exit
+        // (and when a different layer's rotation is edited).
+        string key = $"settings:displays:layer:{_selectedLayerId}:rotation";
+        if (_activeRotationCoalesceKey != null && _activeRotationCoalesceKey != key)
+            _historyManager?.EndCoalesceSession(_activeRotationCoalesceKey);
+        _activeRotationCoalesceKey = key;
+        RecordDisplaysHistory("Change layer rotation", key);
+
+        _displaysManager.ApplyLayerRotationLive(_selectedLayerId, rotation);
+        LoadLayerProps();
+        UpdateCanvasGizmos();
+    }
+
+    /// <summary>
+    /// Seals the rotation spinner's coalesce session when the field loses focus so the
+    /// next edit becomes a new undo step, and logs the committed angle once.
+    /// </summary>
+    private void OnLayerRotationFocusExited()
+    {
+        if (string.IsNullOrEmpty(_activeRotationCoalesceKey))
+            return;
+        _historyManager?.EndCoalesceSession(_activeRotationCoalesceKey);
+        _activeRotationCoalesceKey = null;
+        if (_selectionKind == SelectionKind.Layer && _layerRotationSpinBox != null)
+            _displaysManager.UpdateLayerRotation(_selectedLayerId, (float)_layerRotationSpinBox.Value);
+    }
+
     private void OnLayerKeepAspectToggled(bool toggled)
     {
         if (_isUpdatingProps || _selectionKind != SelectionKind.Layer)

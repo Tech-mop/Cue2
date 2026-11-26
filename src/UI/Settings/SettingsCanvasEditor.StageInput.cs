@@ -273,13 +273,25 @@ public partial class SettingsCanvasEditor
         Vector2 layerMouse = GetLayerMousePosition();
         Vector2 canvasMouse = GetCanvasMousePosition();
 
+        // Alt/Option+drag on the selected layer rotates its output mapping (Shift snaps to 15°).
+        if (_selectionKind == SelectionKind.Layer && Input.IsKeyPressed(Key.Alt))
+        {
+            var layer = DisplaysManager.GetLayerById(_selectedLayerId);
+            if (layer != null && LayerRectHasPoint(layer, canvasMouse))
+            {
+                StartRotateDrag(canvasMouse, layer);
+                return true;
+            }
+        }
+
         // Resize handles of the current selection always win over cycling.
         if (_selectionKind == SelectionKind.Screen || _selectionKind == SelectionKind.Layer)
         {
             if (TryGetSelectedRect(out Vector2I pos, out Vector2I size))
             {
                 Rect2 zoomed = new Rect2(pos.X * _zoom, pos.Y * _zoom, size.X * _zoom, size.Y * _zoom);
-                var handle = HitTestHandle(zoomed, layerMouse);
+                // Layer gizmos rotate — test handles in the selection's unrotated local frame.
+                var handle = HitTestHandle(zoomed, SelectedLayerLocalMouse(layerMouse, zoomed));
                 if (handle != DragMode.None)
                 {
                     StartDrag(handle, canvasMouse, pos, size);
@@ -330,7 +342,7 @@ public partial class SettingsCanvasEditor
         var hits = new List<(SelectionKind Kind, int Id)>();
         foreach (var layer in DisplaysManager.Layers)
         {
-            if (new Rect2(layer.CanvasPosition, layer.Size).HasPoint(canvasMouse))
+            if (LayerRectHasPoint(layer, canvasMouse))
                 hits.Add((SelectionKind.Layer, layer.LayerId));
         }
 
@@ -480,12 +492,113 @@ public partial class SettingsCanvasEditor
         RecordDisplaysHistory(desc, _activeDragCoalesceKey);
     }
 
+    /// <summary>
+    /// Starts an Alt/Option+drag rotate gesture for a layer. Rotation applies live about
+    /// the layer center; a single coalesced undo step is committed when the drag ends.
+    /// </summary>
+    private void StartRotateDrag(Vector2 canvasMouse, VideoTargetLayer layer)
+    {
+        _isDraggingCanvas = true;
+        _dragMode = DragMode.Rotate;
+        _dragStartCanvasMouse = canvasMouse;
+        _dragStartPos = layer.CanvasPosition;
+        _dragStartSize = layer.Size;
+        _dragStartRotation = layer.Rotation;
+        _rotateStartAngle = (canvasMouse - LayerCenterCanvas(layer)).Angle();
+
+        // Snapshot once at drag start; continuous rotation coalesces into one undo step.
+        _activeDragCoalesceKey = $"settings:displays:layer:{layer.LayerId}:geom";
+        RecordDisplaysHistory("Rotate canvas layer", _activeDragCoalesceKey);
+    }
+
+    /// <summary>Layer rect center in unzoomed canvas coordinates.</summary>
+    private static Vector2 LayerCenterCanvas(VideoTargetLayer layer)
+    {
+        return (Vector2)layer.CanvasPosition + (Vector2)layer.Size * 0.5f;
+    }
+
+    /// <summary>
+    /// Hit-tests a layer's canvas rect accounting for its output rotation: the canvas-space
+    /// mouse is rotated back about the layer center into the unrotated local frame.
+    /// </summary>
+    private static bool LayerRectHasPoint(VideoTargetLayer layer, Vector2 canvasMouse)
+    {
+        Rect2 rect = new Rect2(layer.CanvasPosition, layer.Size);
+        if (layer.Rotation == 0f)
+            return rect.HasPoint(canvasMouse);
+
+        Vector2 center = rect.Position + rect.Size * 0.5f;
+        Vector2 local = center + (canvasMouse - center).Rotated(-Mathf.DegToRad(layer.Rotation));
+        return rect.HasPoint(local);
+    }
+
+    /// <summary>
+    /// Transforms zoomed-stage mouse coordinates into the selected layer's unrotated local
+    /// frame (rotation about the gizmo center), so handle/body hit-tests match the rotated
+    /// gizmo. Screens and unrotated layers pass through unchanged.
+    /// </summary>
+    private Vector2 SelectedLayerLocalMouse(Vector2 layerMouse, Rect2 zoomedRect)
+    {
+        if (_selectionKind != SelectionKind.Layer)
+            return layerMouse;
+
+        var layer = DisplaysManager.GetLayerById(_selectedLayerId);
+        if (layer == null || layer.Rotation == 0f)
+            return layerMouse;
+
+        Vector2 center = zoomedRect.Position + zoomedRect.Size * 0.5f;
+        return center + (layerMouse - center).Rotated(-Mathf.DegToRad(layer.Rotation));
+    }
+
+    /// <summary>
+    /// Live rotation for an Alt/Option+drag: pointer angle around the layer center relative
+    /// to drag start. Shift snaps the result to 15° increments.
+    /// </summary>
+    private void ApplyLiveRotation(Vector2 canvasMouse)
+    {
+        var layer = DisplaysManager.GetLayerById(_selectedLayerId);
+        if (layer == null)
+            return;
+
+        float angle = (canvasMouse - LayerCenterCanvas(layer)).Angle();
+        float deltaDeg = Mathf.RadToDeg(Mathf.AngleDifference(_rotateStartAngle, angle));
+        float rotation = _dragStartRotation + deltaDeg;
+        if (Input.IsKeyPressed(Key.Shift))
+            rotation = Mathf.Snapped(rotation, 15f);
+
+        _displaysManager.ApplyLayerRotationLive(_selectedLayerId, rotation);
+
+        // Keep the properties field in sync while dragging.
+        if (_layerProps != null && _layerProps.Visible && _layerRotationSpinBox != null)
+        {
+            _isUpdatingProps = true;
+            try
+            {
+                _layerRotationSpinBox.Value = DisplaysManager.GetLayerById(_selectedLayerId)?.Rotation ?? rotation;
+            }
+            finally
+            {
+                _isUpdatingProps = false;
+            }
+        }
+
+        UpdateCanvasGizmos();
+    }
+
     private void UpdateCanvasDrag()
     {
         if (!_isDraggingCanvas || _dragMode == DragMode.None)
             return;
 
         Vector2 canvasMouse = GetCanvasMousePosition();
+
+        // Alt/Option+drag rotate: measure the pointer angle around the layer center live.
+        if (_dragMode == DragMode.Rotate)
+        {
+            ApplyLiveRotation(canvasMouse);
+            return;
+        }
+
         Vector2 delta = canvasMouse - _dragStartCanvasMouse;
         Vector2I d = new Vector2I(Mathf.RoundToInt(delta.X), Mathf.RoundToInt(delta.Y));
 
@@ -717,6 +830,17 @@ public partial class SettingsCanvasEditor
         if (mode == DragMode.None)
             return;
 
+        // Rotation was applied live, commit the final angle through DisplaysManager.
+        if (mode == DragMode.Rotate)
+        {
+            var layer = DisplaysManager.GetLayerById(_selectedLayerId);
+            if (layer != null)
+                _displaysManager.UpdateLayerRotation(_selectedLayerId, layer.Rotation);
+            LoadLayerProps();
+            UpdateCanvasGizmos();
+            return;
+        }
+
         if (!TryGetSelectedRect(out Vector2I pos, out Vector2I size))
             return;
 
@@ -744,16 +868,27 @@ public partial class SettingsCanvasEditor
         if (TryGetSelectedRect(out Vector2I pos, out Vector2I size))
         {
             Rect2 zoomed = new Rect2(pos.X * _zoom, pos.Y * _zoom, size.X * _zoom, size.Y * _zoom);
-            var handle = HitTestHandle(zoomed, GetLayerMousePosition());
-            shape = handle switch
+            Vector2 localMouse = SelectedLayerLocalMouse(GetLayerMousePosition(), zoomed);
+
+            if (_selectionKind == SelectionKind.Layer && Input.IsKeyPressed(Key.Alt)
+                && zoomed.HasPoint(localMouse))
             {
-                DragMode.ResizeN or DragMode.ResizeS => CursorShape.Vsize,
-                DragMode.ResizeE or DragMode.ResizeW => CursorShape.Hsize,
-                DragMode.ResizeNE or DragMode.ResizeSW => CursorShape.Bdiagsize,
-                DragMode.ResizeNW or DragMode.ResizeSE => CursorShape.Fdiagsize,
-                DragMode.None when zoomed.HasPoint(GetLayerMousePosition()) => CursorShape.Move,
-                _ => CursorShape.Arrow
-            };
+                // Alt/Option over the selected layer offers the rotate gesture.
+                shape = CursorShape.Cross;
+            }
+            else
+            {
+                var handle = HitTestHandle(zoomed, localMouse);
+                shape = handle switch
+                {
+                    DragMode.ResizeN or DragMode.ResizeS => CursorShape.Vsize,
+                    DragMode.ResizeE or DragMode.ResizeW => CursorShape.Hsize,
+                    DragMode.ResizeNE or DragMode.ResizeSW => CursorShape.Bdiagsize,
+                    DragMode.ResizeNW or DragMode.ResizeSE => CursorShape.Fdiagsize,
+                    DragMode.None when zoomed.HasPoint(localMouse) => CursorShape.Move,
+                    _ => CursorShape.Arrow
+                };
+            }
         }
 
         MouseDefaultCursorShape = shape;

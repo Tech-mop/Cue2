@@ -41,6 +41,7 @@ public partial class SettingsCanvasEditor : Control
     {
         None,
         Move,
+        Rotate,
         ResizeNW,
         ResizeN,
         ResizeNE,
@@ -144,6 +145,7 @@ public partial class SettingsCanvasEditor : Control
     private LineEdit _layerSizeYLineEdit;
     private LineEdit _layerPosXLineEdit;
     private LineEdit _layerPosYLineEdit;
+    private SpinBox _layerRotationSpinBox;
     private CheckBox _layerKeepAspectCheckBox;
     private CheckBox _layerTransparentCheckBox;
     private CheckBox _layerTestPatternCheckBox;
@@ -152,6 +154,7 @@ public partial class SettingsCanvasEditor : Control
     private Button _layerSizeResetButton;
     private Button _layerKeepAspectResetButton;
     private Button _layerPosResetButton;
+    private Button _layerRotationResetButton;
     private Button _layerTransparentResetButton;
     private Button _layerTestPatternResetButton;
     private Button _layerLockResetButton;
@@ -204,6 +207,12 @@ public partial class SettingsCanvasEditor : Control
     private Vector2 _dragStartCanvasMouse;
     private Vector2I _dragStartPos;
     private Vector2I _dragStartSize;
+    /// <summary>Layer rotation (degrees) captured at the start of an Alt/Option+drag rotate gesture.</summary>
+    private float _dragStartRotation;
+    /// <summary>Pointer angle around the layer center (radians) captured at rotate-drag start.</summary>
+    private float _rotateStartAngle;
+    /// <summary>Coalesce key of the current rotation-field edit session (sealed on focus exit).</summary>
+    private string _activeRotationCoalesceKey;
 
     /// <summary>
     /// Maps OptionButton item index → destination index
@@ -379,11 +388,12 @@ public partial class SettingsCanvasEditor : Control
             CallDeferred(nameof(EnsureStageInitialized));
 
         GD.Print("SettingsCanvasEditor:_Ready - Light init (stage deferred until shown)");
-    
+
         UiLocalizer.LocalizeTree(this);
+        ApplyLayerRotationTooltip();
         if (_globalSignals != null)
             _globalSignals.LocaleChanged += OnLocaleChanged;
-}
+    }
 
     /// <summary>
     /// One-time heavy stage setup (background shader, trees, gizmos). Deferred until visible.
@@ -650,6 +660,19 @@ private void BindNodes()
         _layerSizeYLineEdit = GetNode<LineEdit>("%LayerSizeYLineEdit");
         _layerPosXLineEdit = GetNode<LineEdit>("%LayerPosXLineEdit");
         _layerPosYLineEdit = GetNode<LineEdit>("%LayerPosYLineEdit");
+        _layerRotationSpinBox = GetNode<SpinBox>("%LayerRotationSpinBox");
+        // Filled in code (Alt vs Option). Skip LocalizeTree so a parent walk cannot restore "{0}".
+        if (_layerRotationSpinBox != null)
+        {
+            _layerRotationSpinBox.SetMeta(UiLocalizer.MetaSkip, true);
+            _layerRotationSpinBox.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            var rotationEdit = _layerRotationSpinBox.GetLineEdit();
+            if (rotationEdit != null)
+            {
+                rotationEdit.SetMeta(UiLocalizer.MetaSkip, true);
+                rotationEdit.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            }
+        }
         _layerKeepAspectCheckBox = GetNode<CheckBox>("%LayerKeepAspectCheckBox");
         _layerTransparentCheckBox = GetNode<CheckBox>("%LayerTransparentCheckBox");
         _layerTestPatternCheckBox = GetNode<CheckBox>("%LayerTestPatternCheckBox");
@@ -658,6 +681,7 @@ private void BindNodes()
         _layerSizeResetButton = GetNode<Button>("%LayerSizeResetButton");
         _layerKeepAspectResetButton = GetNode<Button>("%LayerKeepAspectResetButton");
         _layerPosResetButton = GetNode<Button>("%LayerPosResetButton");
+        _layerRotationResetButton = GetNode<Button>("%LayerRotationResetButton");
         _layerTransparentResetButton = GetNode<Button>("%LayerTransparentResetButton");
         _layerTestPatternResetButton = GetNode<Button>("%LayerTestPatternResetButton");
         _layerLockResetButton = GetNode<Button>("%LayerLockResetButton");
@@ -674,7 +698,7 @@ private void BindNodes()
                      _screenOutputResetButton, _screenSizeResetButton, _screenKeepAspectResetButton,
                      _screenPosResetButton, _screenDisplayOffsetResetButton, _screenTransparentResetButton,
                      _screenTestPatternResetButton, _layerSizeResetButton, _layerKeepAspectResetButton,
-                     _layerPosResetButton, _layerTransparentResetButton, _layerTestPatternResetButton,
+                     _layerPosResetButton, _layerRotationResetButton, _layerTransparentResetButton, _layerTestPatternResetButton,
                      _layerLockResetButton
                  })
         {
@@ -812,6 +836,8 @@ private void BindNodes()
         UiUtilities.BindLineEditCommit(_layerSizeYLineEdit, OnLayerSizeYSubmitted);
         UiUtilities.BindLineEditCommit(_layerPosXLineEdit, OnLayerPosXSubmitted);
         UiUtilities.BindLineEditCommit(_layerPosYLineEdit, OnLayerPosYSubmitted);
+        _layerRotationSpinBox.ValueChanged += OnLayerRotationValueChanged;
+        _layerRotationSpinBox.FocusExited += OnLayerRotationFocusExited;
         _layerKeepAspectCheckBox.Toggled += OnLayerKeepAspectToggled;
         _layerTransparentCheckBox.Toggled += OnLayerTransparentToggled;
         _layerTestPatternCheckBox.Toggled += OnLayerTestPatternToggled;
@@ -820,6 +846,7 @@ private void BindNodes()
         _layerSizeResetButton.Pressed += OnLayerSizeResetPressed;
         _layerKeepAspectResetButton.Pressed += OnLayerKeepAspectResetPressed;
         _layerPosResetButton.Pressed += OnLayerPosResetPressed;
+        _layerRotationResetButton.Pressed += OnLayerRotationResetPressed;
         _layerTransparentResetButton.Pressed += OnLayerTransparentResetPressed;
         _layerTestPatternResetButton.Pressed += OnLayerTestPatternResetPressed;
         _layerLockResetButton.Pressed += OnLayerLockResetPressed;
@@ -835,7 +862,24 @@ private void BindNodes()
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        ApplyLayerRotationTooltip();
         RefreshCanvasSelectButtonText();
+    }
+
+    /// <summary>
+    /// Fills the rotation-field tooltip with the host modifier name (Option on macOS, Alt elsewhere).
+    /// The spinbox is MetaSkip'd so SettingsWindow <see cref="UiLocalizer.LocalizeTree"/> cannot
+    /// restore an unformatted template.
+    /// </summary>
+    private void ApplyLayerRotationTooltip()
+    {
+        if (_layerRotationSpinBox == null || !IsInstanceValid(_layerRotationSpinBox))
+            return;
+        string tip = UiLocalizer.T(UiUtilities.LayerRotationTooltipEnglish());
+        _layerRotationSpinBox.TooltipText = tip;
+        var rotationEdit = _layerRotationSpinBox.GetLineEdit();
+        if (rotationEdit != null && IsInstanceValid(rotationEdit))
+            rotationEdit.TooltipText = tip;
     }
 
     /// <summary>

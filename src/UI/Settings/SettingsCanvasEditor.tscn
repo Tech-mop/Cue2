@@ -734,6 +734,34 @@ focus_mode = 0
 theme_override_constants/icon_max_width = 12
 expand_icon = true
 
+[node name="LayerRotationLabel" type="Label" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Rotation"
+
+[node name="LayerRotationRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps"]
+layout_mode = 2
+
+[node name="LayerRotationSpinBox" type="SpinBox" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerRotationRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Rotates the layer output on the canvas (degrees, about the layer center). Hold Alt and drag on the stage to rotate with the mouse. The layer content mapping is not rotated."
+min_value = -360.0
+max_value = 360.0
+step = 1.0
+suffix = "°"
+
+[node name="LayerRotationResetButton" type="Button" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps/LayerRotationRow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+tooltip_text = "Reset to default"
+focus_mode = 0
+theme_override_constants/icon_max_width = 12
+expand_icon = true
+
 [node name="LayerTransparentRow" type="HBoxContainer" parent="MarginContainer/MainVBox/BodyScroll/BodyHSplit/CenterRightSplit/RightPanel/RightVBox/PropsScroll/PropsContent/LayerProps" unique_id=262981490]
 layout_mode = 2
 
