@@ -43,7 +43,7 @@ public static class Version
     /// </summary>
     /// <value>The prerelease label. Stamped by <c>tools/export-all.py</c> from the release version.</value>
     /// <remarks>Declared before the version strings below, which read it during static initialization.</remarks>
-    public static readonly string Prerelease = "rc.1";
+    public static readonly string Prerelease = "rc.2";
  
     /// <summary> 
     /// Gets the version status. Empty for a public release. 

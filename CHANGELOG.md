@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.2.0-rc.2] - 2026-11-26
+
+Second 0.2 release candidate (Heaviside).
+
 ### Fixed
 - Typing in a LineEdit no longer also fires show shortcuts that collide with text editing (Copy, Paste, Cut, Select All, Duplicate, Undo, Redo).
 - Media files FFmpeg cannot open (over-long names or paths, or names with %, #, ?) log an error and are not kept on the cue. Inspectors restore the previous path. Drops remove the unreadable media, and remove the new cue when it has nothing else. Local files are opened as a `file:` URL so those characters in a name stay literal.
@@ -20,6 +24,7 @@
 - Folder drops are read off the main thread and big imports no longer freeze the UI
 - Group cues update their length when their children's media has been read
 - No display-count warnings when SDL video is not available
+- Translation catalog refreshed for rc.2 (startup hardware, folder drops, GO-gate, inspector, and remaining tooltips)
 
 ## [0.2.0-rc.1] - 2026-10-26
 
