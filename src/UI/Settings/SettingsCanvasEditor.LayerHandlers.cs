@@ -207,6 +207,8 @@ public partial class SettingsCanvasEditor
     {
         if (_isUpdatingProps || _selectionKind != SelectionKind.Layer)
             return;
+        if (_historyManager?.IsRestoring == true)
+            return;
 
         var layer = DisplaysManager.GetLayerById(_selectedLayerId);
         if (layer == null)
@@ -224,14 +226,14 @@ public partial class SettingsCanvasEditor
         _activeRotationCoalesceKey = key;
         RecordDisplaysHistory("Change layer rotation", key);
 
-        _displaysManager.UpdateLayerRotation(_selectedLayerId, rotation);
+        _displaysManager.ApplyLayerRotationLive(_selectedLayerId, rotation);
         LoadLayerProps();
         UpdateCanvasGizmos();
     }
 
     /// <summary>
     /// Seals the rotation spinner's coalesce session when the field loses focus so the
-    /// next edit becomes a new undo step.
+    /// next edit becomes a new undo step, and logs the committed angle once.
     /// </summary>
     private void OnLayerRotationFocusExited()
     {
@@ -239,6 +241,8 @@ public partial class SettingsCanvasEditor
             return;
         _historyManager?.EndCoalesceSession(_activeRotationCoalesceKey);
         _activeRotationCoalesceKey = null;
+        if (_selectionKind == SelectionKind.Layer && _layerRotationSpinBox != null)
+            _displaysManager.UpdateLayerRotation(_selectedLayerId, (float)_layerRotationSpinBox.Value);
     }
 
     private void OnLayerKeepAspectToggled(bool toggled)

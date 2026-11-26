@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Samuel Moxham
+// SPDX-License-Identifier: MIT
+
 using System;
 using Cue2.Domain.Devices;
 using GdUnit4;
@@ -75,5 +78,24 @@ public class VideoTargetLayerTests
 
         AssertThat(data.ContainsKey("Rotation")).IsTrue();
         AssertThat(data["Rotation"].AsSingle()).IsEqual(0f);
+    }
+
+    /// <summary>Angles outside [-360, 360) are wrapped on load so showfiles stay in range.</summary>
+    [TestCase]
+    public void LoadedRotationIsNormalized()
+    {
+        var data = new Godot.Collections.Dictionary
+        {
+            { "LayerId", 3 },
+            { "LayerName", "Wrap" },
+            { "Rotation", 370f }
+        };
+
+        var layer = new VideoTargetLayer();
+        layer.LoadFromData(data);
+
+        AssertThat(Mathf.Abs(layer.Rotation - (-350f)) < 0.0001f)
+            .OverrideFailureMessage($"Rotation was not wrapped: {layer.Rotation}")
+            .IsTrue();
     }
 }

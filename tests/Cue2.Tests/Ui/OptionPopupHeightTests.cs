@@ -39,6 +39,29 @@ public class OptionPopupHeightTests
             Is.EqualTo(152));
     }
 
+    /// <summary>macOS shows Option; Windows and Linux show Alt.</summary>
+    [Test]
+    public void AltModifierLabelIsOptionOnMacOs()
+    {
+        Assert.That(UiUtilities.AltModifierLabel("macOS"), Is.EqualTo("Option"));
+        Assert.That(UiUtilities.AltModifierLabel("Windows"), Is.EqualTo("Alt"));
+        Assert.That(UiUtilities.AltModifierLabel("Linux"), Is.EqualTo("Alt"));
+        Assert.That(UiUtilities.AltModifierLabel(null), Is.EqualTo("Alt"));
+        Assert.That(UiUtilities.AltModifierLabel(""), Is.EqualTo("Alt"));
+    }
+
+    /// <summary>Rotation tooltip is a complete sentence, never a leftover {0} placeholder.</summary>
+    [Test]
+    public void LayerRotationTooltipFillsModifierAndHasNoPlaceholder()
+    {
+        string mac = UiUtilities.LayerRotationTooltipEnglish("macOS");
+        string win = UiUtilities.LayerRotationTooltipEnglish("Windows");
+        Assert.That(mac, Does.Contain("Hold Option and drag"));
+        Assert.That(win, Does.Contain("Hold Alt and drag"));
+        Assert.That(mac, Does.Not.Contain("{0}"));
+        Assert.That(win, Does.Not.Contain("{0}"));
+    }
+
     [Test]
     public void InvalidScaleFallsBackToOne()
     {

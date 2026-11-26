@@ -241,7 +241,7 @@ public partial class SettingsCanvasEditor
                 Mathf.Max(1f, layer.Size.X * _zoom),
                 Mathf.Max(1f, layer.Size.Y * _zoom));
             // Show the true rotated footprint, same center-pivot rotation as the output host,
-            // so resize handles and Alt+drag hit-tests line up with what the outputs render.
+            // so resize handles and Alt/Option+drag hit-tests line up with what the outputs render.
             gizmo.PivotOffset = gizmo.Size * 0.5f;
             gizmo.Rotation = Mathf.DegToRad(layer.Rotation);
             _canvasLayer.AddChild(gizmo);
@@ -341,6 +341,11 @@ public partial class SettingsCanvasEditor
         {
             _historyManager?.EndCoalesceSession(_activeDragCoalesceKey);
             _activeDragCoalesceKey = null;
+        }
+        if (!string.IsNullOrEmpty(_activeRotationCoalesceKey))
+        {
+            _historyManager?.EndCoalesceSession(_activeRotationCoalesceKey);
+            _activeRotationCoalesceKey = null;
         }
 
         // Canvas instance is stable; size may have changed.

@@ -148,6 +148,8 @@ public partial class AboutWindow : Window
 
 [b][color={Colour}]Developers[/color][/b]
 
+    bigbrain-cmd
+
     Community Contributors: Thanks to all who have helped with testing and feedback
 
 [i]Built with love for the performing arts community.[/i]";

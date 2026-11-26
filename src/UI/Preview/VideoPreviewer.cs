@@ -263,7 +263,7 @@ public partial class VideoPreviewer : Control
             CallDeferred(nameof(RefreshLayout));
     }
 
-    /// <summary>Layer geometry (position/size/rotation) changed,re-read the preview rect.</summary>
+    /// <summary>Layer geometry (position/size/rotation) changed; re-read the preview rect.</summary>
     private void OnLayerGeometryChanged(int layerId)
     {
         if (layerId != _layerId)

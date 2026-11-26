@@ -1363,6 +1363,37 @@ public partial class UiUtilities : Node
     }
 
     /// <summary>
+    /// User-facing name for the Alt modifier on a Godot OS name
+    /// (<c>macOS</c>, <c>Windows</c>, <c>Linux</c>).
+    /// </summary>
+    /// <param name="osName">Value from <see cref="OS.GetName"/>.</param>
+    /// <returns><c>Option</c> on macOS, <c>Alt</c> elsewhere.</returns>
+    public static string AltModifierLabel(string osName)
+    {
+        return osName == "macOS" ? "Option" : "Alt";
+    }
+
+    /// <summary>User-facing name for the Alt modifier on this host.</summary>
+    /// <returns><c>Option</c> on macOS, <c>Alt</c> elsewhere.</returns>
+    public static string AltModifierLabel() => AltModifierLabel(OS.GetName());
+
+    /// <summary>
+    /// English tooltip for the canvas layer rotation field, with Alt or Option already filled in.
+    /// </summary>
+    /// <param name="osName">Value from <see cref="OS.GetName"/>.</param>
+    /// <returns>Complete English tooltip with no format placeholders.</returns>
+    public static string LayerRotationTooltipEnglish(string osName)
+    {
+        return "Rotates the layer output on the canvas (degrees, about the layer center). Hold "
+            + AltModifierLabel(osName)
+            + " and drag on the stage to rotate with the mouse. The layer content mapping is not rotated.";
+    }
+
+    /// <summary>English rotation tooltip for this host.</summary>
+    /// <returns>Complete English tooltip with Alt or Option filled in.</returns>
+    public static string LayerRotationTooltipEnglish() => LayerRotationTooltipEnglish(OS.GetName());
+
+    /// <summary>
     /// Pixel height for a capped OptionButton menu: the smaller of content height, the scaled
     /// max, and the usable screen (with a small margin).
     /// </summary>

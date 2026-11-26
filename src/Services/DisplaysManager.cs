@@ -839,26 +839,44 @@ public partial class DisplaysManager : Node
     }
 
     /// <summary>
-    /// Updates the output rotation of a layer (degrees, clockwise, about the layer center).
-    /// This only rotates where the layer lands on the canvas: the input content mapping
-    /// (expand/stretch) is unchanged.
+    /// Applies layer output rotation without logging (spinner ticks, Alt/Option+drag).
+    /// Emits <see cref="GlobalSignals.LayerGeometryChanged"/> so canvas editors and
+    /// inspector previews follow. Discrete commits use <see cref="UpdateLayerRotation"/>.
+    /// </summary>
+    /// <param name="layerId">The layer ID.</param>
+    /// <param name="rotationDegrees">The new rotation in degrees.</param>
+    public void ApplyLayerRotationLive(int layerId, float rotationDegrees)
+    {
+        var layer = Layers.Find(l => l.LayerId == layerId);
+        if (layer == null)
+            return;
+
+        float wrapped = VideoTargetLayer.NormalizeRotation(rotationDegrees);
+        if (Mathf.IsEqualApprox(layer.Rotation, wrapped))
+            return;
+
+        layer.Rotation = wrapped;
+        UpdateLayerTestPatterns(layerId);
+        UpdateLayerDisplayRectsOnOutputs(layerId);
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.LayerGeometryChanged), layerId);
+    }
+
+    /// <summary>
+    /// Updates the output rotation of a layer (degrees, clockwise, about the layer center)
+    /// and logs the change. This only rotates where the layer lands on the canvas: the
+    /// input content mapping (expand/stretch) is unchanged.
     /// </summary>
     /// <param name="layerId">The layer ID.</param>
     /// <param name="rotationDegrees">The new rotation in degrees.</param>
     public void UpdateLayerRotation(int layerId, float rotationDegrees)
     {
         var layer = Layers.Find(l => l.LayerId == layerId);
-        if (layer != null)
-        {
-            // Keep the stored angle inside [-360, 360) so showfiles stay tidy.
-            layer.Rotation = Mathf.Wrap(rotationDegrees, -360f, 360f);
-            UpdateLayerTestPatterns(layerId);
-            UpdateLayerDisplayRectsOnOutputs(layerId);
-            // Let open canvas editors and inspector previews follow the new rotation.
-            _globalSignals?.EmitSignal(nameof(GlobalSignals.LayerGeometryChanged), layerId);
-            _globalSignals.EmitSignal(nameof(GlobalSignals.Log),
-                $"Updated layer rotation to {Mathf.RoundToInt(layer.Rotation)} degrees.", 0);
-        }
+        if (layer == null)
+            return;
+
+        ApplyLayerRotationLive(layerId, rotationDegrees);
+        _globalSignals?.EmitSignal(nameof(GlobalSignals.Log),
+            $"Updated layer rotation to {Mathf.RoundToInt(layer.Rotation)} degrees.", 0);
     }
 
     /// <summary>

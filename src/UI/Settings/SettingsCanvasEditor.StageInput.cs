@@ -273,7 +273,7 @@ public partial class SettingsCanvasEditor
         Vector2 layerMouse = GetLayerMousePosition();
         Vector2 canvasMouse = GetCanvasMousePosition();
 
-        // Alt+drag on the selected layer rotates its output mapping (Shift snaps to 15°).
+        // Alt/Option+drag on the selected layer rotates its output mapping (Shift snaps to 15°).
         if (_selectionKind == SelectionKind.Layer && Input.IsKeyPressed(Key.Alt))
         {
             var layer = DisplaysManager.GetLayerById(_selectedLayerId);
@@ -493,8 +493,8 @@ public partial class SettingsCanvasEditor
     }
 
     /// <summary>
-    /// Starts an Alt+drag rotate gesture for a layer. Rotation applies live about the layer
-    /// center; a single coalesced undo step is committed when the drag ends.
+    /// Starts an Alt/Option+drag rotate gesture for a layer. Rotation applies live about
+    /// the layer center; a single coalesced undo step is committed when the drag ends.
     /// </summary>
     private void StartRotateDrag(Vector2 canvasMouse, VideoTargetLayer layer)
     {
@@ -551,8 +551,8 @@ public partial class SettingsCanvasEditor
     }
 
     /// <summary>
-    /// Live rotation for an Alt+drag: pointer angle around the layer center relative to
-    /// drag start. Shift snaps the result to 15° increments.
+    /// Live rotation for an Alt/Option+drag: pointer angle around the layer center relative
+    /// to drag start. Shift snaps the result to 15° increments.
     /// </summary>
     private void ApplyLiveRotation(Vector2 canvasMouse)
     {
@@ -566,12 +566,7 @@ public partial class SettingsCanvasEditor
         if (Input.IsKeyPressed(Key.Shift))
             rotation = Mathf.Snapped(rotation, 15f);
 
-        layer.Rotation = Mathf.Wrap(rotation, -360f, 360f);
-
-        // Push rotation to playing video hosts and layer test patterns on every output.
-        foreach (var output in DisplaysManager.Outputs)
-            output.UpdateLayerDisplayRect(_selectedLayerId);
-        _displaysManager.RefreshTestPatternsLive(layerId: _selectedLayerId);
+        _displaysManager.ApplyLayerRotationLive(_selectedLayerId, rotation);
 
         // Keep the properties field in sync while dragging.
         if (_layerProps != null && _layerProps.Visible && _layerRotationSpinBox != null)
@@ -579,7 +574,7 @@ public partial class SettingsCanvasEditor
             _isUpdatingProps = true;
             try
             {
-                _layerRotationSpinBox.Value = layer.Rotation;
+                _layerRotationSpinBox.Value = DisplaysManager.GetLayerById(_selectedLayerId)?.Rotation ?? rotation;
             }
             finally
             {
@@ -597,7 +592,7 @@ public partial class SettingsCanvasEditor
 
         Vector2 canvasMouse = GetCanvasMousePosition();
 
-        // Alt+drag rotate: measure the pointer angle around the layer center live.
+        // Alt/Option+drag rotate: measure the pointer angle around the layer center live.
         if (_dragMode == DragMode.Rotate)
         {
             ApplyLiveRotation(canvasMouse);
@@ -878,7 +873,7 @@ public partial class SettingsCanvasEditor
             if (_selectionKind == SelectionKind.Layer && Input.IsKeyPressed(Key.Alt)
                 && zoomed.HasPoint(localMouse))
             {
-                // Alt over the selected layer offers the rotate gesture.
+                // Alt/Option over the selected layer offers the rotate gesture.
                 shape = CursorShape.Cross;
             }
             else

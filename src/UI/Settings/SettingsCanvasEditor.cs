@@ -207,7 +207,7 @@ public partial class SettingsCanvasEditor : Control
     private Vector2 _dragStartCanvasMouse;
     private Vector2I _dragStartPos;
     private Vector2I _dragStartSize;
-    /// <summary>Layer rotation (degrees) captured at the start of an Alt+drag rotate gesture.</summary>
+    /// <summary>Layer rotation (degrees) captured at the start of an Alt/Option+drag rotate gesture.</summary>
     private float _dragStartRotation;
     /// <summary>Pointer angle around the layer center (radians) captured at rotate-drag start.</summary>
     private float _rotateStartAngle;
@@ -388,11 +388,12 @@ public partial class SettingsCanvasEditor : Control
             CallDeferred(nameof(EnsureStageInitialized));
 
         GD.Print("SettingsCanvasEditor:_Ready - Light init (stage deferred until shown)");
-    
+
         UiLocalizer.LocalizeTree(this);
+        ApplyLayerRotationTooltip();
         if (_globalSignals != null)
             _globalSignals.LocaleChanged += OnLocaleChanged;
-}
+    }
 
     /// <summary>
     /// One-time heavy stage setup (background shader, trees, gizmos). Deferred until visible.
@@ -660,6 +661,18 @@ private void BindNodes()
         _layerPosXLineEdit = GetNode<LineEdit>("%LayerPosXLineEdit");
         _layerPosYLineEdit = GetNode<LineEdit>("%LayerPosYLineEdit");
         _layerRotationSpinBox = GetNode<SpinBox>("%LayerRotationSpinBox");
+        // Filled in code (Alt vs Option). Skip LocalizeTree so a parent walk cannot restore "{0}".
+        if (_layerRotationSpinBox != null)
+        {
+            _layerRotationSpinBox.SetMeta(UiLocalizer.MetaSkip, true);
+            _layerRotationSpinBox.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            var rotationEdit = _layerRotationSpinBox.GetLineEdit();
+            if (rotationEdit != null)
+            {
+                rotationEdit.SetMeta(UiLocalizer.MetaSkip, true);
+                rotationEdit.AutoTranslateMode = Node.AutoTranslateModeEnum.Disabled;
+            }
+        }
         _layerKeepAspectCheckBox = GetNode<CheckBox>("%LayerKeepAspectCheckBox");
         _layerTransparentCheckBox = GetNode<CheckBox>("%LayerTransparentCheckBox");
         _layerTestPatternCheckBox = GetNode<CheckBox>("%LayerTestPatternCheckBox");
@@ -849,7 +862,24 @@ private void BindNodes()
         if (!GodotObject.IsInstanceValid(this))
             return;
         UiLocalizer.LocalizeTree(this);
+        ApplyLayerRotationTooltip();
         RefreshCanvasSelectButtonText();
+    }
+
+    /// <summary>
+    /// Fills the rotation-field tooltip with the host modifier name (Option on macOS, Alt elsewhere).
+    /// The spinbox is MetaSkip'd so SettingsWindow <see cref="UiLocalizer.LocalizeTree"/> cannot
+    /// restore an unformatted template.
+    /// </summary>
+    private void ApplyLayerRotationTooltip()
+    {
+        if (_layerRotationSpinBox == null || !IsInstanceValid(_layerRotationSpinBox))
+            return;
+        string tip = UiLocalizer.T(UiUtilities.LayerRotationTooltipEnglish());
+        _layerRotationSpinBox.TooltipText = tip;
+        var rotationEdit = _layerRotationSpinBox.GetLineEdit();
+        if (rotationEdit != null && IsInstanceValid(rotationEdit))
+            rotationEdit.TooltipText = tip;
     }
 
     /// <summary>

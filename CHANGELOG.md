@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- Target layers can be rotated on the video canvas. The Canvas Editor layer properties have a Rotation field (−360…360°), and Alt+drag on the selected layer rotates it about its center (Shift snaps to 15°). Rotation is saved with the show and included in undo. It only rotates the layer's output mapping on the canvas — the content mapping (expand / stretch into the layer) is unchanged, and layer test patterns rotate with the layer. This is to allow for having screens that are rotated in the output. Some screen maps require this.
+- Target layers can be rotated on the video canvas. The Canvas Editor layer properties have a Rotation field (−360…360°), and Alt+drag (Option+drag on macOS) on the selected layer rotates it about its center (Shift snaps to 15°). Rotation is saved with the show and included in undo. It only rotates the layer's output mapping on the canvas — the content mapping (expand / stretch into the layer) is unchanged, and layer test patterns rotate with the layer. This is to allow for having screens that are rotated in the output. Some screen maps require this.
 
 ## [0.2.0-rc.2] - 2026-11-26
 

@@ -6,6 +6,11 @@ using System;
 
 namespace Cue2.Domain.Devices;
 
+/// <summary>
+/// A named rectangle on the video canvas that video and text cues can target.
+/// Geometry (position, size, rotation) is an output mapping: content is laid out
+/// into the unrotated layer, then the layer is placed and rotated on the canvas.
+/// </summary>
 public class VideoTargetLayer
 {
     private static int _nextLayerId = 0;
@@ -66,11 +71,27 @@ public class VideoTargetLayer
     /// </summary>
     public bool Locked { get; set; } = false;
 
+    /// <summary>
+    /// Wraps a canvas-layer rotation into the editor range <c>[-360, 360)</c>.
+    /// </summary>
+    /// <param name="degrees">Clockwise rotation in degrees.</param>
+    /// <returns>Equivalent angle inside <c>[-360, 360)</c>.</returns>
+    public static float NormalizeRotation(float degrees)
+    {
+        return Mathf.Wrap(degrees, -360f, 360f);
+    }
+
+    /// <summary>Allocates the next layer id and constructs an unrotated default-size layer.</summary>
     public VideoTargetLayer()
     {
         LayerId = _nextLayerId++;
     }
 
+    /// <summary>
+    /// Allocates the next layer id and constructs a named layer.
+    /// </summary>
+    /// <param name="name">Display name.</param>
+    /// <param name="zIndex">Draw-stack index (higher renders on top).</param>
     public VideoTargetLayer(string name, int zIndex) : this()
     {
         LayerName = name;
@@ -139,7 +160,9 @@ public class VideoTargetLayer
         // Older showfiles have no Rotation: default to 0 (unrotated) so they load unchanged.
         // Variant.AsSingle (not Convert.ToSingle): Godot Variant does not implement
         // IConvertible, so Convert throws and would break undo/show loads.
-        Rotation = data.ContainsKey("Rotation") ? data["Rotation"].AsSingle() : 0f;
+        Rotation = data.ContainsKey("Rotation")
+            ? NormalizeRotation(data["Rotation"].AsSingle())
+            : 0f;
         KeepAspect = data.ContainsKey("KeepAspect") && (bool)data["KeepAspect"];
         TestPatternEnabled = data.ContainsKey("TestPatternEnabled") && (bool)data["TestPatternEnabled"];
         Locked = data.ContainsKey("Locked") && (bool)data["Locked"];
