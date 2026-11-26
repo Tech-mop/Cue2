@@ -276,7 +276,10 @@ public partial class VideoInspector : Control
 			_globalSignals.ThemeColorsChanged += OnThemeColorsChanged;
 		}
 
-		SetProcess(true);
+		VisibilityChanged += OnPlayheadProcessVisibilityChanged;
+		if (_timelineAccordian != null)
+			_timelineAccordian.VisibilityChanged += OnPlayheadProcessVisibilityChanged;
+		UpdatePlayheadProcess();
 
 		if (_globalData != null && _globalData.FocusedCue >= 0)
 			ShellSelected(_globalData.FocusedCue);
@@ -289,6 +292,21 @@ public partial class VideoInspector : Control
 	{
 		_inspectorTimeline?.TickPlayhead();
 	}
+
+	/// <summary>
+	/// Per-frame playhead follow only while this inspector and its timeline accordion are shown.
+	/// </summary>
+	private void UpdatePlayheadProcess()
+	{
+		bool need = IsVisibleInTree()
+		            && _timelineAccordian != null
+		            && _timelineAccordian.Visible;
+		SetProcess(need);
+		if (need)
+			_inspectorTimeline?.TickPlayhead();
+	}
+
+	private void OnPlayheadProcessVisibilityChanged() => UpdatePlayheadProcess();
 
 	/// <inheritdoc />
 	public override void _ExitTree()
@@ -323,6 +341,10 @@ public partial class VideoInspector : Control
 			_globalSignals.DisplaysChanged -= OnDisplaysChangedForTargetLayers;
 			_globalSignals.AudioPatchesChanged -= OnAudioPatchesChanged;
 		}
+
+		VisibilityChanged -= OnPlayheadProcessVisibilityChanged;
+		if (_timelineAccordian != null)
+			_timelineAccordian.VisibilityChanged -= OnPlayheadProcessVisibilityChanged;
 
 		if (_waveformZoom != null)
 			_waveformZoom.ViewChanged -= OnWaveformViewChanged;

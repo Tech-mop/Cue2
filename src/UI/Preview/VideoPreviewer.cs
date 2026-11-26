@@ -35,6 +35,8 @@ public partial class VideoPreviewer : Control
     private VideoSourceDecoder _decoder;
     private bool _isExiting;
     private bool _isPlaying;
+    /// <summary>True while this preview is counted in <see cref="IdleRenderPolicy"/>.</summary>
+    private bool _presentToken;
     private bool _updatingFromDecoder;
     private readonly Stopwatch _clock = new Stopwatch();
     private long _mediaOriginUs;
@@ -105,7 +107,7 @@ public partial class VideoPreviewer : Control
         _godotTexture = ImageTexture.CreateFromImage(_godotImage);
         _previewTextRect.Texture = _godotTexture;
 
-        SetProcess(false);
+        SetPresentLoop(false);
     }
 
     /// <summary>Bumped by every load and clear; a deferred load runs only if it is still current.</summary>
@@ -329,6 +331,17 @@ public partial class VideoPreviewer : Control
             return;
         float barWidth = Mathf.Max(0f, scaledCanvasWidth - 93f);
         _seekProgressBar.CustomMinimumSize = new Vector2(barWidth, _seekProgressBar.CustomMinimumSize.Y);
+    }
+
+    /// <summary>
+    /// Enables or disables the preview present loop and keeps idle-render policy in sync.
+    /// </summary>
+    /// <param name="on">True while the preview should present each idle tick.</param>
+    private void SetPresentLoop(bool on)
+    {
+        SetProcess(on);
+        if (IdleRenderPolicy.SetPresenting(ref _presentToken, on))
+            IdleRenderEngine.Sync();
     }
 
     public override void _Process(double delta)
@@ -632,14 +645,14 @@ public partial class VideoPreviewer : Control
         {
             _isPlaying = false;
             _clock.Stop();
-            SetProcess(false);
+            SetPresentLoop(false);
             _playPauseButton.Icon = GetThemeIcon("Play", "AtlasIcons");
         }
         else
         {
             _isPlaying = true;
             _clock.Start();
-            SetProcess(true);
+            SetPresentLoop(true);
             _playPauseButton.Icon = GetThemeIcon("Pause", "AtlasIcons");
         }
     }
@@ -697,7 +710,7 @@ public partial class VideoPreviewer : Control
     public void ClearDecoder()
     {
         _loadGeneration++;
-        SetProcess(false);
+        SetPresentLoop(false);
         _isPlaying = false;
         _clock.Reset();
         try { _seekCts?.Cancel(); } catch { /* ignore */ }

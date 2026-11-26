@@ -57,6 +57,8 @@ public partial class ActiveTextPlayback : Node
     private float _fadeAlpha = 1f;
     private bool _isPlaying;
     private bool _isExiting;
+    /// <summary>True while this instance is counted in <see cref="IdleRenderPolicy"/>.</summary>
+    private bool _presentToken;
     private bool _completedEmitted;
     private bool _isFadingOut;
     private bool _isFadingIn;
@@ -197,10 +199,21 @@ public partial class ActiveTextPlayback : Node
         // Stay invisible until PlayAsync / FadeInAsync (content is applied at Init).
         _fadeAlpha = 0f;
         RefreshVisualProperties();
-        SetProcess(false);
+        SetPresentLoop(false);
 
         GD.Print(
             $"ActiveTextPlayback:Init - hosts={_layerHosts.Count} layer={_textComponent.TargetLayerId}");
+    }
+
+    /// <summary>
+    /// Enables or disables the present loop and keeps idle-render policy in sync.
+    /// </summary>
+    /// <param name="on">True while text should update each idle tick.</param>
+    private void SetPresentLoop(bool on)
+    {
+        SetProcess(on);
+        if (IdleRenderPolicy.SetPresenting(ref _presentToken, on))
+            IdleRenderEngine.Sync();
     }
 
     /// <inheritdoc />
@@ -284,7 +297,7 @@ public partial class ActiveTextPlayback : Node
         IsPaused = false;
         _elapsedAtPause = 0;
         _wallClock.Restart();
-        SetProcess(true);
+        SetPresentLoop(true);
         ApplyOpacityModulate();
         GD.Print($"ActiveTextPlayback:PlayAsync - duration={_holdDurationSec}");
     }
@@ -535,7 +548,7 @@ public partial class ActiveTextPlayback : Node
         IsPaused = false;
         _isFadingIn = false;
         _isFadingOut = false;
-        SetProcess(false);
+        SetPresentLoop(false);
         _wallClock.Stop();
         CancelFadeToken();
 
@@ -573,7 +586,7 @@ public partial class ActiveTextPlayback : Node
         if (!_isPlaying)
         {
             _isPlaying = true;
-            SetProcess(true);
+            SetPresentLoop(true);
         }
 
         // Unpause hold clock visual only — do not resume duration for complete-from-end during fade.
@@ -635,7 +648,7 @@ public partial class ActiveTextPlayback : Node
         _isPlaying = false;
         _isFadingIn = false;
         _isFadingOut = false;
-        SetProcess(false);
+        SetPresentLoop(false);
         _wallClock.Stop();
         Clean();
     }

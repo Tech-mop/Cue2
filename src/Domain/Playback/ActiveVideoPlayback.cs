@@ -281,6 +281,8 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     private int _currentPlayCount = 1;
     private long _pausedAtUs;
     private bool _isExiting;
+    /// <summary>True while this instance is counted in <see cref="IdleRenderPolicy"/>.</summary>
+    private bool _presentToken;
     private bool _completedEmitted;
     /// <summary>True after HandleSegmentEnd has deferred CompleteFromEnd (prevents re-entry).</summary>
     private bool _segmentEndScheduled;
@@ -574,7 +576,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
             }
             double texturesMs = DecoderOpenTimes.Since(stageStart);
 
-            SetProcess(false); // enabled on Play
+            SetPresentLoop(false); // enabled on Play
             GD.Print($"ActiveVideoPlayback:InitAsync - complete video={w}x{h} audio={_audioDecoder != null}");
             string soundPart = _audioDecoder != null
                 ? $", sound open {soundOpenMs:F0} ({_audioDecoder.LastOpenTimes}) then prefetch {soundPrefetchMs:F0}"
@@ -602,6 +604,17 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
     public override void _Process(double delta)
     {
         PresentCatchUpFrames();
+    }
+
+    /// <summary>
+    /// Enables or disables the present loop and keeps idle-render policy in sync.
+    /// </summary>
+    /// <param name="on">True while frames should present each idle tick.</param>
+    private void SetPresentLoop(bool on)
+    {
+        SetProcess(on);
+        if (IdleRenderPolicy.SetPresenting(ref _presentToken, on))
+            IdleRenderEngine.Sync();
     }
 
     private void PresentFrame(VideoFrame frame)
@@ -1529,7 +1542,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
 
         _startTrace.Arm();
         ResetPresentClock();
-        SetProcess(true);
+        SetPresentLoop(true);
         StartVideoPrefetchLoop();
         // Only drive audio when streams were bound; otherwise wall-clock masters silent video.
         if (_audioDecoder != null && HasBoundAudioStreams)
@@ -2233,7 +2246,7 @@ public partial class ActiveVideoPlayback : Node, IAudioPlayback, IComponentLevel
         _isExiting = true;
         IsStopped = true;
         _isPlaying = false;
-        SetProcess(false);
+        SetPresentLoop(false);
         var seekWorker = _seekTask;
         CancelSeekWorker();
         var prefetchWorker = StopVideoPrefetchLoop();

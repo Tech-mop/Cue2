@@ -82,7 +82,7 @@ public partial class ActiveVideoPlayback
             IsPaused = false;
             _isPlaying = false;
         }
-        SetProcess(false);
+        SetPresentLoop(false);
         CancelSeekWorker();
         StopVideoPrefetchLoop(); // non-blocking; Clean picks up the still-running workers
         StopAudioFillLoop();
@@ -337,7 +337,7 @@ public partial class ActiveVideoPlayback
             _holdingLastFrame = false;
         }
 
-        SetProcess(false);
+        SetPresentLoop(false);
         var seekWorker = _seekTask;
         CancelSeekWorker();
         // Non-blocking stop: cancel, never Task.Wait on main.

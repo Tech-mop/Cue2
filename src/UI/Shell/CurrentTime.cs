@@ -3,28 +3,31 @@
 
 using Godot;
 using System;
+using System.Globalization;
 
+/// <summary>
+/// Footer wall-clock. Updates once per second so idle skip-draw is not forced at 100 Hz.
+/// </summary>
 public partial class CurrentTime : Label
 {
-	private String _time;
-	// Hundredths value currently shown, so the label is only re-set when its text changes.
-	private long _shownCentiseconds = -1;
+	/// <summary>Second currently shown (ticks / second), or -1 before the first paint.</summary>
+	private int _shownSecond = -1;
 
-	// Called when the node enters the scene tree for the first time.
-	public override void _Ready()
-	{
+	/// <summary>
+	/// Formats local wall time for the footer clock (hours, minutes, seconds, AM/PM).
+	/// </summary>
+	/// <param name="now">Local time to display.</param>
+	/// <returns>Display string such as <c>02:15:09 PM</c>.</returns>
+	public static string FormatClock(DateTime now) => now.ToString("hh:mm:ss tt", CultureInfo.InvariantCulture);
 
-
-	}
-
-	// Called every frame. 'delta' is the elapsed time since the previous frame.
+	/// <inheritdoc />
 	public override void _Process(double delta)
 	{
 		DateTime now = DateTime.Now;
-		long centiseconds = now.Ticks / (TimeSpan.TicksPerMillisecond * 10);
-		if (centiseconds == _shownCentiseconds)
+		int second = (int)(now.Ticks / TimeSpan.TicksPerSecond);
+		if (second == _shownSecond)
 			return;
-		_shownCentiseconds = centiseconds;
-		Text = now.ToString("hh:mm:ss:ff tt");
+		_shownSecond = second;
+		Text = FormatClock(now);
 	}
 }

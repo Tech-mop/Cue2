@@ -18,6 +18,8 @@ config/name="Cue2"
 config/version="0.2.0"
 run/main_scene="res://src/App/Cue2Base.tscn"
 run/print_header=false
+run/low_processor_mode=true
+run/low_processor_mode_sleep_usec=6900
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Techmop/Cue2"
 config/features=PackedStringArray("4.7", "C#")
@@ -237,6 +239,10 @@ Redo={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"command_or_control_autoremap":true,"alt_pressed":false,"shift_pressed":true,"pressed":false,"keycode":90,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
 ]
 }
+
+[physics]
+
+common/physics_ticks_per_second=1
 
 [internationalization]
 

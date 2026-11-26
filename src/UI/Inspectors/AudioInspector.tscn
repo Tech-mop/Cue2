@@ -103,7 +103,7 @@ layout_mode = 2
 focus_mode = 0
 text = "Select File"
 
-[node name="FileUrlColumn" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer"]
+[node name="FileUrlColumn" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer" unique_id=346653546]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
@@ -114,59 +114,59 @@ layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "URL (Can drag and drop files here)"
 
-[node name="FileMetadataLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer/FileUrlColumn"]
+[node name="FileMetadataLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer/FileUrlColumn" unique_id=1711657532]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 
-[node name="DeleteAudioComponentButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer"]
+[node name="DeleteAudioComponentButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/SelectFileContainer" unique_id=95058601]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+tooltip_text = "Remove the audio component from this cue."
 focus_mode = 0
 theme_override_colors/font_color = Color(1, 0.502, 0.435, 1)
 theme_override_constants/icon_max_width = 14
 text = "Delete"
-tooltip_text = "Remove the audio component from this cue."
 expand_icon = true
 
-[node name="AudioInputRow" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer"]
+[node name="AudioInputRow" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer" unique_id=1033729165]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
 
-[node name="AudioInputLine" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow"]
+[node name="AudioInputLine" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow" unique_id=1948982569]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="AudioInputLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine"]
+[node name="AudioInputLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine" unique_id=975582428]
 custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 text = "Audio Input:"
 vertical_alignment = 1
 
-[node name="AudioInputOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine"]
+[node name="AudioInputOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine" unique_id=433330412]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
 size_flags_horizontal = 0
 
-[node name="AudioInputSettingsButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine"]
+[node name="AudioInputSettingsButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine" unique_id=862763116]
 unique_name_in_owner = true
 layout_mode = 2
+tooltip_text = "Open Audio Input settings"
 focus_mode = 0
 text = "Setup Audio Inputs"
-tooltip_text = "Open Audio Input settings"
 
-[node name="AudioInputSpacer" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine"]
+[node name="AudioInputSpacer" type="Control" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow/AudioInputLine" unique_id=925557094]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="AudioInputHint" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow"]
+[node name="AudioInputHint" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/AudioInputRow" unique_id=284469698]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 0)
 layout_mode = 2
@@ -246,26 +246,23 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 
-[node name="PanLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4"]
+[node name="PanLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=449050236]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Stereo pan (balance) before routing matrix. Stereo files only."
 mouse_filter = 1
 text = "Pan:"
 
-[node name="PanSlider" type="HSlider" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4"]
+[node name="PanSlider" type="HSlider" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=196626139]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 size_flags_vertical = 4
 tooltip_text = "Stereo pan: L ← C → R. Applied before the routing matrix."
 min_value = -100.0
-max_value = 100.0
-step = 1.0
-value = 0.0
 scrollable = false
 
-[node name="PanInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4"]
+[node name="PanInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer4" unique_id=1501952216]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(56, 0)
 layout_mode = 2
@@ -296,17 +293,17 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "The number of times the audio loops then stops."
 
-[node name="RateRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
+[node name="RateRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1922151610]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="RateLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+[node name="RateLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow" unique_id=1502018164]
 layout_mode = 2
 tooltip_text = "Playback speed. 1 is original, 0.5 is half speed, 2 is double speed."
 mouse_filter = 1
 text = "Rate:"
 
-[node name="RateInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+[node name="RateInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow" unique_id=2132234171]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
@@ -314,7 +311,7 @@ tooltip_text = "Playback speed. 1 is original, 0.5 is half speed, 2 is double sp
 text = "1"
 alignment = 1
 
-[node name="KeepPitchCheck" type="CheckBox" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+[node name="KeepPitchCheck" type="CheckBox" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow" unique_id=1536810041]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Hold musical pitch when rate changes. Rate still shortens or lengthens the cue."
@@ -322,13 +319,13 @@ focus_mode = 0
 button_pressed = true
 text = "Keep Pitch"
 
-[node name="PitchLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+[node name="PitchLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow" unique_id=728382012]
 layout_mode = 2
 tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone."
 mouse_filter = 1
 text = "Pitch:"
 
-[node name="PitchInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+[node name="PitchInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow" unique_id=355719511]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
@@ -336,22 +333,22 @@ tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone. Independent of rat
 text = "0"
 alignment = 1
 
-[node name="PitchCentsLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow"]
+[node name="PitchCentsLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RateRow" unique_id=552214625]
 layout_mode = 2
 tooltip_text = "Pitch shift in cents. 100 cents = 1 semitone."
 mouse_filter = 1
 text = "¢"
 
-[node name="FadeRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent"]
+[node name="FadeRow" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1644295459]
 layout_mode = 2
 
-[node name="FadeInLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+[node name="FadeInLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow" unique_id=1479702498]
 layout_mode = 2
 tooltip_text = "Fade-in duration at play start (0 = immediate)."
 mouse_filter = 1
 text = "Fade in:"
 
-[node name="FadeInInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+[node name="FadeInInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow" unique_id=1458911237]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
@@ -359,20 +356,20 @@ tooltip_text = "Fade-in duration at play start (0 = immediate)."
 text = "0:00.000"
 alignment = 1
 
-[node name="FadeInCurveOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+[node name="FadeInCurveOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow" unique_id=1355335852]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(108, 0)
 layout_mode = 2
-focus_mode = 0
 tooltip_text = "Fade-in curve"
+focus_mode = 0
 
-[node name="FadeOutLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+[node name="FadeOutLabel" type="Label" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow" unique_id=260873582]
 layout_mode = 2
 tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
 mouse_filter = 1
 text = "Fade out:"
 
-[node name="FadeOutInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+[node name="FadeOutInput" type="LineEdit" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow" unique_id=588262545]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
@@ -380,12 +377,12 @@ tooltip_text = "Fade-out duration on stop (0 = immediate / session stop fade)."
 text = "0:00.000"
 alignment = 1
 
-[node name="FadeOutCurveOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow"]
+[node name="FadeOutCurveOption" type="OptionButton" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/FadeRow" unique_id=1296770968]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(108, 0)
 layout_mode = 2
-focus_mode = 0
 tooltip_text = "Fade-out curve"
+focus_mode = 0
 
 [node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1603489166]
 layout_mode = 2
@@ -405,12 +402,12 @@ popup/item_0/text = "No output selected"
 popup/item_0/id = 0
 popup/item_0/disabled = true
 
-[node name="AudioPatchSettingsButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5"]
+[node name="AudioPatchSettingsButton" type="Button" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/HBoxContainer5" unique_id=1689229752]
 unique_name_in_owner = true
 layout_mode = 2
+tooltip_text = "Open Audio Output Patch settings"
 focus_mode = 0
 text = "Setup Audio Patches"
-tooltip_text = "Open Audio Output Patch settings"
 
 [node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=210010495]
 layout_mode = 2
@@ -445,7 +442,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="RoutingScroll" type="ScrollContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RoutingAccordian"]
+[node name="RoutingScroll" type="ScrollContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/RoutingAccordian" unique_id=631646677]
 layout_mode = 2
 size_flags_horizontal = 3
 vertical_scroll_mode = 0
@@ -489,7 +486,6 @@ theme_type_variation = &"HSepLight"
 [node name="TimelineAccordian" type="VBoxContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent" unique_id=1521957115]
 unique_name_in_owner = true
 clip_contents = true
-custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian" unique_id=402062261]
@@ -499,8 +495,8 @@ theme_override_constants/margin_right = 20
 
 [node name="WaveformPanel" type="PanelContainer" parent="MarginContainer/ShellScroll/VBoxContainer/InspectorContent/TimelineAccordian/MarginContainer" unique_id=951717597]
 unique_name_in_owner = true
-clip_contents = true
 custom_minimum_size = Vector2(0, 120)
+clip_contents = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxEmpty_wave")

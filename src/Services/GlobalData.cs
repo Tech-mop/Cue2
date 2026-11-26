@@ -468,6 +468,10 @@ public partial class GlobalData : Node
 		// Earliest C# we own — process clock for last-show "time to GO" including boot.
 		SessionLoadTimer.Touch();
 
+		var root = GetTree()?.Root;
+		if (root != null)
+			root.Disable3D = true;
+
 		string cliShow = ShowfileLaunchArgs.GetShowfileFromCommandLine();
 		if (!SingleInstanceGuard.TryClaimExclusive(cliShow))
 		{

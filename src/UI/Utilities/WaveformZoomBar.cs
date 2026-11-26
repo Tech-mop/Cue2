@@ -60,6 +60,7 @@ public partial class WaveformZoomBar : VBoxContainer
     private HScrollBar _scroll;
     private Button _playPauseButton;
     private Label _playheadTimeLabel;
+    private string _playheadTimeText;
     private Button _fitButton;
     private Button _zoomOutButton;
     private Button _zoomInButton;
@@ -270,7 +271,11 @@ public partial class WaveformZoomBar : VBoxContainer
     public void SetPlayheadSeconds(double seconds)
     {
         if (_playheadTimeLabel == null) return;
-        _playheadTimeLabel.Text = UiUtilities.FormatTime(Math.Max(0, seconds));
+        string text = UiUtilities.FormatTime(Math.Max(0, seconds));
+        if (text == _playheadTimeText)
+            return;
+        _playheadTimeText = text;
+        _playheadTimeLabel.Text = text;
     }
 
     /// <summary>
