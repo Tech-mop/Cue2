@@ -60,6 +60,11 @@ public partial class VideoPreviewer : Control
     private Control _layerHost;
     private TextureRect _previewTextRect;
 
+    /// <summary>Stored so we can disconnect from the process-lifetime autoload on exit.</summary>
+    private Callable _layerGeometryChangedCallable;
+    /// <summary>Stored so we can disconnect from the process-lifetime autoload on exit.</summary>
+    private Callable _displaysChangedCallable;
+
     private int _layerId = -1;
     private bool _areasDirty = true;
     private float _previewScale = 1f;
@@ -80,6 +85,12 @@ public partial class VideoPreviewer : Control
         _globalData = GetNode<GlobalData>("/root/GlobalData");
         _mediaEngine = GetNode<MediaEngine>("/root/MediaEngine");
         _globalSignals = GetNode<GlobalSignals>("/root/GlobalSignals");
+
+        // Follow live layer geometry/rotation changes (canvas editor, control cues, undo).
+        _layerGeometryChangedCallable = Callable.From<int>(OnLayerGeometryChanged);
+        _displaysChangedCallable = Callable.From(OnDisplaysModelChanged);
+        _globalSignals.Connect(nameof(GlobalSignals.LayerGeometryChanged), _layerGeometryChangedCallable);
+        _globalSignals.Connect(nameof(GlobalSignals.DisplaysChanged), _displaysChangedCallable);
 
         _currentTimeLabel = GetNode<Label>("%CurrentTimeLabel");
         _playPauseButton = GetNode<Button>("%PlayPauseButton");
@@ -252,6 +263,24 @@ public partial class VideoPreviewer : Control
             CallDeferred(nameof(RefreshLayout));
     }
 
+    /// <summary>Layer geometry (position/size/rotation) changed,re-read the preview rect.</summary>
+    private void OnLayerGeometryChanged(int layerId)
+    {
+        if (layerId != _layerId)
+            return;
+        _areasDirty = true;
+        if (IsVisibleInTree())
+            CallDeferred(nameof(RefreshLayout));
+    }
+
+    /// <summary>Screens/layers were rebuilt (undo, show load, rename), re-read the preview rect.</summary>
+    private void OnDisplaysModelChanged()
+    {
+        _areasDirty = true;
+        if (IsVisibleInTree())
+            CallDeferred(nameof(RefreshLayout));
+    }
+
     /// <summary>
     /// Fits the scaled canvas and layer host into the view, then re-applies expand/stretch.
     /// </summary>
@@ -305,6 +334,10 @@ public partial class VideoPreviewer : Control
         // LayerHost is a child of CanvasArea, so position is canvas-local (layer * scale).
         _layerHost.Position = new Vector2(layer.CanvasPosition.X, layer.CanvasPosition.Y) * scale;
         _layerHost.Size = new Vector2(layer.Size.X, layer.Size.Y) * scale;
+        // Mirror the layer's canvas output rotation (same center pivot as the output host)
+        // so the inspector preview matches what the screens render.
+        _layerHost.PivotOffset = _layerHost.Size * 0.5f;
+        _layerHost.Rotation = Mathf.DegToRad(layer.Rotation);
 
         // Ask this preview decoder for the next frames at canvas size. Playhead stays here.
         SyncPreviewOutputSize();
@@ -764,6 +797,13 @@ public partial class VideoPreviewer : Control
     {
         if (_viewArea != null && IsInstanceValid(_viewArea))
             _viewArea.Resized -= OnViewResized;
+        if (_globalSignals != null && IsInstanceValid(_globalSignals))
+        {
+            if (_globalSignals.IsConnected(nameof(GlobalSignals.LayerGeometryChanged), _layerGeometryChangedCallable))
+                _globalSignals.Disconnect(nameof(GlobalSignals.LayerGeometryChanged), _layerGeometryChangedCallable);
+            if (_globalSignals.IsConnected(nameof(GlobalSignals.DisplaysChanged), _displaysChangedCallable))
+                _globalSignals.Disconnect(nameof(GlobalSignals.DisplaysChanged), _displaysChangedCallable);
+        }
         ShutdownPreview();
         base._ExitTree();
     }

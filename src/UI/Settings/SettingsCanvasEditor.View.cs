@@ -240,6 +240,10 @@ public partial class SettingsCanvasEditor
             gizmo.Size = new Vector2(
                 Mathf.Max(1f, layer.Size.X * _zoom),
                 Mathf.Max(1f, layer.Size.Y * _zoom));
+            // Show the true rotated footprint, same center-pivot rotation as the output host,
+            // so resize handles and Alt+drag hit-tests line up with what the outputs render.
+            gizmo.PivotOffset = gizmo.Size * 0.5f;
+            gizmo.Rotation = Mathf.DegToRad(layer.Rotation);
             _canvasLayer.AddChild(gizmo);
             gizmo.QueueRedraw();
             _gizmos.Add(gizmo);
